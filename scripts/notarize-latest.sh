@@ -10,6 +10,8 @@ fi
 xcrun notarytool submit "$TARGET" --keychain-profile WalksManagerWatchNotary --wait
 if [[ "$TARGET" == *.dmg ]]; then
   xcrun stapler staple "$TARGET"
+  spctl -a -t open --context context:primary-signature -vv "$TARGET" || true
+else
+  spctl -a -vv "$TARGET" || true
 fi
-spctl -a -vv "$TARGET" || true
 echo "Notarization complete: $TARGET"
