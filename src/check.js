@@ -27,7 +27,15 @@ async function notifyMac(title, message) {
   status.lastCheckStartedAt = startedAt;
   status.lastError = null;
   writeJson(paths.statusFile, status);
-  if (!fs.existsSync(paths.sessionFile)) throw new Error('No saved login session. Run login.command first.');
+  if (!fs.existsSync(paths.sessionFile)) {
+    const message = 'No saved Walks Manager login session. Open Setup and use Login to Walks Manager.';
+    log(message);
+    status.lastError = message;
+    status.lastCheckCompletedAt = nowUkDateTime();
+    status.lastResult = 'Setup required: Walks Manager login session missing';
+    writeJson(paths.statusFile, status);
+    return;
+  }
   const prev = readJson(paths.stateFile, { walks: [] });
   const browser = await chromium.launch({ headless: true });
   const context = await browser.newContext({ storageState: paths.sessionFile });

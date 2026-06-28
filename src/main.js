@@ -227,6 +227,13 @@ function showSetupWindow() {
 }
 
 async function checkNow(force = false) {
+  if (!setupState().complete && !force) {
+    lastStatus = 'Setup required';
+    buildMenu();
+    showSetupWindow();
+    return;
+  }
+
   lastStatus = 'Checking...';
   buildMenu();
   const res = await runNode(['src/check.js'].concat(force ? ['--force-email'] : []));
@@ -319,6 +326,11 @@ ipcMain.handle('setup:save', (_event, settings) => {
   return setupState();
 });
 ipcMain.handle('setup:login', async () => {
+  dialog.showMessageBox({
+    type: 'info',
+    title: 'Walks Manager Login',
+    message: 'A browser window will open. Sign in to Walks Manager and wait until the review list loads. The app will save the session automatically.'
+  });
   const result = await runNode(['src/login.js'], true);
   return { code: result.code, sessionPresent: fs.existsSync(sessionFile()) };
 });
