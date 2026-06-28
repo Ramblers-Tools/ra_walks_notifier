@@ -39,7 +39,16 @@ function parseRecipients(value) {
     .filter(Boolean);
 }
 
-const recipients = parseRecipients(app.notificationRecipients).concat(parseRecipients(process.env.MAIL_TO || process.env.NOTIFY_TO));
+function resolveRecipients(config = app, env = process.env) {
+  const configured = parseRecipients(config.notificationRecipients);
+  if (configured.length) {
+    return [...new Set(configured)];
+  }
+
+  return [...new Set(parseRecipients(env.MAIL_TO || env.NOTIFY_TO))];
+}
+
+const recipients = resolveRecipients(app);
 
 const smtp = {
   host: process.env.SMTP_HOST,
@@ -62,4 +71,4 @@ function validateEmailConfig() {
   }
 }
 
-module.exports = { paths, app, groups, smtp, validateEmailConfig, parseRecipients };
+module.exports = { paths, app, groups, smtp, validateEmailConfig, parseRecipients, resolveRecipients };

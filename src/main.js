@@ -1,12 +1,13 @@
-const { app, Tray, Menu, shell, dialog, Notification } = require('electron');
+const { app, Tray, Menu, shell, dialog, Notification, BrowserWindow, ipcMain } = require('electron');
 const { spawn } = require('child_process');
 const path = require('path');
 const fs = require('fs');
 const { formatUkDateTime } = require('./time');
-const { smtp } = require('./config');
+const { parseRecipients, resolveRecipients } = require('./config');
 
 let tray;
 let timer;
+let recipientsWindow;
 let lastStatus = 'Starting...';
 const root = path.join(__dirname, '..');
 const reviewUrl = 'https://walks-manager.ramblers.org.uk/walks-manager/list?gid=414&review=1';
@@ -21,6 +22,16 @@ function readJson(file, fallback = {}) {
 
 function appConfig() {
   return readJson(path.join(root, 'config.json'), { checkIntervalMinutes: 5, activeHours: { start: 7, end: 22 } });
+}
+
+function configFile() { return path.join(root, 'config.json'); }
+
+function writeAppConfig(config) {
+  fs.writeFileSync(configFile(), `${JSON.stringify(config, null, 2)}\n`);
+}
+
+function currentRecipients() {
+  return resolveRecipients(appConfig(), process.env);
 }
 
 function groupsConfig() {
@@ -84,7 +95,7 @@ function buildStatusText() {
     `Last check: ${formatUkDateTime(s.lastCheckCompletedAt)}`,
     `Last result: ${s.lastResult || 'None yet'}`,
     `Last email: ${formatUkDateTime(s.lastEmailAt)}`,
-    `Recipients: ${smtp.to.length ? smtp.to.join(', ') : 'None configured'}`,
+    `Recipients: ${currentRecipients().length ? currentRecipients().join(', ') : 'None configured'}`,
     `Last error: ${s.lastError || 'None'}`,
     '',
     `Session: ${fs.existsSync(sessionFile()) ? 'Present' : 'Missing'}`,
@@ -114,6 +125,31 @@ function updateTrayLabel() {
   buildMenu();
 }
 
+function showRecipientsWindow() {
+  if (recipientsWindow) {
+    recipientsWindow.focus();
+    return;
+  }
+
+  recipientsWindow = new BrowserWindow({
+    width: 520,
+    height: 360,
+    title: 'Notification Recipients',
+    resizable: false,
+    minimizable: false,
+    fullscreenable: false,
+    webPreferences: {
+      preload: path.join(__dirname, 'recipientsPreload.js')
+    }
+  });
+
+  recipientsWindow.on('closed', () => {
+    recipientsWindow = null;
+  });
+
+  recipientsWindow.loadFile(path.join(root, 'src', 'recipients.html'));
+}
+
 async function checkNow(force = false) {
   lastStatus = 'Checking...';
   buildMenu();
@@ -134,6 +170,7 @@ function buildMenu() {
     { label: 'Show Status', click: () => showStatus() },
     { label: 'Check Now', click: () => checkNow(false) },
     { label: 'Force Test Email', click: () => checkNow(true) },
+    { label: 'Manage Recipients', click: () => showRecipientsWindow() },
     { label: 'Login to Walks Manager', click: () => runNode(['src/login.js'], true) },
     { label: 'Open Review List', click: () => shell.openExternal(reviewUrl) },
     { type: 'separator' },
@@ -158,6 +195,15 @@ app.whenReady().then(() => {
   tray.setToolTip('Walks Manager Watch');
   buildMenu();
   startScheduler();
+});
+ipcMain.handle('recipients:load', () => currentRecipients());
+ipcMain.handle('recipients:save', (_event, text) => {
+  const recipients = parseRecipients(text);
+  const cfg = appConfig();
+  cfg.notificationRecipients = recipients;
+  writeAppConfig(cfg);
+  buildMenu();
+  return recipients;
 });
 app.on('before-quit', () => { if (timer) clearInterval(timer); });
 app.on('window-all-closed', (e) => e.preventDefault());
