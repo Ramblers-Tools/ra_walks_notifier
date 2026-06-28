@@ -10,6 +10,7 @@ let timer;
 let recipientsWindow;
 let smtpWindow;
 let setupWindow;
+let loginWindow;
 let lastStatus = 'Starting...';
 const root = path.join(__dirname, '..');
 const reviewUrl = 'https://walks-manager.ramblers.org.uk/walks-manager/list?gid=414&review=1';
@@ -233,6 +234,106 @@ function showSetupWindow() {
   setupWindow.loadFile(path.join(root, 'src', 'setup.html'));
 }
 
+function sameSiteForStorageState(value) {
+  if (value === 'strict') return 'Strict';
+  if (value === 'no_restriction') return 'None';
+  return 'Lax';
+}
+
+async function saveElectronLoginSession(window) {
+  const { paths } = require('./config');
+  const { ensureDirs, log } = require('./logger');
+  ensureDirs();
+
+  const cookies = await window.webContents.session.cookies.get({ url: 'https://walks-manager.ramblers.org.uk' });
+  const localStorageItems = await window.webContents.executeJavaScript(`
+    JSON.stringify(Object.fromEntries(Object.keys(localStorage).map(key => [key, localStorage.getItem(key)])))
+  `);
+  const localStorage = Object.entries(JSON.parse(localStorageItems || '{}')).map(([name, value]) => ({ name, value }));
+  const storageState = {
+    cookies: cookies.map(cookie => ({
+      name: cookie.name,
+      value: cookie.value,
+      domain: cookie.domain,
+      path: cookie.path || '/',
+      expires: cookie.expirationDate || -1,
+      httpOnly: Boolean(cookie.httpOnly),
+      secure: Boolean(cookie.secure),
+      sameSite: sameSiteForStorageState(cookie.sameSite)
+    })),
+    origins: [{
+      origin: 'https://walks-manager.ramblers.org.uk',
+      localStorage
+    }]
+  };
+
+  fs.mkdirSync(path.dirname(paths.sessionFile), { recursive: true });
+  fs.writeFileSync(paths.sessionFile, `${JSON.stringify(storageState, null, 2)}\n`);
+  log(`Saved Walks Manager session to ${paths.sessionFile}`);
+}
+
+function isWalksManagerReviewPage(text, url) {
+  return /walks-manager\.ramblers\.org\.uk\/walks-manager\//.test(url)
+    && /Walks Manager|Submitted for checking|Awaiting publishing|Ready to publish/i.test(text || '');
+}
+
+function openWalksManagerLoginWindow() {
+  if (loginWindow) {
+    loginWindow.focus();
+  } else {
+    loginWindow = new BrowserWindow({
+      width: 1180,
+      height: 820,
+      title: 'Walks Manager Login',
+      resizable: true,
+      minimizable: true,
+      fullscreenable: true,
+      webPreferences: {
+        nodeIntegration: false,
+        contextIsolation: true
+      }
+    });
+
+    loginWindow.on('closed', () => {
+      loginWindow = null;
+    });
+
+    loginWindow.loadURL(reviewUrl);
+  }
+
+  return new Promise((resolve) => {
+    const startedAt = Date.now();
+    const timeoutMs = 5 * 60 * 1000;
+    const interval = setInterval(async () => {
+      if (!loginWindow) {
+        clearInterval(interval);
+        resolve({ code: 1, message: 'Login window was closed before the session was saved.' });
+        return;
+      }
+
+      if (Date.now() - startedAt > timeoutMs) {
+        clearInterval(interval);
+        resolve({ code: 1, message: 'Timed out waiting for Walks Manager login.' });
+        return;
+      }
+
+      try {
+        const url = loginWindow.webContents.getURL();
+        const text = await loginWindow.webContents.executeJavaScript('document.body ? document.body.innerText : ""', true);
+        if (!isWalksManagerReviewPage(text, url)) return;
+
+        await saveElectronLoginSession(loginWindow);
+        clearInterval(interval);
+        loginWindow.close();
+        resolve({ code: 0, message: 'Walks Manager login session saved.' });
+      } catch (error) {
+        clearInterval(interval);
+        resolve({ code: 1, message: error.message });
+      }
+    }, 1500);
+  });
+}
+
 async function checkNow(force = false) {
   if (!setupState().complete && !force) {
     lastStatus = 'Setup required';
@@ -264,7 +365,13 @@ function buildMenu() {
     { label: 'Manage Recipients', click: () => showRecipientsWindow() },
     { label: 'SMTP Settings', click: () => showSmtpWindow() },
     { label: 'Send Test Email', click: () => runNode(['src/testEmail.js'], true) },
-    { label: 'Login to Walks Manager', click: () => runNode(['src/login.js'], true) },
+    { label: 'Login to Walks Manager', click: () => openWalksManagerLoginWindow().then(result => {
+      dialog.showMessageBox({
+        type: result.code === 0 ? 'info' : 'error',
+        title: 'Walks Manager Login',
+        message: result.message
+      });
+    }) },
     { label: 'Open Review List', click: () => shell.openExternal(reviewUrl) },
     { type: 'separator' },
     { label: 'Open Settings Folder', click: () => shell.openPath(path.dirname(configFilePath())) },
@@ -333,13 +440,13 @@ ipcMain.handle('setup:save', (_event, settings) => {
   return setupState();
 });
 ipcMain.handle('setup:login', async () => {
-  dialog.showMessageBox({
+  await dialog.showMessageBox({
     type: 'info',
     title: 'Walks Manager Login',
     message: 'A browser window will open. Sign in to Walks Manager and wait until the review list loads. The app will save the session automatically.'
   });
-  const result = await runNode(['src/login.js'], true);
-  return { code: result.code, sessionPresent: fs.existsSync(sessionFile()) };
+  const result = await openWalksManagerLoginWindow();
+  return { code: result.code, message: result.message, sessionPresent: fs.existsSync(sessionFile()) };
 });
 ipcMain.handle('setup:test-email', () => runNode(['src/testEmail.js'], true));
 app.on('before-quit', () => { if (timer) clearInterval(timer); });

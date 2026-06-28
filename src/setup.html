@@ -179,8 +179,11 @@
 
     document.getElementById('login').addEventListener('click', async () => {
       session.textContent = 'Waiting for Walks Manager login...';
-      await window.setup.login();
+      const result = await window.setup.login();
       render(await window.setup.load());
+      if (result && result.message) {
+        session.textContent = result.message;
+      }
     });
 
     document.getElementById('test').addEventListener('click', async () => {
