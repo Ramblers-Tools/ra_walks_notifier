@@ -1,6 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const { paths } = require('./config');
+const { nowUkDateTime } = require('./time');
 
 function ensureDirs() {
   fs.mkdirSync(path.dirname(paths.logFile), { recursive: true });
@@ -9,7 +10,7 @@ function ensureDirs() {
 
 function log(message) {
   ensureDirs();
-  const line = `${new Date().toISOString()} ${message}`;
+  const line = `${nowUkDateTime()} ${message}`;
   console.log(line);
   fs.appendFileSync(paths.logFile, `${line}\n`);
 }

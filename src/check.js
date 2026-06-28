@@ -5,6 +5,7 @@ const { paths, groups, app } = require('./config');
 const { sendEmail } = require('./email');
 const { log, ensureDirs } = require('./logger');
 const { parseWalks } = require('./parser');
+const { nowUkDateTime } = require('./time');
 
 const forceEmail = process.argv.includes('--force-email');
 
@@ -36,7 +37,7 @@ async function notifyMac(title, message) {
 }
 (async () => {
   ensureDirs();
-  const startedAt = new Date().toISOString();
+  const startedAt = nowUkDateTime();
   log('Starting Walks Manager check.');
   let status = readJson(paths.statusFile, {});
   status.lastCheckStartedAt = startedAt;
@@ -73,12 +74,12 @@ async function notifyMac(title, message) {
       await sendEmail(subject, text, html);
       await notifyMac('Walks Manager Watch', `${total} change(s) detected.`);
       log('Email sent.');
-      status.lastEmailAt = new Date().toISOString();
+      status.lastEmailAt = nowUkDateTime();
     } else {
       log('No notification needed.');
     }
-    writeJson(paths.stateFile, { updatedAt: new Date().toISOString(), walks: currentWalks });
-    status.lastCheckCompletedAt = new Date().toISOString();
+    writeJson(paths.stateFile, { updatedAt: nowUkDateTime(), walks: currentWalks });
+    status.lastCheckCompletedAt = nowUkDateTime();
     status.pendingWalks = currentWalks.length;
     status.lastResult = `${currentWalks.length} pending; ${newWalks.length} new; ${changedWalks.length} changed; ${clearedWalks.length} cleared`;
     writeJson(paths.statusFile, status);
@@ -86,7 +87,7 @@ async function notifyMac(title, message) {
     await browser.close().catch(() => {});
     log(`ERROR: ${err.stack || err.message}`);
     status.lastError = err.message;
-    status.lastCheckCompletedAt = new Date().toISOString();
+    status.lastCheckCompletedAt = nowUkDateTime();
     writeJson(paths.statusFile, status);
     try { await sendEmail('Walks Manager Watch failed', err.stack || err.message); } catch (e) { log(`Could not send failure email: ${e.message}`); }
     process.exit(1);

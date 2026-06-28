@@ -2,6 +2,7 @@ const { app, Tray, Menu, shell, dialog, Notification } = require('electron');
 const { spawn } = require('child_process');
 const path = require('path');
 const fs = require('fs');
+const { formatUkDateTime } = require('./time');
 
 let tray;
 let timer;
@@ -73,9 +74,9 @@ function buildStatusText() {
     `Schedule: Every ${cfg.checkIntervalMinutes || 15} minutes`,
     cfg.activeHours ? `Active hours: ${cfg.activeHours.start}:00 to ${cfg.activeHours.end}:00` : null,
     '',
-    `Last check: ${s.lastCheckCompletedAt || 'Never'}`,
+    `Last check: ${formatUkDateTime(s.lastCheckCompletedAt)}`,
     `Last result: ${s.lastResult || 'None yet'}`,
-    `Last email: ${s.lastEmailAt || 'Never'}`,
+    `Last email: ${formatUkDateTime(s.lastEmailAt)}`,
     `Last error: ${s.lastError || 'None'}`,
     '',
     `Session: ${fs.existsSync(sessionFile()) ? 'Present' : 'Missing'}`,
@@ -117,7 +118,7 @@ async function checkNow(force = false) {
 
 function buildMenu() {
   const s = readStatus();
-  const lastCheck = s.lastCheckCompletedAt || 'Never';
+  const lastCheck = formatUkDateTime(s.lastCheckCompletedAt);
   const menu = Menu.buildFromTemplate([
     { label: `Status: ${lastStatus}`, enabled: false },
     { label: `Last check: ${lastCheck}`, enabled: false },
