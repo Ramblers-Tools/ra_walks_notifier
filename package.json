@@ -15,7 +15,7 @@
     "test-email": "node src/testEmail.js",
     "build:mac:unsigned": "CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --mac dmg zip --publish never",
     "build:mac": "electron-builder --mac dmg zip",
-    "build:mac:signed": "CSC_NAME=\"Developer ID Application: Richard Higham (9PG75A2TYV)\" electron-builder --mac dmg zip",
+    "build:mac:signed": "CSC_NAME=\"Richard Higham (9PG75A2TYV)\" electron-builder --mac dmg zip",
     "release:mac": "npm run build:mac:signed && npm run notary:submit",
     "notary:store": "xcrun notarytool store-credentials WalksManagerWatchNotary --apple-id YOUR_APPLE_ID --team-id 9PG75A2TYV --password YOUR_APP_SPECIFIC_PASSWORD",
     "notary:submit": "bash scripts/notarize-latest.sh"
@@ -57,7 +57,7 @@
       "gatekeeperAssess": false,
       "entitlements": "build/entitlements.mac.plist",
       "entitlementsInherit": "build/entitlements.mac.plist",
-      "identity": "Developer ID Application: Richard Higham (9PG75A2TYV)"
+      "identity": "Richard Higham (9PG75A2TYV)"
     },
     "dmg": {
       "sign": false

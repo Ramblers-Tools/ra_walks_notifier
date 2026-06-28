@@ -55,7 +55,7 @@ Logs are stored in:
 Your signing identity is already configured in `package.json`:
 
 ```text
-Developer ID Application: Richard Higham (9PG75A2TYV)
+Richard Higham (9PG75A2TYV)
 ```
 
 For a local unsigned packaging test:
