@@ -6,6 +6,7 @@ const { sendEmail } = require('./email');
 const { log, ensureDirs } = require('./logger');
 const { parseWalks } = require('./parser');
 const { nowUkDateTime } = require('./time');
+const { buildEmail } = require('./emailSummary');
 
 const forceEmail = process.argv.includes('--force-email');
 
@@ -13,23 +14,6 @@ function readJson(file, fallback) { try { return fs.existsSync(file) ? JSON.pars
 function writeJson(file, data) { fs.mkdirSync(path.dirname(file), { recursive: true }); fs.writeFileSync(file, JSON.stringify(data, null, 2)); }
 function sameWalk(a, b) { return JSON.stringify({ title:a.title,date:a.date,leader:a.leader,status:a.status,href:a.href }) === JSON.stringify({ title:b.title,date:b.date,leader:b.leader,status:b.status,href:b.href }); }
 function asMap(walks) { return Object.fromEntries(walks.map(w => [w.id, w])); }
-function htmlEscape(s) { return String(s || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
-function buildEmail(newWalks, changedWalks, clearedWalks, currentWalks) {
-  const lines = [];
-  lines.push(`Walks Manager Watch found ${currentWalks.length} current pending walk(s).`);
-  if (newWalks.length) lines.push(`\nNew walks: ${newWalks.length}`);
-  for (const w of newWalks) lines.push(`- ${w.title}\n  ${w.date}\n  Leader: ${w.leader}\n  Status: ${w.status}\n  ${w.href || ''}`);
-  if (changedWalks.length) lines.push(`\nChanged walks: ${changedWalks.length}`);
-  for (const w of changedWalks) lines.push(`- ${w.title}\n  ${w.date}\n  Leader: ${w.leader}\n  Status: ${w.status}\n  ${w.href || ''}`);
-  if (clearedWalks.length) lines.push(`\nCleared walks: ${clearedWalks.length}`);
-  for (const w of clearedWalks) lines.push(`- ${w.title}`);
-  lines.push('\nReview list: https://walks-manager.ramblers.org.uk/walks-manager/list?gid=414&review=1');
-  const text = lines.join('\n');
-  const rows = [...newWalks.map(w=>['New',w]), ...changedWalks.map(w=>['Changed',w]), ...clearedWalks.map(w=>['Cleared',w])]
-    .map(([kind,w]) => `<tr><td>${htmlEscape(kind)}</td><td><strong>${htmlEscape(w.title)}</strong><br>${htmlEscape(w.date)}<br>Leader: ${htmlEscape(w.leader)}<br>Status: ${htmlEscape(w.status)}${w.href ? `<br><a href="${htmlEscape(w.href)}">Open walk</a>` : ''}</td></tr>`).join('');
-  const html = `<p>Walks Manager Watch found <strong>${currentWalks.length}</strong> current pending walk(s).</p><table border="1" cellpadding="8" cellspacing="0">${rows}</table><p><a href="https://walks-manager.ramblers.org.uk/walks-manager/list?gid=414&review=1">Open review list</a></p>`;
-  return { text, html };
-}
 async function notifyMac(title, message) {
   if (!app.macNotifications) return;
   const { execFile } = require('child_process');
