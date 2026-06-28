@@ -34,7 +34,7 @@ function parseRecipients(value) {
   }
 
   return String(value || '')
-    .split(',')
+    .split(/[,;\r\n]+/)
     .map(email => email.trim())
     .filter(Boolean);
 }

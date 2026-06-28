@@ -171,6 +171,7 @@ function buildMenu() {
     { label: 'Check Now', click: () => checkNow(false) },
     { label: 'Force Test Email', click: () => checkNow(true) },
     { label: 'Manage Recipients', click: () => showRecipientsWindow() },
+    { label: 'Send Test Email', click: () => runNode(['src/testEmail.js'], true) },
     { label: 'Login to Walks Manager', click: () => runNode(['src/login.js'], true) },
     { label: 'Open Review List', click: () => shell.openExternal(reviewUrl) },
     { type: 'separator' },

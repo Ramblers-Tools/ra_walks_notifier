@@ -9,6 +9,13 @@ test('parseRecipients accepts comma-separated recipient strings', () => {
   );
 });
 
+test('parseRecipients accepts newline-separated recipient strings', () => {
+  assert.deepEqual(
+    parseRecipients('first@example.com\nsecond@example.com'),
+    ['first@example.com', 'second@example.com']
+  );
+});
+
 test('parseRecipients accepts arrays and drops blanks', () => {
   assert.deepEqual(
     parseRecipients(['first@example.com', ' second@example.com, ']),

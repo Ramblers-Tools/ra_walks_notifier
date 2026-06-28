@@ -93,6 +93,7 @@
       const recipients = await window.recipients.save(textarea.value);
       textarea.value = recipients.join('\n');
       message.textContent = `Saved ${recipients.length} recipient${recipients.length === 1 ? '' : 's'}.`;
+      window.close();
     });
 
     document.getElementById('cancel').addEventListener('click', () => {
