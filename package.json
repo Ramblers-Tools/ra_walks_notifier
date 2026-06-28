@@ -39,7 +39,6 @@
     "files": [
       "src/**/*",
       "assets/**/*",
-      "config.json",
       "groups.json",
       ".env.example",
       "package.json"

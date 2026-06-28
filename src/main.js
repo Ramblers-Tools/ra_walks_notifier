@@ -23,13 +23,14 @@ function readJson(file, fallback = {}) {
 }
 
 function appConfig() {
-  return readJson(path.join(root, 'config.json'), { checkIntervalMinutes: 5, activeHours: { start: 7, end: 22 } });
+  const { paths } = require('./config');
+  return readJson(paths.configFile, readJson(paths.rootConfigFile, { checkIntervalMinutes: 5, activeHours: { start: 7, end: 22 } }));
 }
 
-function configFile() { return path.join(root, 'config.json'); }
-
 function writeAppConfig(config) {
-  fs.writeFileSync(configFile(), `${JSON.stringify(config, null, 2)}\n`);
+  const { paths } = require('./config');
+  fs.mkdirSync(path.dirname(paths.configFile), { recursive: true });
+  fs.writeFileSync(paths.configFile, `${JSON.stringify(config, null, 2)}\n`);
 }
 
 function currentRecipients() {
@@ -60,13 +61,14 @@ function setupState() {
 }
 
 function groupsConfig() {
-  return readJson(path.join(root, 'groups.json'), []);
+  const { paths } = require('./config');
+  return readJson(paths.groupsFile, []);
 }
 
-function statusFile() { return path.join(root, 'data', 'status.json'); }
-function stateFile() { return path.join(root, 'data', 'state.json'); }
-function sessionFile() { return path.join(root, 'sessions', 'auth.json'); }
-function logFile() { return path.join(root, 'logs', 'watch.log'); }
+function statusFile() { const { paths } = require('./config'); return paths.statusFile; }
+function stateFile() { const { paths } = require('./config'); return paths.stateFile; }
+function sessionFile() { const { paths } = require('./config'); return paths.sessionFile; }
+function logFile() { const { paths } = require('./config'); return paths.logFile; }
 function readStatus() { return readJson(statusFile(), {}); }
 
 function nodeExecutable() {
@@ -125,9 +127,14 @@ function buildStatusText() {
     `Last error: ${s.lastError || 'None'}`,
     '',
     `Session: ${fs.existsSync(sessionFile()) ? 'Present' : 'Missing'}`,
-    `Project folder: ${root}`,
+    `Settings folder: ${path.dirname(configFilePath())}`,
     `Log file: ${logFile()}`
   ].filter(Boolean).join('\n');
+}
+
+function configFilePath() {
+  const { paths } = require('./config');
+  return paths.configFile;
 }
 
 function showStatus() {
@@ -260,7 +267,7 @@ function buildMenu() {
     { label: 'Login to Walks Manager', click: () => runNode(['src/login.js'], true) },
     { label: 'Open Review List', click: () => shell.openExternal(reviewUrl) },
     { type: 'separator' },
-    { label: 'Open Project Folder', click: () => shell.openPath(root) },
+    { label: 'Open Settings Folder', click: () => shell.openPath(path.dirname(configFilePath())) },
     { type: 'separator' },
     { label: 'Quit', click: () => app.quit() }
   ]);

@@ -1,16 +1,21 @@
 const fs = require('fs');
+const os = require('os');
 const path = require('path');
 require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
 
 const rootDir = path.resolve(__dirname, '..');
+const appSupportDir = process.env.WMW_APP_DATA || path.join(os.homedir(), 'Library', 'Application Support', 'Walks Manager Watch');
+const logsDir = process.env.WMW_LOG_DIR || path.join(os.homedir(), 'Library', 'Logs', 'Walks Manager Watch');
 const paths = {
   rootDir,
-  sessionFile: path.join(rootDir, 'sessions', 'auth.json'),
-  stateFile: path.join(rootDir, 'data', 'state.json'),
-  statusFile: path.join(rootDir, 'data', 'status.json'),
-  logFile: path.join(rootDir, 'logs', 'WalksManagerWatch.log'),
-  debugDir: path.join(rootDir, 'logs', 'debug'),
-  configFile: path.join(rootDir, 'config.json'),
+  appSupportDir,
+  sessionFile: path.join(appSupportDir, 'sessions', 'auth.json'),
+  stateFile: path.join(appSupportDir, 'data', 'state.json'),
+  statusFile: path.join(appSupportDir, 'data', 'status.json'),
+  logFile: path.join(logsDir, 'WalksManagerWatch.log'),
+  debugDir: path.join(logsDir, 'debug'),
+  configFile: path.join(appSupportDir, 'config.json'),
+  rootConfigFile: path.join(rootDir, 'config.json'),
   groupsFile: path.join(rootDir, 'groups.json'),
   plistTemplate: path.join(rootDir, 'launchd', 'uk.richard.walkswatch.plist'),
   userPlist: path.join(process.env.HOME || '', 'Library', 'LaunchAgents', 'uk.richard.walkswatch.plist')
@@ -25,7 +30,7 @@ function readJson(file, fallback) {
   }
 }
 
-const app = readJson(paths.configFile, {});
+const app = readJson(paths.configFile, readJson(paths.rootConfigFile, {}));
 const groups = readJson(paths.groupsFile, [{ name: 'East Cheshire Group', gid: 414 }]);
 
 function parseRecipients(value) {

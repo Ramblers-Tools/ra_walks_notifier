@@ -38,6 +38,18 @@ npm run app
 
 On first launch, the app opens **Setup** if required settings are missing. Setup collects notification recipients, SMTP email settings, and the saved Walks Manager login session needed for background checks. You can reopen it from the menu bar via **Setup**.
 
+Runtime settings are stored outside the app bundle:
+
+```text
+~/Library/Application Support/Walks Manager Watch/
+```
+
+Logs are stored in:
+
+```text
+~/Library/Logs/Walks Manager Watch/
+```
+
 ## Build signed app
 
 Your signing identity is already configured in `package.json`:

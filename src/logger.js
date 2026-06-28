@@ -6,6 +6,10 @@ const { nowUkDateTime } = require('./time');
 function ensureDirs() {
   fs.mkdirSync(path.dirname(paths.logFile), { recursive: true });
   fs.mkdirSync(paths.debugDir, { recursive: true });
+  fs.mkdirSync(path.dirname(paths.sessionFile), { recursive: true });
+  fs.mkdirSync(path.dirname(paths.stateFile), { recursive: true });
+  fs.mkdirSync(path.dirname(paths.statusFile), { recursive: true });
+  fs.mkdirSync(path.dirname(paths.configFile), { recursive: true });
 }
 
 function log(message) {
