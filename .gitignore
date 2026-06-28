@@ -1,3 +1,7 @@
-/.phpunit.cache/
-/vendor/
+.env
 .DS_Store
+/data/
+/dist/
+/logs/
+/node_modules/
+/sessions/

@@ -1,35 +1,79 @@
-# Walks Manager Watch
+# Walks Manager Watch - macOS Menu Bar App
 
-Walks Manager Watch monitors booking CSV exports from Walks Manager and keeps the existing v4.2 booking parser and notification behaviour under test.
+This repository is based on the working v4.1 Electron app attachment and is the stable desktop baseline for the v4.3 background-agent refactor.
 
-This repository starts from the stable v4.2 baseline. The v4.3 branch is reserved for the background-agent refactor. Microsoft 365 OAuth is intentionally out of scope for this baseline.
+It is a macOS desktop application. It does not use PHP, Joomla, Laravel, Symfony, or any web framework.
 
-## Baseline Scope
+The app reuses the working checker/parser and adds a macOS menu bar icon with:
 
-- Parse Walks Manager booking CSV rows using the v4.2 rules.
-- Preserve notification message rendering for booker acknowledgements and organiser updates.
-- Provide parser regression tests that can run without Joomla, Composer, or external services.
+- Check Now
+- Force Test Email
+- Login to Walks Manager
+- Open Review List
+- Show Status
+- automatic checks using the interval in `config.json`
 
-## CSV Rules Preserved From v4.2
+The current notification implementation uses the existing SMTP/nodemailer path from v4.1. Microsoft Graph OAuth email delivery is the intended v4.3 notification refactor.
 
-- Row 1 is treated as the header and ignored.
-- Rows whose first column starts with `#` are treated as comments and ignored.
-- Column 1 is the group code and is required.
-- Column 2 is the name and is required.
-- Column 3 is the email address and is required.
-- Column 4 is the optional partner/details field.
+## Install for local testing
 
-## Running Tests
-
-```sh
-php tests/run.php
+```bash
+npm install
+npx playwright install chromium
+npm test
 ```
 
-The tests use `tests/fixtures/bookings.csv` and assert the parser output plus validation errors.
+Copy these from your working v3.1 folder:
 
-## Branches
+```text
+.env
+sessions/auth.json
+```
 
-- `main`: stable v4.2 baseline.
-- `v4.3-background-agent-refactor`: branch for the upcoming background-agent refactor.
+Then run:
 
-Do not add Microsoft 365 OAuth on the v4.2 baseline. OAuth work should be designed separately after the background-agent structure is agreed.
+```bash
+npm run app
+```
+
+## Build signed app
+
+Your signing identity is already configured in `package.json`:
+
+```text
+Developer ID Application: Richard Higham (9PG75A2TYV)
+```
+
+Build with:
+
+```bash
+npm run build:mac:signed
+```
+
+## Notarization setup
+
+Run this once, replacing the placeholders. Use an app-specific password from Apple ID, not your normal Apple password.
+
+```bash
+xcrun notarytool store-credentials WalksManagerWatchNotary --apple-id YOUR_APPLE_ID --team-id 9PG75A2TYV --password YOUR_APP_SPECIFIC_PASSWORD
+```
+
+Then submit the latest built DMG/ZIP:
+
+```bash
+npm run notary:submit
+```
+
+## Verify Gatekeeper
+
+After notarization:
+
+```bash
+spctl -a -vv dist/*.dmg
+```
+
+## Notes
+
+This package intentionally does not include your `.env` or saved Ramblers login session.
+
+If Playwright login expires, choose **Login to Walks Manager** from the menu bar and sign in again.

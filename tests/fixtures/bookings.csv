@@ -1,7 +1,0 @@
-Group,Name,Email,Partner
-EC,Jane Walker,jane@example.org,
-# Comment row,ignored@example.org,ignored
-EC,John Rambler,john@example.org,Ann Rambler
-,Missing Group,missing-group@example.org,
-EC,,missing-name@example.org,
-EC,Missing Email,,

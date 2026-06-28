@@ -1,0 +1,12 @@
+{
+  "checkIntervalMinutes": 15,
+  "activeHours": {
+    "start": 7,
+    "end": 22
+  },
+  "staleAfterDays": 3,
+  "notifyOnCleared": true,
+  "notifyOnChanged": true,
+  "notifyOnNew": true,
+  "macNotifications": true
+}

@@ -1,0 +1,61 @@
+{
+  "name": "walks-manager-watch",
+  "version": "4.1.0",
+  "description": "Menu bar app for monitoring Ramblers Walks Manager review queues",
+  "main": "src/main.js",
+  "author": "Richard Higham",
+  "license": "UNLICENSED",
+  "scripts": {
+    "app": "electron .",
+    "test": "node --test",
+    "login": "node src/login.js",
+    "check": "node src/check.js",
+    "check:force": "node src/check.js --force-email",
+    "status": "node src/status.js",
+    "test-email": "node src/testEmail.js",
+    "build:mac": "electron-builder --mac dmg zip",
+    "build:mac:signed": "CSC_NAME=\"Developer ID Application: Richard Higham (9PG75A2TYV)\" electron-builder --mac dmg zip",
+    "notary:store": "xcrun notarytool store-credentials WalksManagerWatchNotary --apple-id YOUR_APPLE_ID --team-id 9PG75A2TYV --password YOUR_APP_SPECIFIC_PASSWORD",
+    "notary:submit": "bash scripts/notarize-latest.sh"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.7",
+    "electron-store": "^8.2.0",
+    "nodemailer": "^6.9.16",
+    "playwright": "^1.49.1"
+  },
+  "devDependencies": {
+    "electron": "^33.3.1",
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "uk.richardhigham.walksmanagerwatch",
+    "productName": "Walks Manager Watch",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "src/**/*",
+      "assets/**/*",
+      "config.json",
+      "groups.json",
+      ".env.example",
+      "package.json"
+    ],
+    "mac": {
+      "category": "public.app-category.productivity",
+      "target": [
+        "dmg",
+        "zip"
+      ],
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false,
+      "entitlements": "build/entitlements.mac.plist",
+      "entitlementsInherit": "build/entitlements.mac.plist",
+      "identity": "Developer ID Application: Richard Higham (9PG75A2TYV)"
+    },
+    "dmg": {
+      "sign": false
+    }
+  }
+}
