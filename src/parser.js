@@ -13,28 +13,17 @@ function absoluteHref(href) {
   return href;
 }
 
-async function parseWalks(page, groupName) {
+function parseWalkEntries(entries, groupName) {
   const statusRegex = /Submitted for checking|Awaiting publishing|Ready to publish/i;
   const found = [];
   const seen = new Set();
 
-  // Walk cards in List View contain a public walk link like /go-walking/group-walks/...
-  // Earlier v3 looked at broad div/article ancestors, which could capture the whole page
-  // and create false "all groups" entries. Starting from the walk title links is much safer.
-  const links = page.locator('a[href*="/go-walking/group-walks/"]');
-  const count = await links.count();
-
-  for (let i = 0; i < count; i++) {
-    const link = links.nth(i);
-    const href = absoluteHref(await link.getAttribute('href').catch(() => ''));
-    const title = clean(await link.innerText().catch(() => ''));
+  for (const entry of entries) {
+    const href = absoluteHref(entry.href || '');
+    const title = clean(entry.title || '');
     if (!title) continue;
 
-    const card = link.locator('xpath=ancestor::*[contains(normalize-space(.), "Submitted for checking") or contains(normalize-space(.), "Awaiting publishing") or contains(normalize-space(.), "Ready to publish")][1]');
-    const cardCount = await card.count().catch(() => 0);
-    if (!cardCount) continue;
-
-    let text = clean(await card.first().innerText().catch(() => ''));
+    let text = clean(entry.text || '');
     if (!statusRegex.test(text)) continue;
 
     // Keep only the section around this specific walk, because some layouts place several
@@ -57,4 +46,28 @@ async function parseWalks(page, groupName) {
   return found;
 }
 
-module.exports = { parseWalks, stableId };
+async function parseWalks(page, groupName) {
+  // Walk cards in List View contain a public walk link like /go-walking/group-walks/...
+  // Earlier v3 looked at broad div/article ancestors, which could capture the whole page
+  // and create false "all groups" entries. Starting from the walk title links is much safer.
+  const links = page.locator('a[href*="/go-walking/group-walks/"]');
+  const count = await links.count();
+  const entries = [];
+
+  for (let i = 0; i < count; i++) {
+    const link = links.nth(i);
+    const href = await link.getAttribute('href').catch(() => '');
+    const title = clean(await link.innerText().catch(() => ''));
+    if (!title) continue;
+
+    const card = link.locator('xpath=ancestor::*[contains(normalize-space(.), "Submitted for checking") or contains(normalize-space(.), "Awaiting publishing") or contains(normalize-space(.), "Ready to publish")][1]');
+    const cardCount = await card.count().catch(() => 0);
+    if (!cardCount) continue;
+
+    entries.push({ href, title, text: await card.first().innerText().catch(() => '') });
+  }
+
+  return parseWalkEntries(entries, groupName);
+}
+
+module.exports = { parseWalks, parseWalkEntries, stableId };

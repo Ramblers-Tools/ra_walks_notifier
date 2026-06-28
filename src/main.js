@@ -4,6 +4,10 @@ const path = require('path');
 const fs = require('fs');
 const { formatUkDateTime } = require('./time');
 const { parseRecipients, resolveRecipients, resolveSmtp } = require('./config');
+const { parseWalkEntries } = require('./parser');
+const { buildEmail } = require('./emailSummary');
+const { sendEmail } = require('./email');
+const { log, ensureDirs } = require('./logger');
 
 let tray;
 let timer;
@@ -71,6 +75,18 @@ function stateFile() { const { paths } = require('./config'); return paths.state
 function sessionFile() { const { paths } = require('./config'); return paths.sessionFile; }
 function logFile() { const { paths } = require('./config'); return paths.logFile; }
 function readStatus() { return readJson(statusFile(), {}); }
+function writeJson(file, data) {
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(file, `${JSON.stringify(data, null, 2)}\n`);
+}
+
+function sameWalk(a, b) {
+  return JSON.stringify({ title: a.title, date: a.date, leader: a.leader, status: a.status, href: a.href }) === JSON.stringify({ title: b.title, date: b.date, leader: b.leader, status: b.status, href: b.href });
+}
+
+function asMap(walks) {
+  return Object.fromEntries((walks || []).map(walk => [walk.id, walk]));
+}
 
 function nodeExecutable() {
   return process.env.WMW_NODE_PATH || process.env.npm_node_execpath || process.execPath;
@@ -344,10 +360,136 @@ async function checkNow(force = false) {
 
   lastStatus = 'Checking...';
   buildMenu();
-  const res = await runNode(['src/check.js'].concat(force ? ['--force-email'] : []));
+  const res = await runElectronCheck(force);
   updateTrayLabel();
-  if (res.code !== 0) {
+  if (!res.ok) {
     new Notification({ title: 'Walks Manager Watch failed', body: 'Open status for details.' }).show();
+  }
+}
+
+function waitForWindowEvent(window, event, timeoutMs = 45000) {
+  return new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      cleanup();
+      reject(new Error(`Timed out waiting for ${event}`));
+    }, timeoutMs);
+    const onSuccess = () => {
+      cleanup();
+      resolve();
+    };
+    const onFail = (_event, code, description) => {
+      cleanup();
+      reject(new Error(description || `Page load failed with code ${code}`));
+    };
+    const cleanup = () => {
+      clearTimeout(timeout);
+      window.webContents.off(event, onSuccess);
+      window.webContents.off('did-fail-load', onFail);
+    };
+    window.webContents.once(event, onSuccess);
+    window.webContents.once('did-fail-load', onFail);
+  });
+}
+
+async function extractWalkEntries(window) {
+  return window.webContents.executeJavaScript(`
+    Array.from(document.querySelectorAll('a[href*="/go-walking/group-walks/"]')).map(link => {
+      let node = link;
+      let card = null;
+      while (node && node !== document.body) {
+        const text = node.innerText || '';
+        if (/Submitted for checking|Awaiting publishing|Ready to publish/i.test(text)) {
+          card = node;
+          break;
+        }
+        node = node.parentElement;
+      }
+      return {
+        href: link.getAttribute('href') || '',
+        title: link.innerText || '',
+        text: card ? card.innerText : ''
+      };
+    })
+  `, true);
+}
+
+async function runElectronCheck(force = false) {
+  const { groups } = require('./config');
+  const { nowUkDateTime } = require('./time');
+  ensureDirs();
+  log('Starting Walks Manager check.');
+
+  const startedAt = nowUkDateTime();
+  const status = readJson(statusFile(), {});
+  status.lastCheckStartedAt = startedAt;
+  status.lastError = null;
+  writeJson(statusFile(), status);
+
+  const prev = readJson(stateFile(), { walks: [] });
+  const currentWalks = [];
+  let checkWindow;
+
+  try {
+    checkWindow = new BrowserWindow({
+      width: 1200,
+      height: 900,
+      show: false,
+      webPreferences: {
+        nodeIntegration: false,
+        contextIsolation: true
+      }
+    });
+
+    for (const group of groups) {
+      const url = `https://walks-manager.ramblers.org.uk/walks-manager/list?gid=${group.gid}&review=1`;
+      log(`Checking ${group.name}: ${url}`);
+      const loaded = waitForWindowEvent(checkWindow, 'did-finish-load', 45000);
+      checkWindow.loadURL(url);
+      await loaded;
+      await new Promise(resolve => setTimeout(resolve, 5000));
+      const entries = await extractWalkEntries(checkWindow);
+      const walks = parseWalkEntries(entries, group.name);
+      log(`Found ${walks.length} pending walk(s) for ${group.name}.`);
+      currentWalks.push(...walks);
+    }
+
+    checkWindow.close();
+    checkWindow = null;
+
+    const prevMap = asMap(prev.walks);
+    const currentMap = asMap(currentWalks);
+    const newWalks = currentWalks.filter(walk => !prevMap[walk.id]);
+    const changedWalks = currentWalks.filter(walk => prevMap[walk.id] && !sameWalk(walk, prevMap[walk.id]));
+    const clearedWalks = (prev.walks || []).filter(walk => !currentMap[walk.id]);
+    log(`Summary: ${currentWalks.length} current, ${newWalks.length} new, ${changedWalks.length} changed, ${clearedWalks.length} cleared.`);
+
+    const cfg = appConfig();
+    const shouldEmail = force || (cfg.notifyOnNew !== false && newWalks.length) || (cfg.notifyOnChanged !== false && changedWalks.length);
+    if (shouldEmail) {
+      const total = newWalks.length + changedWalks.length + clearedWalks.length;
+      const subject = total === 1 ? 'Walks Manager Watch: 1 change' : `Walks Manager Watch: ${total} changes`;
+      const { text, html } = buildEmail(newWalks, changedWalks, clearedWalks, currentWalks);
+      await sendEmail(subject, text, html);
+      new Notification({ title: 'Walks Manager Watch', body: `${total} change(s) detected.` }).show();
+      log('Email sent.');
+      status.lastEmailAt = nowUkDateTime();
+    } else {
+      log('No notification needed.');
+    }
+
+    writeJson(stateFile(), { updatedAt: nowUkDateTime(), walks: currentWalks });
+    status.lastCheckCompletedAt = nowUkDateTime();
+    status.pendingWalks = currentWalks.length;
+    status.lastResult = `${currentWalks.length} pending; ${newWalks.length} new; ${changedWalks.length} changed; ${clearedWalks.length} cleared`;
+    writeJson(statusFile(), status);
+    return { ok: true };
+  } catch (error) {
+    if (checkWindow) checkWindow.close();
+    log(`ERROR: ${error.stack || error.message}`);
+    status.lastError = error.message;
+    status.lastCheckCompletedAt = nowUkDateTime();
+    writeJson(statusFile(), status);
+    return { ok: false, error };
   }
 }
 
