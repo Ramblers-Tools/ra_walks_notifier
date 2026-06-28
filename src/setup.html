@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Walks Manager Watch Setup</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      margin: 0;
+      padding: 20px;
+      color: #1f2933;
+      background: #f7f8fa;
+    }
+
+    h1 {
+      font-size: 20px;
+      margin: 0 0 18px;
+    }
+
+    h2 {
+      font-size: 15px;
+      margin: 18px 0 10px;
+    }
+
+    label {
+      display: block;
+      font-size: 13px;
+      font-weight: 600;
+      margin: 10px 0 6px;
+    }
+
+    input,
+    textarea {
+      box-sizing: border-box;
+      width: 100%;
+      border: 1px solid #b8c1cc;
+      border-radius: 6px;
+      padding: 8px 10px;
+      font-size: 14px;
+      background: white;
+    }
+
+    textarea {
+      height: 76px;
+      resize: none;
+      font: 14px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    }
+
+    .row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+
+    .checkbox {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 36px;
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    .checkbox input {
+      width: auto;
+    }
+
+    .status {
+      margin: 8px 0 14px;
+      font-size: 13px;
+      color: #52606d;
+    }
+
+    .actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+      margin-top: 20px;
+    }
+
+    button {
+      border: 1px solid #9aa5b1;
+      border-radius: 6px;
+      padding: 7px 14px;
+      font-size: 13px;
+      background: white;
+    }
+
+    button.primary {
+      border-color: #1264a3;
+      background: #1264a3;
+      color: white;
+    }
+  </style>
+</head>
+<body>
+  <h1>Walks Manager Watch Setup</h1>
+
+  <h2>Notification Recipients</h2>
+  <label for="recipients">Email addresses</label>
+  <textarea id="recipients" spellcheck="false"></textarea>
+
+  <h2>SMTP Email Settings</h2>
+  <label for="host">SMTP host</label>
+  <input id="host" autocomplete="off">
+
+  <div class="row">
+    <div>
+      <label for="port">Port</label>
+      <input id="port" type="number" min="1" max="65535">
+    </div>
+    <label class="checkbox">
+      <input id="secure" type="checkbox">
+      Use SSL/TLS
+    </label>
+  </div>
+
+  <label for="user">Username</label>
+  <input id="user" autocomplete="username">
+
+  <label for="pass">Password</label>
+  <input id="pass" type="password" autocomplete="current-password">
+
+  <label for="from">From address</label>
+  <input id="from" autocomplete="email">
+
+  <h2>Walks Manager Login</h2>
+  <div id="session" class="status">Checking login session...</div>
+  <button id="login">Login to Walks Manager</button>
+
+  <div class="actions">
+    <button id="test">Send Test Email</button>
+    <button id="close">Close</button>
+    <button id="save" class="primary">Save</button>
+  </div>
+
+  <script>
+    const fields = {
+      recipients: document.getElementById('recipients'),
+      host: document.getElementById('host'),
+      port: document.getElementById('port'),
+      secure: document.getElementById('secure'),
+      user: document.getElementById('user'),
+      pass: document.getElementById('pass'),
+      from: document.getElementById('from')
+    };
+    const session = document.getElementById('session');
+
+    function render(state) {
+      fields.recipients.value = state.recipients.join('\n');
+      fields.host.value = state.smtp.host || '';
+      fields.port.value = state.smtp.port || 587;
+      fields.secure.checked = Boolean(state.smtp.secure);
+      fields.user.value = state.smtp.user || '';
+      fields.pass.value = state.smtp.pass || '';
+      fields.from.value = state.smtp.from || '';
+      session.textContent = state.sessionPresent ? 'Walks Manager login session saved.' : 'Walks Manager login session missing.';
+    }
+
+    function collect() {
+      return {
+        recipients: fields.recipients.value,
+        smtp: {
+          host: fields.host.value,
+          port: Number(fields.port.value || 587),
+          secure: fields.secure.checked,
+          user: fields.user.value,
+          pass: fields.pass.value,
+          from: fields.from.value
+        }
+      };
+    }
+
+    window.setup.load().then(render);
+
+    document.getElementById('save').addEventListener('click', async () => {
+      render(await window.setup.save(collect()));
+    });
+
+    document.getElementById('login').addEventListener('click', async () => {
+      await window.setup.login();
+      render(await window.setup.load());
+    });
+
+    document.getElementById('test').addEventListener('click', async () => {
+      await window.setup.save(collect());
+      await window.setup.testEmail();
+    });
+
+    document.getElementById('close').addEventListener('click', () => {
+      window.close();
+    });
+  </script>
+</body>
+</html>

@@ -9,6 +9,7 @@ let tray;
 let timer;
 let recipientsWindow;
 let smtpWindow;
+let setupWindow;
 let lastStatus = 'Starting...';
 const root = path.join(__dirname, '..');
 const reviewUrl = 'https://walks-manager.ramblers.org.uk/walks-manager/list?gid=414&review=1';
@@ -44,6 +45,17 @@ function currentSmtp() {
     user: settings.user || '',
     pass: settings.pass || '',
     from: settings.from || ''
+  };
+}
+
+function setupState() {
+  const recipients = currentRecipients();
+  const smtp = currentSmtp();
+  return {
+    recipients,
+    smtp,
+    sessionPresent: fs.existsSync(sessionFile()),
+    complete: Boolean(recipients.length && smtp.host && smtp.user && smtp.pass && smtp.from && fs.existsSync(sessionFile()))
   };
 }
 
@@ -189,6 +201,31 @@ function showSmtpWindow() {
   smtpWindow.loadFile(path.join(root, 'src', 'smtp.html'));
 }
 
+function showSetupWindow() {
+  if (setupWindow) {
+    setupWindow.focus();
+    return;
+  }
+
+  setupWindow = new BrowserWindow({
+    width: 640,
+    height: 660,
+    title: 'Walks Manager Watch Setup',
+    resizable: false,
+    minimizable: false,
+    fullscreenable: false,
+    webPreferences: {
+      preload: path.join(__dirname, 'setupPreload.js')
+    }
+  });
+
+  setupWindow.on('closed', () => {
+    setupWindow = null;
+  });
+
+  setupWindow.loadFile(path.join(root, 'src', 'setup.html'));
+}
+
 async function checkNow(force = false) {
   lastStatus = 'Checking...';
   buildMenu();
@@ -206,6 +243,7 @@ function buildMenu() {
     { label: `Status: ${lastStatus}`, enabled: false },
     { label: `Last check: ${lastCheck}`, enabled: false },
     { type: 'separator' },
+    { label: 'Setup', click: () => showSetupWindow() },
     { label: 'Show Status', click: () => showStatus() },
     { label: 'Check Now', click: () => checkNow(false) },
     { label: 'Force Test Email', click: () => checkNow(true) },
@@ -236,6 +274,9 @@ app.whenReady().then(() => {
   tray.setToolTip('Walks Manager Watch');
   buildMenu();
   startScheduler();
+  if (!setupState().complete) {
+    showSetupWindow();
+  }
 });
 ipcMain.handle('recipients:load', () => currentRecipients());
 ipcMain.handle('recipients:save', (_event, text) => {
@@ -261,5 +302,26 @@ ipcMain.handle('smtp:save', (_event, settings) => {
   buildMenu();
   return currentSmtp();
 });
+ipcMain.handle('setup:load', () => setupState());
+ipcMain.handle('setup:save', (_event, settings) => {
+  const cfg = appConfig();
+  cfg.notificationRecipients = parseRecipients(settings.recipients);
+  cfg.smtp = {
+    host: String(settings.smtp?.host || '').trim(),
+    port: Number(settings.smtp?.port || 587),
+    secure: Boolean(settings.smtp?.secure),
+    user: String(settings.smtp?.user || '').trim(),
+    pass: String(settings.smtp?.pass || ''),
+    from: String(settings.smtp?.from || '').trim()
+  };
+  writeAppConfig(cfg);
+  buildMenu();
+  return setupState();
+});
+ipcMain.handle('setup:login', async () => {
+  const result = await runNode(['src/login.js'], true);
+  return { code: result.code, sessionPresent: fs.existsSync(sessionFile()) };
+});
+ipcMain.handle('setup:test-email', () => runNode(['src/testEmail.js'], true));
 app.on('before-quit', () => { if (timer) clearInterval(timer); });
 app.on('window-all-closed', (e) => e.preventDefault());

@@ -36,6 +36,8 @@ Then run:
 npm run app
 ```
 
+On first launch, the app opens **Setup** if required settings are missing. Setup collects notification recipients, SMTP email settings, and the saved Walks Manager login session. You can reopen it from the menu bar via **Setup**.
+
 ## Build signed app
 
 Your signing identity is already configured in `package.json`:
