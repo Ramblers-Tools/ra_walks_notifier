@@ -44,10 +44,33 @@ Your signing identity is already configured in `package.json`:
 Developer ID Application: Richard Higham (9PG75A2TYV)
 ```
 
+For a local unsigned packaging test:
+
+```bash
+npm run build:mac:unsigned
+```
+
 Build with:
 
 ```bash
 npm run build:mac:signed
+```
+
+This produces installer/update artifacts in `dist/`:
+
+- `.dmg` for first install
+- `.zip` for future app update feeds
+
+For a signed and notarized release build:
+
+```bash
+npm run release:mac
+```
+
+The signing certificate must be installed in the macOS login keychain. Check it with:
+
+```bash
+security find-identity -v -p codesigning
 ```
 
 ## Notarization setup
