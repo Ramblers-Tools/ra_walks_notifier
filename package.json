@@ -41,7 +41,8 @@
       "assets/**/*",
       "groups.json",
       ".env.example",
-      "package.json"
+      "package.json",
+      "!node_modules/fsevents/**/*"
     ],
     "npmRebuild": false,
     "mac": {
