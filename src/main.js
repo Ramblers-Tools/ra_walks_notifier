@@ -32,10 +32,16 @@ function sessionFile() { return path.join(root, 'sessions', 'auth.json'); }
 function logFile() { return path.join(root, 'logs', 'watch.log'); }
 function readStatus() { return readJson(statusFile(), {}); }
 
+function nodeExecutable() {
+  return process.env.WMW_NODE_PATH || process.env.npm_node_execpath || process.execPath;
+}
+
 function runNode(args, showDialog = false) {
   return new Promise((resolve) => {
-    const env = Object.assign({}, process.env, { ELECTRON_RUN_AS_NODE: '1' });
-    const child = spawn(process.execPath, args, { cwd: root, env });
+    const executable = nodeExecutable();
+    const isElectron = executable === process.execPath;
+    const env = Object.assign({}, process.env, isElectron ? { ELECTRON_RUN_AS_NODE: '1' } : {});
+    const child = spawn(executable, args, { cwd: root, env });
     let out = '';
     child.stdout.on('data', d => { out += d.toString(); });
     child.stderr.on('data', d => { out += d.toString(); });
@@ -144,6 +150,8 @@ function startScheduler() {
 }
 
 app.whenReady().then(() => {
+  if (app.dock) app.dock.hide();
+
   tray = new Tray(path.join(root, 'assets', 'trayTemplate.png'));
   tray.setToolTip('Walks Manager Watch');
   buildMenu();
