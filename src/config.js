@@ -9,6 +9,7 @@ const logsDir = process.env.WMW_LOG_DIR || path.join(os.homedir(), 'Library', 'L
 const paths = {
   rootDir,
   appSupportDir,
+  brandingDir: path.join(appSupportDir, 'branding'),
   sessionFile: path.join(appSupportDir, 'sessions', 'auth.json'),
   stateFile: path.join(appSupportDir, 'data', 'state.json'),
   statusFile: path.join(appSupportDir, 'data', 'status.json'),

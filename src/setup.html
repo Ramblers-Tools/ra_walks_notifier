@@ -17,6 +17,28 @@
       margin: 0 0 18px;
     }
 
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      margin-bottom: 18px;
+    }
+
+    .brand img {
+      display: none;
+      max-width: 150px;
+      max-height: 56px;
+      object-fit: contain;
+    }
+
+    .brand.has-logo img {
+      display: block;
+    }
+
+    .brand h1 {
+      margin: 0;
+    }
+
     h2 {
       font-size: 15px;
       margin: 18px 0 10px;
@@ -94,7 +116,14 @@
   </style>
 </head>
 <body>
-  <h1>Walks Manager Watch Setup</h1>
+  <div id="brand" class="brand">
+    <img id="logo" alt="Ramblers logo">
+    <h1>Walks Manager Watch Setup</h1>
+  </div>
+
+  <h2>Branding</h2>
+  <div id="logo-status" class="status">No logo selected.</div>
+  <button id="choose-logo">Choose Logo</button>
 
   <h2>Notification Recipients</h2>
   <label for="recipients">Email addresses</label>
@@ -145,6 +174,9 @@
       from: document.getElementById('from')
     };
     const session = document.getElementById('session');
+    const brand = document.getElementById('brand');
+    const logo = document.getElementById('logo');
+    const logoStatus = document.getElementById('logo-status');
 
     function render(state) {
       fields.recipients.value = state.recipients.join('\n');
@@ -154,6 +186,15 @@
       fields.user.value = state.smtp.user || '';
       fields.pass.value = state.smtp.pass || '';
       fields.from.value = state.smtp.from || '';
+      if (state.branding && state.branding.logoDataUrl) {
+        logo.src = state.branding.logoDataUrl;
+        brand.classList.add('has-logo');
+        logoStatus.textContent = state.branding.logoPath || 'Logo selected.';
+      } else {
+        logo.removeAttribute('src');
+        brand.classList.remove('has-logo');
+        logoStatus.textContent = 'No logo selected.';
+      }
       session.textContent = state.sessionPresent ? 'Walks Manager login session saved.' : 'Walks Manager login session missing.';
     }
 
@@ -172,6 +213,10 @@
     }
 
     window.setup.load().then(render);
+
+    document.getElementById('choose-logo').addEventListener('click', async () => {
+      render(await window.setup.chooseLogo());
+    });
 
     document.getElementById('save').addEventListener('click', async () => {
       render(await window.setup.save(collect()));

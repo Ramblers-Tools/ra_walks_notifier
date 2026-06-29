@@ -7,6 +7,7 @@ const { log, ensureDirs } = require('./logger');
 const { parseWalks } = require('./parser');
 const { nowUkDateTime } = require('./time');
 const { buildEmail } = require('./emailSummary');
+const { isLoginPage, sendSessionExpiredEmail } = require('./sessionExpiry');
 
 const forceEmail = process.argv.includes('--force-email');
 
@@ -47,6 +48,23 @@ async function notifyMac(title, message) {
       log(`Checking ${group.name}: ${url}`);
       await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 45000 });
       await page.waitForTimeout(5000);
+      const pageText = await page.locator('body').innerText().catch(() => '');
+      if (isLoginPage(page.url(), pageText)) {
+        const message = 'Walks Manager login required. The saved Ramblers single sign-on session may have expired.';
+        log(message);
+        status.lastError = message;
+        status.lastCheckCompletedAt = nowUkDateTime();
+        status.lastResult = 'Login required';
+        if (!status.sessionExpiredEmailSent) {
+          await sendSessionExpiredEmail();
+          status.sessionExpiredEmailSent = true;
+          status.lastEmailAt = nowUkDateTime();
+          log('Session expiry email sent.');
+        }
+        writeJson(paths.statusFile, status);
+        await browser.close();
+        return;
+      }
       const walks = await parseWalks(page, group.name);
       log(`Found ${walks.length} pending walk(s) for ${group.name}.`);
       currentWalks.push(...walks);
@@ -74,6 +92,7 @@ async function notifyMac(title, message) {
     status.lastCheckCompletedAt = nowUkDateTime();
     status.pendingWalks = currentWalks.length;
     status.lastResult = `${currentWalks.length} pending; ${newWalks.length} new; ${changedWalks.length} changed; ${clearedWalks.length} cleared`;
+    status.sessionExpiredEmailSent = false;
     writeJson(paths.statusFile, status);
   } catch (err) {
     await browser.close().catch(() => {});

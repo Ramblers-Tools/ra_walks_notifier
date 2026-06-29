@@ -1,4 +1,4 @@
-const { app, Tray, Menu, shell, dialog, Notification, BrowserWindow, ipcMain } = require('electron');
+const { app, Tray, Menu, shell, dialog, Notification, BrowserWindow, ipcMain, nativeImage } = require('electron');
 const { spawn } = require('child_process');
 const path = require('path');
 const fs = require('fs');
@@ -8,6 +8,8 @@ const { parseWalkEntries } = require('./parser');
 const { buildEmail } = require('./emailSummary');
 const { sendEmail } = require('./email');
 const { log, ensureDirs } = require('./logger');
+const { copyLogo, logoDataUrl, logoPath } = require('./branding');
+const { isLoginPage, sendSessionExpiredEmail } = require('./sessionExpiry');
 
 let tray;
 let timer;
@@ -57,9 +59,14 @@ function currentSmtp() {
 function setupState() {
   const recipients = currentRecipients();
   const smtp = currentSmtp();
+  const cfg = appConfig();
   return {
     recipients,
     smtp,
+    branding: {
+      logoPath: logoPath(cfg),
+      logoDataUrl: logoDataUrl(cfg)
+    },
     sessionPresent: fs.existsSync(sessionFile()),
     complete: Boolean(recipients.length && smtp.host && smtp.user && smtp.pass && smtp.from && fs.existsSync(sessionFile()))
   };
@@ -155,10 +162,13 @@ function configFilePath() {
 }
 
 function showStatus() {
+  const iconPath = logoPath();
+  const icon = iconPath ? nativeImage.createFromPath(iconPath) : undefined;
   dialog.showMessageBox({
     type: 'info',
     title: 'Walks Manager Watch Status',
     message: buildStatusText(),
+    icon: icon && !icon.isEmpty() ? icon : undefined,
     buttons: ['OK', 'Open folder'],
     defaultId: 0
   }).then(result => {
@@ -171,8 +181,38 @@ function updateTrayLabel() {
   const count = Number(s.pendingWalks || 0);
   const err = s.lastError;
   lastStatus = err ? `Error: ${err}` : `${count} pending walk${count === 1 ? '' : 's'}`;
-  if (tray) tray.setTitle(count ? ` ${count}` : '');
+  if (tray) tray.setTitle(` ${count}`);
   buildMenu();
+}
+
+function trayIcon() {
+  const selectedLogo = logoPath();
+  const image = nativeImage.createFromPath(selectedLogo || path.join(root, 'assets', 'trayTemplate.png'));
+  if (image.isEmpty()) {
+    return nativeImage.createFromPath(path.join(root, 'assets', 'trayTemplate.png'));
+  }
+  return image.resize({ width: 18, height: 18 });
+}
+
+function updateTrayIcon() {
+  if (tray) tray.setImage(trayIcon());
+}
+
+async function chooseBrandLogo() {
+  const result = await dialog.showOpenDialog({
+    title: 'Choose Ramblers Logo',
+    properties: ['openFile'],
+    filters: [{ name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp'] }]
+  });
+  if (result.canceled || !result.filePaths.length) return setupState();
+
+  const storedLogo = copyLogo(result.filePaths[0]);
+  const cfg = appConfig();
+  cfg.branding = Object.assign({}, cfg.branding, { logoPath: storedLogo });
+  writeAppConfig(cfg);
+  updateTrayIcon();
+  buildMenu();
+  return setupState();
 }
 
 function showRecipientsWindow() {
@@ -233,7 +273,7 @@ function showSetupWindow() {
 
   setupWindow = new BrowserWindow({
     width: 640,
-    height: 660,
+    height: 740,
     title: 'Walks Manager Watch Setup',
     resizable: false,
     minimizable: false,
@@ -285,6 +325,10 @@ async function saveElectronLoginSession(window) {
 
   fs.mkdirSync(path.dirname(paths.sessionFile), { recursive: true });
   fs.writeFileSync(paths.sessionFile, `${JSON.stringify(storageState, null, 2)}\n`);
+  const status = readJson(paths.statusFile, {});
+  status.sessionExpiredEmailSent = false;
+  status.lastError = null;
+  writeJson(paths.statusFile, status);
   log(`Saved Walks Manager session to ${paths.sessionFile}`);
 }
 
@@ -447,6 +491,24 @@ async function runElectronCheck(force = false) {
       checkWindow.loadURL(url);
       await loaded;
       await new Promise(resolve => setTimeout(resolve, 5000));
+      const pageText = await checkWindow.webContents.executeJavaScript('document.body ? document.body.innerText : ""', true);
+      if (isLoginPage(checkWindow.webContents.getURL(), pageText)) {
+        const message = 'Walks Manager login required. The saved Ramblers single sign-on session may have expired.';
+        log(message);
+        status.lastError = message;
+        status.lastCheckCompletedAt = nowUkDateTime();
+        status.lastResult = 'Login required';
+        if (!status.sessionExpiredEmailSent) {
+          await sendSessionExpiredEmail();
+          status.sessionExpiredEmailSent = true;
+          status.lastEmailAt = nowUkDateTime();
+          log('Session expiry email sent.');
+        }
+        writeJson(statusFile(), status);
+        checkWindow.close();
+        checkWindow = null;
+        return { ok: false, error: new Error(message) };
+      }
       const entries = await extractWalkEntries(checkWindow);
       const walks = parseWalkEntries(entries, group.name);
       log(`Found ${walks.length} pending walk(s) for ${group.name}.`);
@@ -481,6 +543,7 @@ async function runElectronCheck(force = false) {
     status.lastCheckCompletedAt = nowUkDateTime();
     status.pendingWalks = currentWalks.length;
     status.lastResult = `${currentWalks.length} pending; ${newWalks.length} new; ${changedWalks.length} changed; ${clearedWalks.length} cleared`;
+    status.sessionExpiredEmailSent = false;
     writeJson(statusFile(), status);
     return { ok: true };
   } catch (error) {
@@ -496,16 +559,20 @@ async function runElectronCheck(force = false) {
 function buildMenu() {
   const s = readStatus();
   const lastCheck = formatUkDateTime(s.lastCheckCompletedAt);
+  const setup = setupState();
   const menu = Menu.buildFromTemplate([
     { label: `Status: ${lastStatus}`, enabled: false },
     { label: `Last check: ${lastCheck}`, enabled: false },
     { type: 'separator' },
-    { label: 'Setup', click: () => showSetupWindow() },
+    setup.complete
+      ? { label: 'Configured', enabled: false }
+      : { label: 'Setup', click: () => showSetupWindow() },
     { label: 'Show Status', click: () => showStatus() },
     { label: 'Check Now', click: () => checkNow(false) },
     { label: 'Force Test Email', click: () => checkNow(true) },
     { label: 'Manage Recipients', click: () => showRecipientsWindow() },
     { label: 'SMTP Settings', click: () => showSmtpWindow() },
+    { label: 'Change Logo', click: () => chooseBrandLogo() },
     { label: 'Send Test Email', click: () => runNode(['src/testEmail.js'], true) },
     { label: 'Login to Walks Manager', click: () => openWalksManagerLoginWindow().then(result => {
       dialog.showMessageBox({
@@ -533,7 +600,7 @@ function startScheduler() {
 app.whenReady().then(() => {
   if (app.dock) app.dock.hide();
 
-  tray = new Tray(path.join(root, 'assets', 'trayTemplate.png'));
+  tray = new Tray(trayIcon());
   tray.setToolTip('Walks Manager Watch');
   buildMenu();
   startScheduler();
@@ -566,6 +633,7 @@ ipcMain.handle('smtp:save', (_event, settings) => {
   return currentSmtp();
 });
 ipcMain.handle('setup:load', () => setupState());
+ipcMain.handle('setup:choose-logo', () => chooseBrandLogo());
 ipcMain.handle('setup:save', (_event, settings) => {
   const cfg = appConfig();
   cfg.notificationRecipients = parseRecipients(settings.recipients);
