@@ -490,6 +490,9 @@
       const platform = (navigator.userAgentData && navigator.userAgentData.platform) || navigator.platform || '';
       const ua = navigator.userAgent || '';
       const value = `${platform} ${ua}`.toLowerCase();
+      const touchMac = value.includes('mac') && navigator.maxTouchPoints > 1;
+      if (value.includes('iphone') || value.includes('ipad') || value.includes('ipod') || touchMac) return 'ios';
+      if (value.includes('android')) return 'android';
       if (value.includes('mac')) return 'mac';
       if (value.includes('win')) return 'windows';
       if (value.includes('linux') || value.includes('x11')) return 'linux';
@@ -540,6 +543,40 @@
           <li>A Windows installer is not available yet.</li>
           <li>The app core is Electron-based, so Windows packaging can be added later.</li>
           <li>For now, use the app on a supported Mac.</li>
+        `;
+        return;
+      }
+
+      if (os === 'ios') {
+        detected.textContent = 'iPhone or iPad detected';
+        title.textContent = 'Mac required';
+        copy.textContent = 'Walks Manager Watch is a macOS menu bar app. It cannot be installed on iPhone or iPad.';
+        download.href = latestReleaseUrl;
+        download.textContent = 'View latest release';
+        primary.href = latestReleaseUrl;
+        primary.textContent = 'View latest release';
+        instructionsTitle.textContent = 'iPhone and iPad status';
+        instructions.innerHTML = `
+          <li>This app needs macOS and the Mac menu bar.</li>
+          <li>Use a supported Mac to download and install Walks Manager Watch.</li>
+          <li>You can still view the latest release details from this device.</li>
+        `;
+        return;
+      }
+
+      if (os === 'android') {
+        detected.textContent = 'Android detected';
+        title.textContent = 'Mac required';
+        copy.textContent = 'Walks Manager Watch is a macOS menu bar app. It cannot be installed on Android.';
+        download.href = latestReleaseUrl;
+        download.textContent = 'View latest release';
+        primary.href = latestReleaseUrl;
+        primary.textContent = 'View latest release';
+        instructionsTitle.textContent = 'Android status';
+        instructions.innerHTML = `
+          <li>This app needs macOS and the Mac menu bar.</li>
+          <li>Use a supported Mac to download and install Walks Manager Watch.</li>
+          <li>You can still view the latest release details from this device.</li>
         `;
         return;
       }
