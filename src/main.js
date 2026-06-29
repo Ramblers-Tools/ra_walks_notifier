@@ -809,7 +809,7 @@ function buildMenu() {
     { label: 'Open Review List', enabled: configured, click: () => shell.openExternal(reviewUrl) },
     {
       enabled: configured,
-      label: 'Settings & Configuration',
+      label: 'Settings && Configuration',
       submenu: [
         { label: 'Configured', enabled: false },
         { type: 'separator' },
