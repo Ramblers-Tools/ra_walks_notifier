@@ -105,6 +105,13 @@
       margin-top: 20px;
     }
 
+    .login-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 10px;
+    }
+
     button {
       border: 1px solid #9aa5b1;
       border-radius: 6px;
@@ -169,7 +176,10 @@
   <label for="walksPass">Walks Manager password</label>
   <input id="walksPass" type="password" autocomplete="current-password">
 
-  <button id="login">Check Login and Find Groups</button>
+  <div class="login-actions">
+    <button id="login">Check Login and Find Groups</button>
+    <button id="manual-login">Open Walks Manager Login</button>
+  </div>
 
   <div id="groupsPanel" class="hidden">
     <h2>Walks Manager Group</h2>
@@ -263,7 +273,7 @@
       return Promise.race([
         promise,
         new Promise((_, reject) => {
-          timeout = setTimeout(() => reject(new Error('Timed out checking Walks Manager login. Try again. If you close this window, use Status: Setup required from the menu to reopen it.')), timeoutMs);
+          timeout = setTimeout(() => reject(new Error('Timed out checking Walks Manager login. Use Open Walks Manager Login to sign in manually.')), timeoutMs);
         })
       ]).finally(() => clearTimeout(timeout));
     }
@@ -287,7 +297,7 @@
         const result = await withTimeout(window.setup.loginWithCredentials({
           username: fields.walksUser.value,
           password: fields.walksPass.value
-        }), 120000);
+        }), 45000);
         const state = await window.setup.load();
         render(state);
         if (result && result.message) {
@@ -296,6 +306,25 @@
         if (result && result.groups) renderGroups(result.groups);
       } catch (error) {
         session.textContent = error.message || 'Walks Manager login check failed.';
+      } finally {
+        button.disabled = false;
+      }
+    });
+
+    document.getElementById('manual-login').addEventListener('click', async () => {
+      const button = document.getElementById('manual-login');
+      button.disabled = true;
+      session.textContent = 'Opening Walks Manager login window...';
+      try {
+        const result = await window.setup.login();
+        const state = await window.setup.load();
+        render(state);
+        if (result && result.message) {
+          session.textContent = result.message;
+        }
+        if (result && result.groups) renderGroups(result.groups);
+      } catch (error) {
+        session.textContent = error.message || 'Walks Manager login failed.';
       } finally {
         button.disabled = false;
       }

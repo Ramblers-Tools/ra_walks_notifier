@@ -634,10 +634,23 @@ function openWalksManagerLoginWindow() {
         const text = await loginWindow.webContents.executeJavaScript('document.body ? document.body.innerText : ""', true);
         if (!isWalksManagerReviewPage(text, url)) return;
 
+        const groups = await extractWalksManagerGroups(loginWindow);
         await saveElectronLoginSession(loginWindow);
         clearInterval(interval);
         loginWindow.close();
-        resolve({ code: 0, message: 'Walks Manager login session saved.' });
+
+        if (groups.length === 1) {
+          saveSelectedGroups(groups);
+          resolve({ code: 0, message: `Walks Manager login saved. Group set to ${groups[0].name}.`, groups, sessionPresent: true });
+          return;
+        }
+
+        if (groups.length > 1) {
+          resolve({ code: 0, message: 'Walks Manager login saved. Select the group for this app.', groups, sessionPresent: true });
+          return;
+        }
+
+        resolve({ code: 0, message: 'Walks Manager login session saved. No group selector was found.', groups: [], sessionPresent: true });
       } catch (error) {
         clearInterval(interval);
         resolve({ code: 1, message: error.message });
@@ -1112,7 +1125,13 @@ ipcMain.handle('setup:login', async () => {
     message: 'A browser window will open. Sign in to Walks Manager and wait until the review list loads. The app will save the session automatically.'
   });
   const result = await openWalksManagerLoginWindow();
-  return { code: result.code, message: result.message, sessionPresent: fs.existsSync(sessionFile()) };
+  if (result.code === 0) buildMenu();
+  return {
+    code: result.code,
+    message: result.message,
+    groups: result.groups || [],
+    sessionPresent: fs.existsSync(sessionFile())
+  };
 });
 ipcMain.handle('setup:login-with-credentials', async (_event, credentials) => {
   const result = await loginWithWalksManagerCredentials(credentials?.username, credentials?.password);
