@@ -650,8 +650,18 @@ async function wait(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
+function withTimeout(promise, timeoutMs, fallback) {
+  let timeout;
+  return Promise.race([
+    promise,
+    new Promise(resolve => {
+      timeout = setTimeout(() => resolve(fallback), timeoutMs);
+    })
+  ]).finally(() => clearTimeout(timeout));
+}
+
 async function tryFillWalksManagerCredentials(window, username, password) {
-  return window.webContents.executeJavaScript(`
+  return withTimeout(window.webContents.executeJavaScript(`
     (() => {
       const username = ${JSON.stringify(username)};
       const password = ${JSON.stringify(password)};
@@ -692,11 +702,11 @@ async function tryFillWalksManagerCredentials(window, username, password) {
       }
       return { acted: false, loginFailed };
     })()
-  `, true).catch(() => ({ acted: false, loginFailed: false }));
+  `, true).catch(() => ({ acted: false, loginFailed: false })), 5000, { acted: false, loginFailed: false });
 }
 
 async function extractWalksManagerGroups(window) {
-  const groups = await window.webContents.executeJavaScript(`
+  const groups = await withTimeout(window.webContents.executeJavaScript(`
     (() => {
       const select = document.querySelector('select[name="gid"], #edit-gid, [data-drupal-selector="edit-gid"]');
       if (!select) return [];
@@ -705,7 +715,7 @@ async function extractWalksManagerGroups(window) {
         .map(option => ({ gid: Number(option.value), name: (option.textContent || '').trim() }))
         .filter(group => group.gid && group.name);
     })()
-  `, true).catch(() => []);
+  `, true).catch(() => []), 5000, []);
   const seen = new Set();
   return groups.filter(group => {
     if (seen.has(group.gid)) return false;
@@ -757,7 +767,11 @@ async function loginWithWalksManagerCredentials(username, password) {
     let lastFailure = false;
     while (Date.now() - startedAt < 90000) {
       const url = window.webContents.getURL();
-      const text = await window.webContents.executeJavaScript('document.body ? document.body.innerText : ""', true).catch(() => '');
+      const text = await withTimeout(
+        window.webContents.executeJavaScript('document.body ? document.body.innerText : ""', true).catch(() => ''),
+        5000,
+        ''
+      );
       if (isWalksManagerReviewPage(text, url)) {
         const groups = await extractWalksManagerGroups(window);
         await saveElectronLoginSession(window);
@@ -966,7 +980,11 @@ function buildMenu() {
   const configured = setup.complete;
   const bootEnabled = startAtBootEnabled();
   const menu = Menu.buildFromTemplate([
-    { label: `Status: ${lastStatus}`, enabled: false },
+    {
+      label: `Status: ${lastStatus}`,
+      enabled: !configured && lastStatus === 'Setup required',
+      click: () => showSetupWindow()
+    },
     { label: `Last check: ${lastCheck}`, enabled: false },
     { label: `Update: ${updateStatus}`, enabled: false },
     { type: 'separator' },

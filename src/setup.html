@@ -258,6 +258,16 @@
       };
     }
 
+    function withTimeout(promise, timeoutMs) {
+      let timeout;
+      return Promise.race([
+        promise,
+        new Promise((_, reject) => {
+          timeout = setTimeout(() => reject(new Error('Timed out checking Walks Manager login. Try again. If you close this window, use Status: Setup required from the menu to reopen it.')), timeoutMs);
+        })
+      ]).finally(() => clearTimeout(timeout));
+    }
+
     window.setup.load().then(render);
 
     document.getElementById('choose-logo').addEventListener('click', async () => {
@@ -270,17 +280,25 @@
     });
 
     document.getElementById('login').addEventListener('click', async () => {
+      const button = document.getElementById('login');
+      button.disabled = true;
       session.textContent = 'Checking Walks Manager login...';
-      const result = await window.setup.loginWithCredentials({
-        username: fields.walksUser.value,
-        password: fields.walksPass.value
-      });
-      const state = await window.setup.load();
-      render(state);
-      if (result && result.message) {
-        session.textContent = result.message;
+      try {
+        const result = await withTimeout(window.setup.loginWithCredentials({
+          username: fields.walksUser.value,
+          password: fields.walksPass.value
+        }), 120000);
+        const state = await window.setup.load();
+        render(state);
+        if (result && result.message) {
+          session.textContent = result.message;
+        }
+        if (result && result.groups) renderGroups(result.groups);
+      } catch (error) {
+        session.textContent = error.message || 'Walks Manager login check failed.';
+      } finally {
+        button.disabled = false;
       }
-      if (result && result.groups) renderGroups(result.groups);
     });
 
     fields.group.addEventListener('change', () => {
