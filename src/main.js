@@ -609,6 +609,25 @@ async function acceptCookieBanner(window) {
   `, true).catch(() => false), 3000, false);
 }
 
+async function clickListWalksControl(window) {
+  return withTimeout(window.webContents.executeJavaScript(`
+    (() => {
+      const visible = (el) => {
+        if (!el) return false;
+        const style = window.getComputedStyle(el);
+        const rect = el.getBoundingClientRect();
+        return style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0 && !el.disabled;
+      };
+      const controls = Array.from(document.querySelectorAll('a, button, input[type="button"], input[type="submit"]')).filter(visible);
+      const listWalks = controls.find(el => /\\blist walks\\b/i.test(String(el.innerText || el.value || el.ariaLabel || el.title || '').trim()))
+        || controls.find(el => /\\/walks-manager\\/list/i.test(String(el.href || el.getAttribute('href') || '')));
+      if (!listWalks) return false;
+      listWalks.click();
+      return true;
+    })()
+  `, true).catch(() => false), 3000, false);
+}
+
 function looksLikeLoggedInRamblersPage(text, url) {
   if (!/ramblers\.org\.uk/i.test(url)) return false;
   if (/password|sign in|log in|login|verification|multi-factor|one[- ]time|incorrect|invalid/i.test(text || '')) return false;
@@ -625,6 +644,11 @@ async function advanceLoginWindowToReviewList(window) {
   await acceptCookieBanner(window);
 
   if (isWalksManagerReviewPage(text, url)) return { text, url };
+
+  if (/walks-manager\.ramblers\.org\.uk/i.test(url)) {
+    const clicked = await clickListWalksControl(window);
+    if (clicked) return { text, url };
+  }
 
   if (looksLikeLoggedInRamblersPage(text, url)) {
     const now = Date.now();
