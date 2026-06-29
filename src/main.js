@@ -193,8 +193,36 @@ function trayIcon() {
     return nativeImage.createFromPath(path.join(root, 'assets', 'trayTemplate.png'));
   }
   const resized = image.resize({ width: 18, height: 18 });
-  resized.setTemplateImage(true);
+  resized.setTemplateImage(false);
   return resized;
+}
+
+async function sendSmtpTestEmail(showDialog = true) {
+  try {
+    await sendEmail(
+      'Walks Manager Watch test email',
+      'This is a test email from Walks Manager Watch.',
+      '<p>This is a test email from <strong>Walks Manager Watch</strong>.</p>'
+    );
+    if (showDialog) {
+      dialog.showMessageBox({
+        type: 'info',
+        title: 'Walks Manager Watch',
+        message: 'SMTP test email sent.'
+      });
+    }
+    return { code: 0 };
+  } catch (error) {
+    if (showDialog) {
+      dialog.showMessageBox({
+        type: 'error',
+        title: 'Walks Manager Watch',
+        message: 'SMTP test email failed.',
+        detail: error.stack || error.message
+      });
+    }
+    return { code: 1, error };
+  }
 }
 
 async function chooseBrandLogo(showConfirmation = true) {
@@ -609,9 +637,6 @@ function buildMenu() {
     { label: 'Send Walks Report Email', click: () => checkNow(true) },
     { label: 'Manage Recipients', click: () => showRecipientsWindow() },
     { label: 'SMTP Settings', click: () => showSmtpWindow() },
-    { label: 'Change Logo', click: () => chooseBrandLogo() },
-    { label: 'Reset Logo', click: () => resetBrandLogo() },
-    { label: 'Send SMTP Test Email', click: () => runNode(['src/testEmail.js'], true) },
     { label: 'Login to Walks Manager', click: () => openWalksManagerLoginWindow().then(result => {
       dialog.showMessageBox({
         type: result.code === 0 ? 'info' : 'error',
@@ -620,9 +645,11 @@ function buildMenu() {
       });
     }) },
     { label: 'Open Review List', click: () => shell.openExternal(reviewUrl) },
-    { label: 'About', click: () => showAbout() },
     { type: 'separator' },
-    { label: 'Open Settings Folder', click: () => shell.openPath(path.dirname(configFilePath())) },
+    { label: 'Send SMTP Test Email', click: () => sendSmtpTestEmail(true) },
+    { label: 'Change Logo', click: () => chooseBrandLogo() },
+    { label: 'Reset Logo', click: () => resetBrandLogo() },
+    { label: 'About', click: () => showAbout() },
     { type: 'separator' },
     { label: 'Quit', click: () => app.quit() }
   ]);
@@ -697,6 +724,6 @@ ipcMain.handle('setup:login', async () => {
   const result = await openWalksManagerLoginWindow();
   return { code: result.code, message: result.message, sessionPresent: fs.existsSync(sessionFile()) };
 });
-ipcMain.handle('setup:test-email', () => runNode(['src/testEmail.js'], true));
+ipcMain.handle('setup:test-email', () => sendSmtpTestEmail(true));
 app.on('before-quit', () => { if (timer) clearInterval(timer); });
 app.on('window-all-closed', (e) => e.preventDefault());
