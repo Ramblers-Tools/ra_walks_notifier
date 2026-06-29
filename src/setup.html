@@ -181,6 +181,28 @@
     <select id="group"></select>
   </div>
 
+  <h2>Check Schedule</h2>
+  <div class="row">
+    <div>
+      <label for="interval">Check every</label>
+      <select id="interval">
+        <option value="1">1 minute</option>
+        <option value="5">5 minutes</option>
+        <option value="10">10 minutes</option>
+        <option value="15">15 minutes</option>
+        <option value="30">30 minutes</option>
+        <option value="60">1 hour</option>
+      </select>
+    </div>
+    <div>
+      <label for="activeStart">Active from</label>
+      <select id="activeStart"></select>
+    </div>
+  </div>
+
+  <label for="activeEnd">Active until</label>
+  <select id="activeEnd"></select>
+
   <div class="actions">
     <button id="test">Send Test Email</button>
     <button id="close">Close</button>
@@ -197,7 +219,10 @@
       pass: document.getElementById('pass'),
       fromName: document.getElementById('fromName'),
       from: document.getElementById('from'),
-      group: document.getElementById('group')
+      group: document.getElementById('group'),
+      interval: document.getElementById('interval'),
+      activeStart: document.getElementById('activeStart'),
+      activeEnd: document.getElementById('activeEnd')
     };
     const session = document.getElementById('session');
     const brand = document.getElementById('brand');
@@ -205,6 +230,22 @@
     const logoStatus = document.getElementById('logo-status');
     const groupsPanel = document.getElementById('groupsPanel');
     const groupStatus = document.getElementById('group-status');
+
+    function hourLabel(hour) {
+      return `${String(hour).padStart(2, '0')}:00`;
+    }
+
+    function populateHourSelect(select) {
+      for (let hour = 0; hour < 24; hour += 1) {
+        const option = document.createElement('option');
+        option.value = String(hour);
+        option.textContent = hourLabel(hour);
+        select.appendChild(option);
+      }
+    }
+
+    populateHourSelect(fields.activeStart);
+    populateHourSelect(fields.activeEnd);
 
     function renderGroups(groups) {
       const selected = groups && groups.length === 1 ? groups[0] : null;
@@ -235,6 +276,9 @@
       fields.pass.value = state.smtp.pass || '';
       fields.fromName.value = state.smtp.fromName || '';
       fields.from.value = state.smtp.from || '';
+      fields.interval.value = String(state.schedule?.checkIntervalMinutes || 5);
+      fields.activeStart.value = String(state.schedule?.activeHours?.start ?? 7);
+      fields.activeEnd.value = String(state.schedule?.activeHours?.end ?? 22);
       renderGroups(state.groups || []);
       if (state.branding && state.branding.logoDataUrl) {
         logo.src = state.branding.logoDataUrl;
@@ -259,6 +303,13 @@
           pass: fields.pass.value,
           fromName: fields.fromName.value,
           from: fields.from.value
+        },
+        schedule: {
+          checkIntervalMinutes: Number(fields.interval.value || 5),
+          activeHours: {
+            start: Number(fields.activeStart.value || 7),
+            end: Number(fields.activeEnd.value || 22)
+          }
         },
         groups: fields.group.value
           ? [{ gid: Number(fields.group.value), name: fields.group.options[fields.group.selectedIndex].textContent }]

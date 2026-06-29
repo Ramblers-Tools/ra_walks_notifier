@@ -3,8 +3,9 @@ const { autoUpdater } = require('electron-updater');
 const { spawn } = require('child_process');
 const path = require('path');
 const fs = require('fs');
-const { formatUkDateTime } = require('./time');
+const { currentUkHour, formatUkDateTime, nowUkDateTime } = require('./time');
 const { parseRecipients, resolveRecipients, resolveSmtp, resolveGroups } = require('./config');
+const { isWithinActiveHours, normalizeSchedule } = require('./schedule');
 const { parseWalkEntries } = require('./parser');
 const { buildEmail } = require('./emailSummary');
 const { sendEmail } = require('./email');
@@ -73,11 +74,13 @@ function setupState() {
   const smtp = currentSmtp();
   const cfg = appConfig();
   const groups = resolveGroups(cfg, []);
+  const schedule = normalizeSchedule(cfg);
   const sessionPresent = fs.existsSync(sessionFile());
   return {
     recipients,
     smtp,
     groups: sessionPresent ? groups : [],
+    schedule,
     branding: {
       logoPath: logoPath(cfg),
       logoDataUrl: logoDataUrl(cfg)
@@ -179,6 +182,7 @@ function buildStatusText() {
   const s = readStatus();
   const state = readJson(stateFile(), { walks: [] });
   const cfg = appConfig();
+  const schedule = normalizeSchedule(cfg);
   const groups = groupsConfig();
   const groupNames = groups.map(group => group.name || `Group ${group.gid}`);
   const recipients = currentRecipients();
@@ -190,8 +194,8 @@ function buildStatusText() {
     `Status: ${running}`,
     `Pending walks: ${pending}`,
     statusList(groups.length === 1 ? 'Group' : 'Groups', groupNames, 'Not selected'),
-    `Schedule: Every ${cfg.checkIntervalMinutes || 5} minutes`,
-    cfg.activeHours ? `Active hours: ${cfg.activeHours.start}:00 to ${cfg.activeHours.end}:00` : null,
+    `Schedule: Every ${schedule.checkIntervalMinutes} minutes`,
+    `Active hours: ${String(schedule.activeHours.start).padStart(2, '0')}:00 to ${String(schedule.activeHours.end).padStart(2, '0')}:00`,
     '',
     `Last check: ${formatUkDateTime(s.lastCheckCompletedAt)}`,
     `Last result: ${s.lastResult || 'None yet'}`,
@@ -813,11 +817,21 @@ function saveSelectedGroups(groups) {
   return setupState();
 }
 
-async function checkNow(force = false) {
+async function checkNow(force = false, scheduled = false) {
   if (!setupState().complete) {
     lastStatus = 'Setup required';
     buildMenu();
     showSetupWindow();
+    return;
+  }
+
+  const schedule = normalizeSchedule(appConfig());
+  if (scheduled && !isWithinActiveHours(schedule.activeHours, currentUkHour())) {
+    const status = readJson(statusFile(), {});
+    status.lastResult = `Skipped outside active hours (${String(schedule.activeHours.start).padStart(2, '0')}:00 to ${String(schedule.activeHours.end).padStart(2, '0')}:00)`;
+    status.lastCheckCompletedAt = nowUkDateTime();
+    writeJson(statusFile(), status);
+    updateTrayLabel();
     return;
   }
 
@@ -1005,6 +1019,7 @@ function buildMenu() {
         { type: 'separator' },
         { label: 'Manage Recipients', click: () => showRecipientsWindow() },
         { label: 'SMTP Settings', click: () => showSmtpWindow() },
+        { label: 'Check Schedule', click: () => showSetupWindow() },
         { label: 'Refresh Walks Manager Login', click: () => openWalksManagerLoginWindow().then(result => {
           dialog.showMessageBox({
             type: result.code === 0 ? 'info' : 'error',
@@ -1013,7 +1028,7 @@ function buildMenu() {
           });
         }) },
         {
-          label: 'Start at Boot',
+          label: 'Start App on Login',
           type: 'checkbox',
           checked: bootEnabled,
           click: () => toggleStartAtBoot()
@@ -1034,10 +1049,9 @@ function buildMenu() {
 }
 
 function startScheduler() {
-  const cfg = appConfig();
-  const intervalMinutes = cfg.checkIntervalMinutes || 5;
-  timer = setInterval(() => checkNow(false), intervalMinutes * 60 * 1000);
-  checkNow(false);
+  const schedule = normalizeSchedule(appConfig());
+  timer = setInterval(() => checkNow(false, true), schedule.checkIntervalMinutes * 60 * 1000);
+  checkNow(false, true);
 }
 
 function refreshScheduler() {
@@ -1097,6 +1111,9 @@ ipcMain.handle('setup:save', (_event, settings) => {
   }
 
   const cfg = appConfig();
+  const schedule = normalizeSchedule(settings.schedule || {});
+  cfg.checkIntervalMinutes = schedule.checkIntervalMinutes;
+  cfg.activeHours = schedule.activeHours;
   cfg.notificationRecipients = parseRecipients(settings.recipients);
   cfg.smtp = {
     host: String(settings.smtp?.host || '').trim(),

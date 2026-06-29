@@ -23,4 +23,14 @@ function nowUkDateTime() {
   return formatUkDateTime(new Date());
 }
 
-module.exports = { UK_TIME_ZONE, formatUkDateTime, nowUkDateTime };
+function currentUkHour(date = new Date()) {
+  const hour = new Intl.DateTimeFormat('en-GB', {
+    timeZone: UK_TIME_ZONE,
+    hour: '2-digit',
+    hour12: false,
+    hourCycle: 'h23'
+  }).format(date);
+  return Number(hour);
+}
+
+module.exports = { UK_TIME_ZONE, formatUkDateTime, nowUkDateTime, currentUkHour };
