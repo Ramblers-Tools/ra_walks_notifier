@@ -14,6 +14,8 @@ const { isLoginPage, sendSessionExpiredEmail } = require('./sessionExpiry');
 
 let tray;
 let timer;
+let updateTimer;
+let initialUpdateTimer;
 let recipientsWindow;
 let smtpWindow;
 let setupWindow;
@@ -25,6 +27,7 @@ const root = path.join(__dirname, '..');
 const reviewUrl = 'https://walks-manager.ramblers.org.uk/walks-manager/list?gid=414&review=1';
 const repoUrl = 'https://github.com/East-Cheshire-Ramblers/ra_walks_notifier';
 const walksPartition = 'persist:walks-manager-watch-browser';
+const updateCheckIntervalMs = 6 * 60 * 60 * 1000;
 
 function readJson(file, fallback = {}) {
   try {
@@ -417,6 +420,21 @@ function checkForUpdates(manual = true) {
   autoUpdater.checkForUpdates();
 }
 
+function stopUpdateChecks() {
+  if (initialUpdateTimer) clearTimeout(initialUpdateTimer);
+  if (updateTimer) clearInterval(updateTimer);
+  initialUpdateTimer = null;
+  updateTimer = null;
+}
+
+function startUpdateChecks() {
+  stopUpdateChecks();
+  if (!setupState().complete) return;
+
+  initialUpdateTimer = setTimeout(() => checkForUpdates(false), 10000);
+  updateTimer = setInterval(() => checkForUpdates(false), updateCheckIntervalMs);
+}
+
 function showRecipientsWindow() {
   if (recipientsWindow) {
     recipientsWindow.focus();
@@ -766,39 +784,42 @@ function buildMenu() {
   const s = readStatus();
   const lastCheck = formatUkDateTime(s.lastCheckCompletedAt);
   const setup = setupState();
+  const configured = setup.complete;
   const bootEnabled = startAtBootEnabled();
   const menu = Menu.buildFromTemplate([
     { label: `Status: ${lastStatus}`, enabled: false },
     { label: `Last check: ${lastCheck}`, enabled: false },
     { type: 'separator' },
-    setup.complete
-      ? { label: 'Configured', enabled: false }
-      : { label: 'Setup', click: () => showSetupWindow() },
-    {
-      label: setup.complete ? 'Start at Boot' : 'Start at Boot (complete setup first)',
-      type: 'checkbox',
-      checked: setup.complete && bootEnabled,
-      enabled: setup.complete,
-      click: () => toggleStartAtBoot()
-    },
-    { label: 'Show Status', click: () => showStatus() },
-    { label: 'Check Now', click: () => checkNow(false) },
-    { label: 'Send Walks Report Email', click: () => checkNow(true) },
-    { label: 'Manage Recipients', click: () => showRecipientsWindow() },
-    { label: 'SMTP Settings', click: () => showSmtpWindow() },
+    { label: 'Show Status', enabled: configured, click: () => showStatus() },
+    { label: 'Check Now', enabled: configured, click: () => checkNow(false) },
+    { label: 'Send Walks Report Email', enabled: configured, click: () => checkNow(true) },
     { label: 'Login to Walks Manager', click: () => openWalksManagerLoginWindow().then(result => {
       dialog.showMessageBox({
         type: result.code === 0 ? 'info' : 'error',
         title: 'Walks Manager Login',
         message: result.message
       });
-    }) },
-    { label: 'Open Review List', click: () => shell.openExternal(reviewUrl) },
+    }), enabled: configured },
+    { label: 'Open Review List', enabled: configured, click: () => shell.openExternal(reviewUrl) },
     { type: 'separator' },
-    { label: 'Send SMTP Test Email', click: () => sendSmtpTestEmail(true) },
-    { label: 'Check for Updates', click: () => checkForUpdates(true) },
-    { label: 'Change Logo', click: () => chooseBrandLogo() },
-    { label: 'Reset Logo', click: () => resetBrandLogo() },
+    { label: 'Settings', enabled: false },
+    configured
+      ? { label: 'Configured', enabled: false }
+      : { label: 'Setup required', enabled: false },
+    { label: 'Manage Recipients', enabled: configured, click: () => showRecipientsWindow() },
+    { label: 'SMTP Settings', enabled: configured, click: () => showSmtpWindow() },
+    {
+      label: configured ? 'Start at Boot' : 'Start at Boot (complete setup first)',
+      type: 'checkbox',
+      checked: configured && bootEnabled,
+      enabled: configured,
+      click: () => toggleStartAtBoot()
+    },
+    { label: 'Change Logo', enabled: configured, click: () => chooseBrandLogo() },
+    { label: 'Reset Logo', enabled: configured, click: () => resetBrandLogo() },
+    { type: 'separator' },
+    { label: 'Send SMTP Test Email', enabled: configured, click: () => sendSmtpTestEmail(true) },
+    { label: 'Check for Updates', enabled: configured, click: () => checkForUpdates(true) },
     { label: 'About', click: () => showAbout() },
     { type: 'separator' },
     { label: 'Quit', click: () => app.quit() }
@@ -830,7 +851,7 @@ app.whenReady().then(() => {
   if (!setupState().complete) {
     showSetupWindow();
   } else {
-    setTimeout(() => checkForUpdates(false), 10000);
+    startUpdateChecks();
   }
 });
 ipcMain.handle('recipients:load', () => currentRecipients());
@@ -878,6 +899,7 @@ ipcMain.handle('setup:save', (_event, settings) => {
   if (state.complete) {
     if (setupWindow) setupWindow.close();
     refreshScheduler();
+    startUpdateChecks();
   }
   return state;
 });
@@ -891,5 +913,8 @@ ipcMain.handle('setup:login', async () => {
   return { code: result.code, message: result.message, sessionPresent: fs.existsSync(sessionFile()) };
 });
 ipcMain.handle('setup:test-email', () => sendSmtpTestEmail(true));
-app.on('before-quit', () => { if (timer) clearInterval(timer); });
+app.on('before-quit', () => {
+  if (timer) clearInterval(timer);
+  stopUpdateChecks();
+});
 app.on('window-all-closed', (e) => e.preventDefault());
