@@ -24,6 +24,7 @@ let lastStatus = 'Starting...';
 let updateStatus = 'Not checked';
 let manualUpdateCheck = false;
 let updateHandlersConfigured = false;
+let quittingForUpdate = false;
 const root = path.join(__dirname, '..');
 const repoUrl = 'https://github.com/East-Cheshire-Ramblers/ra_walks_notifier';
 const walksPartition = 'persist:walks-manager-watch-browser';
@@ -338,11 +339,27 @@ function toggleStartAtBoot() {
   buildMenu();
 }
 
+function prepareForUpdateInstall() {
+  quittingForUpdate = true;
+  if (timer) clearInterval(timer);
+  timer = null;
+  stopUpdateChecks();
+}
+
+function installDownloadedUpdate() {
+  prepareForUpdateInstall();
+  setImmediate(() => autoUpdater.quitAndInstall(false, true));
+}
+
 function configureUpdates() {
   if (updateHandlersConfigured) return;
   updateHandlersConfigured = true;
   autoUpdater.autoDownload = false;
   autoUpdater.autoInstallOnAppQuit = true;
+
+  autoUpdater.on('before-quit-for-update', () => {
+    prepareForUpdateInstall();
+  });
 
   autoUpdater.on('checking-for-update', () => {
     updateStatus = 'Checking...';
@@ -395,7 +412,7 @@ function configureUpdates() {
       defaultId: 0,
       cancelId: 1
     }).then(result => {
-      if (result.response === 0) autoUpdater.quitAndInstall();
+      if (result.response === 0) installDownloadedUpdate();
     });
   });
 
@@ -956,13 +973,6 @@ function buildMenu() {
     { label: 'Show Status', enabled: configured, click: () => showStatus() },
     { label: 'Check Now', enabled: configured, click: () => checkNow(false) },
     { label: 'Send Walks Report Email', enabled: configured, click: () => checkNow(true) },
-    { label: 'Login to Walks Manager', click: () => openWalksManagerLoginWindow().then(result => {
-      dialog.showMessageBox({
-        type: result.code === 0 ? 'info' : 'error',
-        title: 'Walks Manager Login',
-        message: result.message
-      });
-    }), enabled: configured },
     { label: 'Open Review List', enabled: configured, click: () => shell.openExternal(reviewUrlForGroup()) },
     {
       enabled: configured,
@@ -972,6 +982,13 @@ function buildMenu() {
         { type: 'separator' },
         { label: 'Manage Recipients', click: () => showRecipientsWindow() },
         { label: 'SMTP Settings', click: () => showSmtpWindow() },
+        { label: 'Refresh Walks Manager Login', click: () => openWalksManagerLoginWindow().then(result => {
+          dialog.showMessageBox({
+            type: result.code === 0 ? 'info' : 'error',
+            title: 'Walks Manager Login',
+            message: result.message
+          });
+        }) },
         {
           label: 'Start at Boot',
           type: 'checkbox',
@@ -1089,4 +1106,6 @@ app.on('before-quit', () => {
   if (timer) clearInterval(timer);
   stopUpdateChecks();
 });
-app.on('window-all-closed', (e) => e.preventDefault());
+app.on('window-all-closed', (e) => {
+  if (!quittingForUpdate) e.preventDefault();
+});
