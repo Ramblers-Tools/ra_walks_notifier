@@ -4,7 +4,7 @@ const { spawn } = require('child_process');
 const path = require('path');
 const fs = require('fs');
 const { formatUkDateTime } = require('./time');
-const { parseRecipients, resolveRecipients, resolveSmtp } = require('./config');
+const { parseRecipients, resolveRecipients, resolveSmtp, resolveGroups } = require('./config');
 const { parseWalkEntries } = require('./parser');
 const { buildEmail } = require('./emailSummary');
 const { sendEmail } = require('./email');
@@ -25,7 +25,6 @@ let updateStatus = 'Not checked';
 let manualUpdateCheck = false;
 let updateHandlersConfigured = false;
 const root = path.join(__dirname, '..');
-const reviewUrl = 'https://walks-manager.ramblers.org.uk/walks-manager/list?gid=414&review=1';
 const repoUrl = 'https://github.com/East-Cheshire-Ramblers/ra_walks_notifier';
 const walksPartition = 'persist:walks-manager-watch-browser';
 const updateCheckIntervalMs = 6 * 60 * 60 * 1000;
@@ -70,21 +69,23 @@ function setupState() {
   const recipients = currentRecipients();
   const smtp = currentSmtp();
   const cfg = appConfig();
+  const groups = resolveGroups(cfg, []);
   return {
     recipients,
     smtp,
+    groups,
     branding: {
       logoPath: logoPath(cfg),
       logoDataUrl: logoDataUrl(cfg)
     },
     sessionPresent: fs.existsSync(sessionFile()),
-    complete: Boolean(recipients.length && smtp.host && smtp.user && smtp.pass && smtp.from && fs.existsSync(sessionFile()))
+    complete: Boolean(recipients.length && smtp.host && smtp.user && smtp.pass && smtp.from && groups.length && fs.existsSync(sessionFile()))
   };
 }
 
 function groupsConfig() {
   const { paths } = require('./config');
-  return readJson(paths.groupsFile, []);
+  return resolveGroups(appConfig(), readJson(paths.groupsFile, []));
 }
 
 function statusFile() { const { paths } = require('./config'); return paths.statusFile; }
@@ -196,6 +197,14 @@ function buildStatusText() {
 function configFilePath() {
   const { paths } = require('./config');
   return paths.configFile;
+}
+
+function selectedGroup() {
+  return groupsConfig()[0] || { name: 'East Cheshire Group', gid: 414 };
+}
+
+function reviewUrlForGroup(group = selectedGroup()) {
+  return `https://walks-manager.ramblers.org.uk/walks-manager/list?gid=${encodeURIComponent(group.gid)}&review=1`;
 }
 
 function showStatus() {
@@ -498,7 +507,7 @@ function showSetupWindow() {
 
   setupWindow = new BrowserWindow({
     width: 640,
-    height: 790,
+    height: 900,
     title: 'Walks Manager Watch Setup',
     resizable: false,
     minimizable: false,
@@ -584,7 +593,7 @@ function openWalksManagerLoginWindow() {
       loginWindow = null;
     });
 
-    loginWindow.loadURL(reviewUrl);
+    loginWindow.loadURL(reviewUrlForGroup());
   }
 
   return new Promise((resolve) => {
@@ -618,6 +627,154 @@ function openWalksManagerLoginWindow() {
       }
     }, 1500);
   });
+}
+
+async function wait(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+async function tryFillWalksManagerCredentials(window, username, password) {
+  return window.webContents.executeJavaScript(`
+    (() => {
+      const username = ${JSON.stringify(username)};
+      const password = ${JSON.stringify(password)};
+      const visible = (el) => {
+        if (!el) return false;
+        const style = window.getComputedStyle(el);
+        const rect = el.getBoundingClientRect();
+        return style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0 && !el.disabled;
+      };
+      const setValue = (el, value) => {
+        if (!el || el.value === value) return false;
+        el.focus();
+        el.value = value;
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+        el.dispatchEvent(new Event('change', { bubbles: true }));
+        return true;
+      };
+      const inputs = Array.from(document.querySelectorAll('input')).filter(visible);
+      const userInput = inputs.find(el => /email|user|login|name/i.test([el.type, el.name, el.id, el.placeholder, el.autocomplete].join(' ')))
+        || inputs.find(el => ['email', 'text'].includes(String(el.type || '').toLowerCase()));
+      const passInput = inputs.find(el => String(el.type || '').toLowerCase() === 'password');
+      const changedUser = setValue(userInput, username);
+      const changedPass = setValue(passInput, password);
+      const errorText = document.body ? document.body.innerText : '';
+      const loginFailed = /incorrect|invalid|not recognised|not recognized|try again|failed/i.test(errorText);
+      const buttons = Array.from(document.querySelectorAll('button, input[type="submit"], a')).filter(visible);
+      const button = buttons.find(el => /sign in|log in|login|continue|next|submit/i.test([el.innerText, el.value, el.ariaLabel, el.title].join(' ')))
+        || buttons.find(el => el.matches && el.matches('button[type="submit"], input[type="submit"]'));
+      if ((changedUser || changedPass || passInput || userInput) && button && !loginFailed) {
+        button.click();
+        return { acted: true, loginFailed };
+      }
+      const form = passInput ? passInput.closest('form') : userInput ? userInput.closest('form') : null;
+      if ((changedUser || changedPass) && form && !loginFailed) {
+        if (form.requestSubmit) form.requestSubmit();
+        else form.submit();
+        return { acted: true, loginFailed };
+      }
+      return { acted: false, loginFailed };
+    })()
+  `, true).catch(() => ({ acted: false, loginFailed: false }));
+}
+
+async function extractWalksManagerGroups(window) {
+  const groups = await window.webContents.executeJavaScript(`
+    (() => {
+      const select = document.querySelector('select[name="gid"], #edit-gid, [data-drupal-selector="edit-gid"]');
+      if (!select) return [];
+      return Array.from(select.options || [])
+        .filter(option => option.value && /^\\d+$/.test(option.value))
+        .map(option => ({ gid: Number(option.value), name: (option.textContent || '').trim() }))
+        .filter(group => group.gid && group.name);
+    })()
+  `, true).catch(() => []);
+  const seen = new Set();
+  return groups.filter(group => {
+    if (seen.has(group.gid)) return false;
+    seen.add(group.gid);
+    return true;
+  });
+}
+
+function saveSelectedGroups(groups) {
+  const normalized = (groups || [])
+    .map(group => ({ name: String(group.name || '').trim(), gid: Number(group.gid) }))
+    .filter(group => group.name && Number.isFinite(group.gid));
+  if (!normalized.length) return setupState();
+  const cfg = appConfig();
+  cfg.groups = normalized;
+  writeAppConfig(cfg);
+  buildMenu();
+  return setupState();
+}
+
+async function loginWithWalksManagerCredentials(username, password) {
+  if (!String(username || '').trim() || !String(password || '')) {
+    return { code: 1, message: 'Enter the Walks Manager username and password.' };
+  }
+
+  const browserSession = electronSession.fromPartition(walksPartition);
+  await browserSession.clearStorageData({
+    storages: ['cookies', 'localstorage', 'sessionstorage', 'indexdb']
+  });
+
+  const window = new BrowserWindow({
+    width: 1180,
+    height: 820,
+    show: false,
+    title: 'Walks Manager Login',
+    webPreferences: {
+      partition: walksPartition,
+      nodeIntegration: false,
+      contextIsolation: true
+    }
+  });
+
+  try {
+    const loaded = waitForWindowEvent(window, 'did-finish-load', 45000).catch(() => {});
+    window.loadURL('https://walks-manager.ramblers.org.uk/walks-manager/list?review=1');
+    await loaded;
+
+    const startedAt = Date.now();
+    let lastFailure = false;
+    while (Date.now() - startedAt < 90000) {
+      const url = window.webContents.getURL();
+      const text = await window.webContents.executeJavaScript('document.body ? document.body.innerText : ""', true).catch(() => '');
+      if (isWalksManagerReviewPage(text, url)) {
+        const groups = await extractWalksManagerGroups(window);
+        await saveElectronLoginSession(window);
+        window.close();
+
+        if (groups.length === 1) {
+          saveSelectedGroups(groups);
+          return { code: 0, message: `Walks Manager login saved. Group set to ${groups[0].name}.`, groups, sessionPresent: true };
+        }
+
+        if (groups.length > 1) {
+          return { code: 0, message: 'Walks Manager login saved. Select the group for this app.', groups, sessionPresent: true };
+        }
+
+        return { code: 0, message: 'Walks Manager login saved. No group selector was found.', groups: [], sessionPresent: true };
+      }
+
+      const result = await tryFillWalksManagerCredentials(window, username, password);
+      if (result.loginFailed && !lastFailure) {
+        lastFailure = true;
+        await wait(2000);
+      } else if (result.loginFailed) {
+        window.close();
+        return { code: 1, message: 'Walks Manager rejected those login details. Check the username and password.' };
+      }
+      await wait(result.acted ? 2500 : 1500);
+    }
+
+    window.close();
+    return { code: 1, message: 'Timed out waiting for Walks Manager login.' };
+  } catch (error) {
+    if (!window.isDestroyed()) window.close();
+    return { code: 1, message: error.message };
+  }
 }
 
 async function checkNow(force = false) {
@@ -684,8 +841,8 @@ async function extractWalkEntries(window) {
 }
 
 async function runElectronCheck(force = false) {
-  const { groups } = require('./config');
   const { nowUkDateTime } = require('./time');
+  const groups = groupsConfig();
   ensureDirs();
   log('Starting Walks Manager check.');
 
@@ -806,7 +963,7 @@ function buildMenu() {
         message: result.message
       });
     }), enabled: configured },
-    { label: 'Open Review List', enabled: configured, click: () => shell.openExternal(reviewUrl) },
+    { label: 'Open Review List', enabled: configured, click: () => shell.openExternal(reviewUrlForGroup()) },
     {
       enabled: configured,
       label: 'Settings && Configuration',
@@ -902,6 +1059,7 @@ ipcMain.handle('setup:save', (_event, settings) => {
     fromName: String(settings.smtp?.fromName || '').trim(),
     from: String(settings.smtp?.from || '').trim()
   };
+  cfg.groups = resolveGroups({ groups: settings.groups }, []);
   writeAppConfig(cfg);
   const state = setupState();
   buildMenu();
@@ -920,6 +1078,11 @@ ipcMain.handle('setup:login', async () => {
   });
   const result = await openWalksManagerLoginWindow();
   return { code: result.code, message: result.message, sessionPresent: fs.existsSync(sessionFile()) };
+});
+ipcMain.handle('setup:login-with-credentials', async (_event, credentials) => {
+  const result = await loginWithWalksManagerCredentials(credentials?.username, credentials?.password);
+  if (result.code === 0) buildMenu();
+  return result;
 });
 ipcMain.handle('setup:test-email', () => sendSmtpTestEmail(true));
 app.on('before-quit', () => {

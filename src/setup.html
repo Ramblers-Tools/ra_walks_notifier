@@ -52,6 +52,7 @@
     }
 
     input,
+    select,
     textarea {
       box-sizing: border-box;
       width: 100%;
@@ -91,6 +92,10 @@
       margin: 8px 0 14px;
       font-size: 13px;
       color: #52606d;
+    }
+
+    .hidden {
+      display: none;
     }
 
     .actions {
@@ -158,7 +163,20 @@
 
   <h2>Walks Manager Login</h2>
   <div id="session" class="status">Checking login session...</div>
-  <button id="login">Login to Walks Manager</button>
+  <label for="walksUser">Walks Manager username</label>
+  <input id="walksUser" autocomplete="username">
+
+  <label for="walksPass">Walks Manager password</label>
+  <input id="walksPass" type="password" autocomplete="current-password">
+
+  <button id="login">Check Login and Find Groups</button>
+
+  <div id="groupsPanel" class="hidden">
+    <h2>Walks Manager Group</h2>
+    <div id="group-status" class="status">No group selected.</div>
+    <label for="group">Group</label>
+    <select id="group"></select>
+  </div>
 
   <div class="actions">
     <button id="test">Send Test Email</button>
@@ -175,12 +193,30 @@
       user: document.getElementById('user'),
       pass: document.getElementById('pass'),
       fromName: document.getElementById('fromName'),
-      from: document.getElementById('from')
+      from: document.getElementById('from'),
+      walksUser: document.getElementById('walksUser'),
+      walksPass: document.getElementById('walksPass'),
+      group: document.getElementById('group')
     };
     const session = document.getElementById('session');
     const brand = document.getElementById('brand');
     const logo = document.getElementById('logo');
     const logoStatus = document.getElementById('logo-status');
+    const groupsPanel = document.getElementById('groupsPanel');
+    const groupStatus = document.getElementById('group-status');
+
+    function renderGroups(groups) {
+      const selected = groups && groups.length ? groups[0] : null;
+      fields.group.innerHTML = '';
+      for (const group of groups || []) {
+        const option = document.createElement('option');
+        option.value = String(group.gid);
+        option.textContent = group.name;
+        fields.group.appendChild(option);
+      }
+      groupsPanel.classList.toggle('hidden', !(groups && groups.length));
+      groupStatus.textContent = selected ? `${selected.name} (${selected.gid})` : 'No group selected.';
+    }
 
     function render(state) {
       fields.recipients.value = state.recipients.join('\n');
@@ -191,6 +227,7 @@
       fields.pass.value = state.smtp.pass || '';
       fields.fromName.value = state.smtp.fromName || '';
       fields.from.value = state.smtp.from || '';
+      renderGroups(state.groups || []);
       if (state.branding && state.branding.logoDataUrl) {
         logo.src = state.branding.logoDataUrl;
         brand.classList.add('has-logo');
@@ -214,7 +251,10 @@
           pass: fields.pass.value,
           fromName: fields.fromName.value,
           from: fields.from.value
-        }
+        },
+        groups: fields.group.value
+          ? [{ gid: Number(fields.group.value), name: fields.group.options[fields.group.selectedIndex].textContent }]
+          : []
       };
     }
 
@@ -230,12 +270,22 @@
     });
 
     document.getElementById('login').addEventListener('click', async () => {
-      session.textContent = 'Waiting for Walks Manager login...';
-      const result = await window.setup.login();
-      render(await window.setup.load());
+      session.textContent = 'Checking Walks Manager login...';
+      const result = await window.setup.loginWithCredentials({
+        username: fields.walksUser.value,
+        password: fields.walksPass.value
+      });
+      const state = await window.setup.load();
+      render(state);
       if (result && result.message) {
         session.textContent = result.message;
       }
+      if (result && result.groups) renderGroups(result.groups);
+    });
+
+    fields.group.addEventListener('change', () => {
+      if (!fields.group.value) return;
+      groupStatus.textContent = `${fields.group.options[fields.group.selectedIndex].textContent} (${fields.group.value})`;
     });
 
     document.getElementById('test').addEventListener('click', async () => {

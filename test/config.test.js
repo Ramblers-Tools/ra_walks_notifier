@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { parseRecipients, resolveRecipients, resolveSmtp } = require('../src/config');
+const { parseRecipients, resolveRecipients, resolveSmtp, resolveGroups } = require('../src/config');
 
 test('parseRecipients accepts comma-separated recipient strings', () => {
   assert.deepEqual(
@@ -79,5 +79,25 @@ test('resolveSmtp lets config override env SMTP settings', () => {
       from: 'sender@example.com',
       to: ['recipient@example.com']
     }
+  );
+});
+
+test('resolveGroups uses configured group selection before fallback groups', () => {
+  assert.deepEqual(
+    resolveGroups(
+      { groups: [{ name: 'Sheffield Group', gid: '229' }] },
+      [{ name: 'East Cheshire Group', gid: 414 }]
+    ),
+    [{ name: 'Sheffield Group', gid: 229 }]
+  );
+});
+
+test('resolveGroups falls back when no group has been selected', () => {
+  assert.deepEqual(
+    resolveGroups(
+      { groups: [] },
+      [{ name: 'East Cheshire Group', gid: 414 }]
+    ),
+    [{ name: 'East Cheshire Group', gid: 414 }]
   );
 });

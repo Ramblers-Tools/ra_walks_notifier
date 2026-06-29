@@ -32,7 +32,24 @@ function readJson(file, fallback) {
 }
 
 const app = readJson(paths.configFile, readJson(paths.rootConfigFile, {}));
-const groups = readJson(paths.groupsFile, [{ name: 'East Cheshire Group', gid: 414 }]);
+const fallbackGroups = readJson(paths.groupsFile, [{ name: 'East Cheshire Group', gid: 414 }]);
+
+function normalizeGroups(value) {
+  const input = Array.isArray(value) ? value : [];
+  return input
+    .map(group => ({
+      name: String(group.name || '').trim(),
+      gid: Number(group.gid || group.id || group.value)
+    }))
+    .filter(group => group.name && Number.isFinite(group.gid));
+}
+
+function resolveGroups(config = app, fallback = fallbackGroups) {
+  const configured = normalizeGroups(config.groups);
+  return configured.length ? configured : normalizeGroups(fallback);
+}
+
+const groups = resolveGroups(app, fallbackGroups);
 
 function parseRecipients(value) {
   if (Array.isArray(value)) {
@@ -86,4 +103,4 @@ function validateEmailConfig() {
   }
 }
 
-module.exports = { paths, app, groups, smtp, validateEmailConfig, parseRecipients, resolveRecipients, resolveSmtp };
+module.exports = { paths, app, groups, smtp, validateEmailConfig, parseRecipients, resolveRecipients, resolveSmtp, normalizeGroups, resolveGroups };
