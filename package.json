@@ -62,7 +62,26 @@
       "identity": "Richard Higham (9PG75A2TYV)"
     },
     "dmg": {
-      "sign": true
+      "sign": true,
+      "title": "Walks Manager Watch ${version}",
+      "iconSize": 96,
+      "window": {
+        "width": 520,
+        "height": 320
+      },
+      "contents": [
+        {
+          "x": 150,
+          "y": 150,
+          "type": "file"
+        },
+        {
+          "x": 370,
+          "y": 150,
+          "type": "link",
+          "path": "/Applications"
+        }
+      ]
     }
   }
 }

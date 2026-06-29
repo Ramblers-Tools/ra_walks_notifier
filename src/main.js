@@ -188,7 +188,7 @@ function updateTrayLabel() {
 }
 
 function trayIcon() {
-  const image = nativeImage.createFromPath(path.join(root, 'assets', 'trayTemplate.png'));
+  const image = nativeImage.createFromPath(path.join(root, 'assets', 'ramblers-logo.png'));
   if (image.isEmpty()) {
     return nativeImage.createFromPath(path.join(root, 'assets', 'trayTemplate.png'));
   }
