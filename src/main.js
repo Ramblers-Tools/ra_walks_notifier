@@ -21,6 +21,7 @@ let smtpWindow;
 let setupWindow;
 let loginWindow;
 let lastStatus = 'Starting...';
+let updateStatus = 'Not checked';
 let manualUpdateCheck = false;
 let updateHandlersConfigured = false;
 const root = path.join(__dirname, '..');
@@ -335,12 +336,12 @@ function configureUpdates() {
   autoUpdater.autoInstallOnAppQuit = true;
 
   autoUpdater.on('checking-for-update', () => {
-    lastStatus = 'Checking for updates...';
+    updateStatus = 'Checking...';
     buildMenu();
   });
 
   autoUpdater.on('update-not-available', () => {
-    lastStatus = 'No update available';
+    updateStatus = 'No update available';
     buildMenu();
     if (manualUpdateCheck) {
       dialog.showMessageBox({
@@ -354,6 +355,8 @@ function configureUpdates() {
 
   autoUpdater.on('update-available', (info) => {
     manualUpdateCheck = false;
+    updateStatus = `Version ${info.version} available`;
+    buildMenu();
     dialog.showMessageBox({
       type: 'info',
       title: 'Walks Manager Watch Update',
@@ -364,7 +367,7 @@ function configureUpdates() {
       cancelId: 1
     }).then(result => {
       if (result.response === 0) {
-        lastStatus = 'Downloading update...';
+        updateStatus = 'Downloading...';
         buildMenu();
         autoUpdater.downloadUpdate();
       }
@@ -372,7 +375,7 @@ function configureUpdates() {
   });
 
   autoUpdater.on('update-downloaded', (info) => {
-    lastStatus = `Update ${info.version} ready`;
+    updateStatus = `Version ${info.version} ready`;
     buildMenu();
     dialog.showMessageBox({
       type: 'info',
@@ -388,7 +391,7 @@ function configureUpdates() {
   });
 
   autoUpdater.on('error', (error) => {
-    lastStatus = 'Update check failed';
+    updateStatus = 'Check failed';
     buildMenu();
     if (manualUpdateCheck) {
       dialog.showMessageBox({
@@ -414,7 +417,9 @@ function checkForUpdates(manual = true) {
         message: 'Update checks are available in the installed app.'
       });
     }
+    updateStatus = 'Installed app only';
     manualUpdateCheck = false;
+    buildMenu();
     return;
   }
   autoUpdater.checkForUpdates();
@@ -789,6 +794,7 @@ function buildMenu() {
   const menu = Menu.buildFromTemplate([
     { label: `Status: ${lastStatus}`, enabled: false },
     { label: `Last check: ${lastCheck}`, enabled: false },
+    { label: `Update: ${updateStatus}`, enabled: false },
     { type: 'separator' },
     { label: 'Show Status', enabled: configured, click: () => showStatus() },
     { label: 'Check Now', enabled: configured, click: () => checkNow(false) },
