@@ -801,22 +801,25 @@ function buildMenu() {
       });
     }), enabled: configured },
     { label: 'Open Review List', enabled: configured, click: () => shell.openExternal(reviewUrl) },
-    { type: 'separator' },
-    { label: 'Settings', enabled: false },
-    configured
-      ? { label: 'Configured', enabled: false }
-      : { label: 'Setup required', enabled: false },
-    { label: 'Manage Recipients', enabled: configured, click: () => showRecipientsWindow() },
-    { label: 'SMTP Settings', enabled: configured, click: () => showSmtpWindow() },
     {
-      label: configured ? 'Start at Boot' : 'Start at Boot (complete setup first)',
-      type: 'checkbox',
-      checked: configured && bootEnabled,
       enabled: configured,
-      click: () => toggleStartAtBoot()
+      label: 'Settings & Configuration',
+      submenu: [
+        { label: 'Configured', enabled: false },
+        { type: 'separator' },
+        { label: 'Manage Recipients', click: () => showRecipientsWindow() },
+        { label: 'SMTP Settings', click: () => showSmtpWindow() },
+        {
+          label: 'Start at Boot',
+          type: 'checkbox',
+          checked: bootEnabled,
+          click: () => toggleStartAtBoot()
+        },
+        { type: 'separator' },
+        { label: 'Change Logo', click: () => chooseBrandLogo() },
+        { label: 'Reset Logo', click: () => resetBrandLogo() }
+      ]
     },
-    { label: 'Change Logo', enabled: configured, click: () => chooseBrandLogo() },
-    { label: 'Reset Logo', enabled: configured, click: () => resetBrandLogo() },
     { type: 'separator' },
     { label: 'Send SMTP Test Email', enabled: configured, click: () => sendSmtpTestEmail(true) },
     { label: 'Check for Updates', enabled: configured, click: () => checkForUpdates(true) },
