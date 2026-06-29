@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Check Schedule and Active Hours</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      margin: 0;
+      padding: 20px;
+      color: #1f2933;
+      background: #f7f8fa;
+    }
+
+    h1 {
+      font-size: 18px;
+      margin: 0 0 14px;
+    }
+
+    label {
+      display: block;
+      font-size: 13px;
+      font-weight: 600;
+      margin: 12px 0 6px;
+    }
+
+    select {
+      box-sizing: border-box;
+      width: 100%;
+      border: 1px solid #b8c1cc;
+      border-radius: 6px;
+      padding: 8px 10px;
+      font-size: 14px;
+      background: white;
+    }
+
+    .row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+
+    .status {
+      margin: 10px 0 4px;
+      font-size: 13px;
+      color: #52606d;
+    }
+
+    .actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+      margin-top: 20px;
+    }
+
+    button {
+      border: 1px solid #9aa5b1;
+      border-radius: 6px;
+      padding: 7px 14px;
+      font-size: 13px;
+      background: white;
+    }
+
+    button.primary {
+      border-color: #1264a3;
+      background: #1264a3;
+      color: white;
+    }
+  </style>
+</head>
+<body>
+  <h1>Check Schedule and Active Hours</h1>
+
+  <label for="interval">Check every</label>
+  <select id="interval">
+    <option value="1">1 minute</option>
+    <option value="5">5 minutes</option>
+    <option value="10">10 minutes</option>
+    <option value="15">15 minutes</option>
+    <option value="30">30 minutes</option>
+    <option value="60">1 hour</option>
+  </select>
+
+  <div class="row">
+    <div>
+      <label for="activeStart">Active from</label>
+      <select id="activeStart"></select>
+    </div>
+    <div>
+      <label for="activeEnd">Active until</label>
+      <select id="activeEnd"></select>
+    </div>
+  </div>
+
+  <div id="summary" class="status"></div>
+
+  <div class="actions">
+    <button id="cancel">Cancel</button>
+    <button id="save" class="primary">Save</button>
+  </div>
+
+  <script>
+    const fields = {
+      interval: document.getElementById('interval'),
+      activeStart: document.getElementById('activeStart'),
+      activeEnd: document.getElementById('activeEnd')
+    };
+    const summary = document.getElementById('summary');
+
+    function hourLabel(hour) {
+      return `${String(hour).padStart(2, '0')}:00`;
+    }
+
+    function populateHourSelect(select) {
+      for (let hour = 0; hour < 24; hour += 1) {
+        const option = document.createElement('option');
+        option.value = String(hour);
+        option.textContent = hourLabel(hour);
+        select.appendChild(option);
+      }
+    }
+
+    function updateSummary() {
+      const start = Number(fields.activeStart.value);
+      const end = Number(fields.activeEnd.value);
+      summary.textContent = start === end
+        ? 'Automatic checks will run all day.'
+        : `Automatic checks will run from ${hourLabel(start)} to ${hourLabel(end)}.`;
+    }
+
+    populateHourSelect(fields.activeStart);
+    populateHourSelect(fields.activeEnd);
+
+    window.scheduleSettings.load().then((settings) => {
+      fields.interval.value = String(settings.checkIntervalMinutes || 5);
+      fields.activeStart.value = String(settings.activeHours?.start ?? 7);
+      fields.activeEnd.value = String(settings.activeHours?.end ?? 22);
+      updateSummary();
+    });
+
+    fields.activeStart.addEventListener('change', updateSummary);
+    fields.activeEnd.addEventListener('change', updateSummary);
+
+    document.getElementById('save').addEventListener('click', async () => {
+      await window.scheduleSettings.save({
+        checkIntervalMinutes: Number(fields.interval.value || 5),
+        activeHours: {
+          start: Number(fields.activeStart.value || 7),
+          end: Number(fields.activeEnd.value || 22)
+        }
+      });
+      window.close();
+    });
+
+    document.getElementById('cancel').addEventListener('click', () => {
+      window.close();
+    });
+  </script>
+</body>
+</html>

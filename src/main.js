@@ -19,6 +19,7 @@ let updateTimer;
 let initialUpdateTimer;
 let recipientsWindow;
 let smtpWindow;
+let scheduleWindow;
 let setupWindow;
 let loginWindow;
 let lastStatus = 'Starting...';
@@ -560,6 +561,35 @@ function showSmtpWindow() {
   smtpWindow.loadFile(path.join(root, 'src', 'smtp.html'));
 }
 
+function currentSchedule() {
+  return normalizeSchedule(appConfig());
+}
+
+function showScheduleWindow() {
+  if (scheduleWindow) {
+    scheduleWindow.focus();
+    return;
+  }
+
+  scheduleWindow = new BrowserWindow({
+    width: 520,
+    height: 320,
+    title: 'Check Schedule and Active Hours',
+    resizable: false,
+    minimizable: false,
+    fullscreenable: false,
+    webPreferences: {
+      preload: path.join(__dirname, 'schedulePreload.js')
+    }
+  });
+
+  scheduleWindow.on('closed', () => {
+    scheduleWindow = null;
+  });
+
+  scheduleWindow.loadFile(path.join(root, 'src', 'schedule.html'));
+}
+
 function showSetupWindow() {
   if (setupWindow) {
     setupWindow.focus();
@@ -1019,7 +1049,7 @@ function buildMenu() {
         { type: 'separator' },
         { label: 'Manage Recipients', click: () => showRecipientsWindow() },
         { label: 'SMTP Settings', click: () => showSmtpWindow() },
-        { label: 'Check Schedule', click: () => showSetupWindow() },
+        { label: 'Check Schedule and Active Hours', click: () => showScheduleWindow() },
         { label: 'Refresh Walks Manager Login', click: () => openWalksManagerLoginWindow().then(result => {
           dialog.showMessageBox({
             type: result.code === 0 ? 'info' : 'error',
@@ -1098,6 +1128,17 @@ ipcMain.handle('smtp:save', (_event, settings) => {
   writeAppConfig(cfg);
   buildMenu();
   return currentSmtp();
+});
+ipcMain.handle('schedule:load', () => currentSchedule());
+ipcMain.handle('schedule:save', (_event, settings) => {
+  const schedule = normalizeSchedule(settings || {});
+  const cfg = appConfig();
+  cfg.checkIntervalMinutes = schedule.checkIntervalMinutes;
+  cfg.activeHours = schedule.activeHours;
+  writeAppConfig(cfg);
+  buildMenu();
+  refreshScheduler();
+  return currentSchedule();
 });
 ipcMain.handle('setup:load', () => setupState());
 ipcMain.handle('setup:choose-logo', () => chooseBrandLogo(false));
