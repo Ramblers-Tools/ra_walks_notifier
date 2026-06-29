@@ -705,10 +705,6 @@ function openWalksManagerLoginWindow() {
   });
 }
 
-async function wait(ms) {
-  return new Promise(resolve => setTimeout(resolve, ms));
-}
-
 function withTimeout(promise, timeoutMs, fallback) {
   let timeout;
   return Promise.race([
@@ -717,51 +713,6 @@ function withTimeout(promise, timeoutMs, fallback) {
       timeout = setTimeout(() => resolve(fallback), timeoutMs);
     })
   ]).finally(() => clearTimeout(timeout));
-}
-
-async function tryFillWalksManagerCredentials(window, username, password) {
-  return withTimeout(window.webContents.executeJavaScript(`
-    (() => {
-      const username = ${JSON.stringify(username)};
-      const password = ${JSON.stringify(password)};
-      const visible = (el) => {
-        if (!el) return false;
-        const style = window.getComputedStyle(el);
-        const rect = el.getBoundingClientRect();
-        return style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0 && !el.disabled;
-      };
-      const setValue = (el, value) => {
-        if (!el || el.value === value) return false;
-        el.focus();
-        el.value = value;
-        el.dispatchEvent(new Event('input', { bubbles: true }));
-        el.dispatchEvent(new Event('change', { bubbles: true }));
-        return true;
-      };
-      const inputs = Array.from(document.querySelectorAll('input')).filter(visible);
-      const userInput = inputs.find(el => /email|user|login|name/i.test([el.type, el.name, el.id, el.placeholder, el.autocomplete].join(' ')))
-        || inputs.find(el => ['email', 'text'].includes(String(el.type || '').toLowerCase()));
-      const passInput = inputs.find(el => String(el.type || '').toLowerCase() === 'password');
-      const changedUser = setValue(userInput, username);
-      const changedPass = setValue(passInput, password);
-      const errorText = document.body ? document.body.innerText : '';
-      const loginFailed = /incorrect|invalid|not recognised|not recognized|try again|failed/i.test(errorText);
-      const buttons = Array.from(document.querySelectorAll('button, input[type="submit"], a')).filter(visible);
-      const button = buttons.find(el => /sign in|log in|login|continue|next|submit/i.test([el.innerText, el.value, el.ariaLabel, el.title].join(' ')))
-        || buttons.find(el => el.matches && el.matches('button[type="submit"], input[type="submit"]'));
-      if ((changedUser || changedPass || passInput || userInput) && button && !loginFailed) {
-        button.click();
-        return { acted: true, loginFailed };
-      }
-      const form = passInput ? passInput.closest('form') : userInput ? userInput.closest('form') : null;
-      if ((changedUser || changedPass) && form && !loginFailed) {
-        if (form.requestSubmit) form.requestSubmit();
-        else form.submit();
-        return { acted: true, loginFailed };
-      }
-      return { acted: false, loginFailed };
-    })()
-  `, true).catch(() => ({ acted: false, loginFailed: false })), 5000, { acted: false, loginFailed: false });
 }
 
 async function extractWalksManagerGroups(window) {
@@ -793,78 +744,6 @@ function saveSelectedGroups(groups) {
   writeAppConfig(cfg);
   buildMenu();
   return setupState();
-}
-
-async function loginWithWalksManagerCredentials(username, password) {
-  if (!String(username || '').trim() || !String(password || '')) {
-    return { code: 1, message: 'Enter the Walks Manager username and password.' };
-  }
-
-  const browserSession = electronSession.fromPartition(walksPartition);
-  await browserSession.clearStorageData({
-    storages: ['cookies', 'localstorage', 'sessionstorage', 'indexdb']
-  });
-
-  const window = new BrowserWindow({
-    width: 1180,
-    height: 820,
-    show: false,
-    title: 'Walks Manager Login',
-    webPreferences: {
-      partition: walksPartition,
-      nodeIntegration: false,
-      contextIsolation: true
-    }
-  });
-
-  try {
-    const loaded = waitForWindowEvent(window, 'did-finish-load', 45000).catch(() => {});
-    window.loadURL('https://walks-manager.ramblers.org.uk/walks-manager/list?review=1');
-    await loaded;
-
-    const startedAt = Date.now();
-    let lastFailure = false;
-    while (Date.now() - startedAt < 90000) {
-      const url = window.webContents.getURL();
-      const text = await withTimeout(
-        window.webContents.executeJavaScript('document.body ? document.body.innerText : ""', true).catch(() => ''),
-        5000,
-        ''
-      );
-      if (isWalksManagerReviewPage(text, url)) {
-        const groups = await extractWalksManagerGroups(window);
-        await saveElectronLoginSession(window);
-        window.close();
-
-        if (groups.length === 1) {
-          saveSelectedGroups(groups);
-          return { code: 0, message: `Walks Manager login saved. Group set to ${groups[0].name}.`, groups, sessionPresent: true };
-        }
-
-        if (groups.length > 1) {
-          return { code: 0, message: 'Walks Manager login saved. Select the group for this app.', groups, sessionPresent: true };
-        }
-
-        return { code: 0, message: 'Walks Manager login saved. No group selector was found.', groups: [], sessionPresent: true };
-      }
-
-      const result = await tryFillWalksManagerCredentials(window, username, password);
-      if (result.loginFailed && !lastFailure) {
-        lastFailure = true;
-        await wait(2000);
-      } else if (result.loginFailed) {
-        window.close();
-        return { code: 1, message: 'Walks Manager rejected those login details. Check the username and password.' };
-      }
-      await wait(result.acted ? 2500 : 1500);
-    }
-
-    window.close();
-    return { code: 1, message: 'Timed out waiting for Walks Manager login.' };
-  } catch (error) {
-    if (!window.isDestroyed()) window.close();
-    return { code: 1, message: error.message };
-  }
 }
 
 async function checkNow(force = false) {
@@ -1178,11 +1057,6 @@ ipcMain.handle('setup:login', async () => {
     groups: result.groups || [],
     sessionPresent: fs.existsSync(sessionFile())
   };
-});
-ipcMain.handle('setup:login-with-credentials', async (_event, credentials) => {
-  const result = await loginWithWalksManagerCredentials(credentials?.username, credentials?.password);
-  if (result.code === 0) buildMenu();
-  return result;
 });
 ipcMain.handle('setup:test-email', () => sendSmtpTestEmail(true));
 app.on('before-quit', () => {

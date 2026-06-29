@@ -170,14 +170,7 @@
 
   <h2>Walks Manager Login</h2>
   <div id="session" class="status">Checking login session...</div>
-  <label for="walksUser">Walks Manager username</label>
-  <input id="walksUser" autocomplete="username">
-
-  <label for="walksPass">Walks Manager password</label>
-  <input id="walksPass" type="password" autocomplete="current-password">
-
   <div class="login-actions">
-    <button id="login">Check Login and Find Groups</button>
     <button id="manual-login">Open Walks Manager Login</button>
   </div>
 
@@ -204,8 +197,6 @@
       pass: document.getElementById('pass'),
       fromName: document.getElementById('fromName'),
       from: document.getElementById('from'),
-      walksUser: document.getElementById('walksUser'),
-      walksPass: document.getElementById('walksPass'),
       group: document.getElementById('group')
     };
     const session = document.getElementById('session');
@@ -216,12 +207,19 @@
     const groupStatus = document.getElementById('group-status');
 
     function renderGroups(groups) {
-      const selected = groups && groups.length ? groups[0] : null;
+      const selected = groups && groups.length === 1 ? groups[0] : null;
       fields.group.innerHTML = '';
+      if (groups && groups.length > 1) {
+        const placeholder = document.createElement('option');
+        placeholder.value = '';
+        placeholder.textContent = 'Select a group...';
+        fields.group.appendChild(placeholder);
+      }
       for (const group of groups || []) {
         const option = document.createElement('option');
         option.value = String(group.gid);
         option.textContent = group.name;
+        option.selected = selected ? selected.gid === group.gid : false;
         fields.group.appendChild(option);
       }
       groupsPanel.classList.toggle('hidden', !(groups && groups.length));
@@ -268,16 +266,6 @@
       };
     }
 
-    function withTimeout(promise, timeoutMs) {
-      let timeout;
-      return Promise.race([
-        promise,
-        new Promise((_, reject) => {
-          timeout = setTimeout(() => reject(new Error('Timed out checking Walks Manager login. Use Open Walks Manager Login to sign in manually.')), timeoutMs);
-        })
-      ]).finally(() => clearTimeout(timeout));
-    }
-
     window.setup.load().then(render);
 
     document.getElementById('choose-logo').addEventListener('click', async () => {
@@ -287,28 +275,6 @@
     document.getElementById('save').addEventListener('click', async () => {
       const state = await window.setup.save(collect());
       if (!state.complete) render(state);
-    });
-
-    document.getElementById('login').addEventListener('click', async () => {
-      const button = document.getElementById('login');
-      button.disabled = true;
-      session.textContent = 'Checking Walks Manager login...';
-      try {
-        const result = await withTimeout(window.setup.loginWithCredentials({
-          username: fields.walksUser.value,
-          password: fields.walksPass.value
-        }), 45000);
-        const state = await window.setup.load();
-        render(state);
-        if (result && result.message) {
-          session.textContent = result.message;
-        }
-        if (result && result.groups) renderGroups(result.groups);
-      } catch (error) {
-        session.textContent = error.message || 'Walks Manager login check failed.';
-      } finally {
-        button.disabled = false;
-      }
     });
 
     document.getElementById('manual-login').addEventListener('click', async () => {

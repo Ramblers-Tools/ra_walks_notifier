@@ -5,6 +5,5 @@ contextBridge.exposeInMainWorld('setup', {
   save: (settings) => ipcRenderer.invoke('setup:save', settings),
   chooseLogo: () => ipcRenderer.invoke('setup:choose-logo'),
   login: () => ipcRenderer.invoke('setup:login'),
-  loginWithCredentials: (credentials) => ipcRenderer.invoke('setup:login-with-credentials', credentials),
   testEmail: () => ipcRenderer.invoke('setup:test-email')
 });
