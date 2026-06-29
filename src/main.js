@@ -28,6 +28,7 @@ let quittingForUpdate = false;
 let lastLoginAutoAdvanceAt = 0;
 const root = path.join(__dirname, '..');
 const repoUrl = 'https://github.com/East-Cheshire-Ramblers/ra_walks_notifier';
+const websiteUrl = 'https://walks-manager-watcher.eastcheshireramblers.org.uk/';
 const walksPartition = 'persist:walks-manager-watch-browser';
 const updateCheckIntervalMs = 6 * 60 * 60 * 1000;
 
@@ -165,40 +166,42 @@ function runNode(args, showDialog = false) {
   });
 }
 
+function statusLine(label, value) {
+  return `${label}: ${value}`;
+}
+
+function statusList(label, values, empty = 'None configured') {
+  if (!values.length) return statusLine(label, empty);
+  return `${label}:\n${values.map(value => `  ${value}`).join('\n')}`;
+}
+
 function buildStatusText() {
   const s = readStatus();
   const state = readJson(stateFile(), { walks: [] });
   const cfg = appConfig();
   const groups = groupsConfig();
+  const groupNames = groups.map(group => group.name || `Group ${group.gid}`);
+  const recipients = currentRecipients();
   const pending = Number(s.pendingWalks ?? (state.walks ? state.walks.length : 0) ?? 0);
   const running = timer ? 'Running' : 'Stopped';
-  const next = s.nextCheckAt || 'Scheduled in app';
   return [
     'Walks Manager Watch',
     '',
     `Status: ${running}`,
     `Pending walks: ${pending}`,
-    `Groups: ${groups.length}`,
+    statusList(groups.length === 1 ? 'Group' : 'Groups', groupNames, 'Not selected'),
     `Schedule: Every ${cfg.checkIntervalMinutes || 5} minutes`,
     cfg.activeHours ? `Active hours: ${cfg.activeHours.start}:00 to ${cfg.activeHours.end}:00` : null,
     '',
     `Last check: ${formatUkDateTime(s.lastCheckCompletedAt)}`,
     `Last result: ${s.lastResult || 'None yet'}`,
     `Last email: ${formatUkDateTime(s.lastEmailAt)}`,
-    `Recipients: ${currentRecipients().length ? currentRecipients().join(', ') : 'None configured'}`,
+    statusList('Recipients', recipients),
     `SMTP: ${currentSmtp().host || 'Not configured'}`,
     `Last error: ${s.lastError || 'None'}`,
     '',
-    `Session: ${fs.existsSync(sessionFile()) ? 'Present' : 'Missing'}`,
-    `Logo: ${logoPath() || 'Not configured'}`,
-    `Settings folder: ${path.dirname(configFilePath())}`,
-    `Log file: ${logFile()}`
+    `Session: ${fs.existsSync(sessionFile()) ? 'Present' : 'Missing'}`
   ].filter(Boolean).join('\n');
-}
-
-function configFilePath() {
-  const { paths } = require('./config');
-  return paths.configFile;
 }
 
 function selectedGroup() {
@@ -218,10 +221,14 @@ function showStatus() {
     title: 'Walks Manager Watch Status',
     message: buildStatusText(),
     icon: icon && !icon.isEmpty() ? icon : undefined,
-    buttons: ['OK', 'Open folder'],
+    buttons: ['OK', 'Open log file'],
     defaultId: 0
   }).then(result => {
-    if (result.response === 1) shell.openPath(root);
+    if (result.response === 1) {
+      ensureDirs();
+      if (!fs.existsSync(logFile())) fs.writeFileSync(logFile(), '');
+      shell.openPath(logFile());
+    }
   });
 }
 
@@ -316,14 +323,12 @@ function showAbout() {
     message: 'Walks Manager Watch',
     detail: [
       `Version: ${app.getVersion()}`,
-      'macOS menu bar app for monitoring Ramblers Walks Manager review queues.',
-      '',
-      repoUrl
+      'macOS menu bar app for monitoring Ramblers Walks Manager review queues.'
     ].join('\n'),
-    buttons: ['OK', 'Open GitHub'],
+    buttons: ['OK', 'Open Website'],
     defaultId: 0
   }).then(result => {
-    if (result.response === 1) shell.openExternal(repoUrl);
+    if (result.response === 1) shell.openExternal(websiteUrl);
   });
 }
 
