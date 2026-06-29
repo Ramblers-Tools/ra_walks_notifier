@@ -328,7 +328,7 @@ function showAbout() {
     message: 'Walks Manager Watch',
     detail: [
       `Version: ${app.getVersion()}`,
-      'macOS menu bar app for monitoring Ramblers Walks Manager review queues.'
+      'Desktop tray app for monitoring Ramblers Walks Manager review queues.'
     ].join('\n'),
     buttons: ['OK', 'Open Website'],
     defaultId: 0
@@ -337,11 +337,25 @@ function showAbout() {
   });
 }
 
+function supportsLoginItemSettings() {
+  return process.platform === 'darwin' || process.platform === 'win32';
+}
+
 function startAtBootEnabled() {
+  if (!supportsLoginItemSettings()) return false;
   return app.getLoginItemSettings().openAtLogin;
 }
 
 function toggleStartAtBoot() {
+  if (!supportsLoginItemSettings()) {
+    dialog.showMessageBox({
+      type: 'info',
+      title: 'Walks Manager Watch',
+      message: 'Start on login is not configured automatically for this Linux build.'
+    });
+    return;
+  }
+
   const enabled = !startAtBootEnabled();
   app.setLoginItemSettings({
     openAtLogin: enabled,
@@ -1027,6 +1041,7 @@ function buildMenu() {
   const lastCheck = formatUkDateTime(s.lastCheckCompletedAt);
   const setup = setupState();
   const configured = setup.complete;
+  const canStartOnLogin = supportsLoginItemSettings();
   const bootEnabled = startAtBootEnabled();
   const menu = Menu.buildFromTemplate([
     {
@@ -1060,6 +1075,7 @@ function buildMenu() {
         {
           label: 'Start App on Login',
           type: 'checkbox',
+          enabled: canStartOnLogin,
           checked: bootEnabled,
           click: () => toggleStartAtBoot()
         },

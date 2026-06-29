@@ -511,6 +511,8 @@
       const assets = release ? release.assets || [] : [];
       const dmg = assets.find(asset => /arm64\.dmg$/i.test(asset.name));
       const dmgUrl = dmg ? dmg.browser_download_url : latestReleaseUrl;
+      const appImage = assets.find(asset => /\.AppImage$/i.test(asset.name));
+      const appImageUrl = appImage ? appImage.browser_download_url : latestReleaseUrl;
 
       if (os === 'mac') {
         detected.textContent = 'macOS detected';
@@ -583,18 +585,34 @@
 
       if (os === 'linux') {
         detected.textContent = 'Linux detected';
-        title.textContent = 'Linux build not published yet';
-        copy.textContent = 'Walks Manager Watch is currently distributed for macOS. Linux AppImage, deb, or rpm packages may be added later.';
-        download.href = latestReleaseUrl;
-        download.textContent = 'View macOS release';
-        primary.href = latestReleaseUrl;
-        primary.textContent = 'View latest release';
-        instructionsTitle.textContent = 'Linux status';
-        instructions.innerHTML = `
-          <li>A Linux package is not available yet.</li>
-          <li>Tray and start-at-boot behaviour need desktop-environment testing.</li>
-          <li>For now, use the app on a supported Mac.</li>
-        `;
+        if (appImage) {
+          title.textContent = `Download ${version} for Linux`;
+          copy.textContent = 'Use the AppImage package on x64 Linux desktops. Tray behaviour can vary by desktop environment.';
+          download.href = appImageUrl;
+          download.textContent = 'Download Linux AppImage';
+          primary.href = appImageUrl;
+          primary.textContent = 'Download for Linux';
+          instructionsTitle.textContent = 'Linux install instructions';
+          instructions.innerHTML = `
+            <li>Download the AppImage package.</li>
+            <li>Mark it as executable.</li>
+            <li>Run the AppImage and complete setup: recipients, SMTP settings, Walks Manager login, and group selection.</li>
+            <li>If the tray icon is not visible, check that your desktop environment supports app indicators or status notifier items.</li>
+          `;
+        } else {
+          title.textContent = 'Linux build not published yet';
+          copy.textContent = 'Walks Manager Watch is currently distributed for macOS. Linux AppImage support is being prepared.';
+          download.href = latestReleaseUrl;
+          download.textContent = 'View latest release';
+          primary.href = latestReleaseUrl;
+          primary.textContent = 'View latest release';
+          instructionsTitle.textContent = 'Linux status';
+          instructions.innerHTML = `
+            <li>A Linux package is not available in the latest release yet.</li>
+            <li>Tray behaviour will need desktop-environment testing.</li>
+            <li>For now, use the latest published package for a supported platform.</li>
+          `;
+        }
         return;
       }
 

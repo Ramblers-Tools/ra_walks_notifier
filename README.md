@@ -1,10 +1,10 @@
-# Walks Manager Watch - macOS Menu Bar App
+# Walks Manager Watch - Desktop Tray App
 
 This repository is based on the working v4.1 Electron app attachment and is the stable desktop baseline for the v4.3 background-agent refactor.
 
-It is a macOS desktop application. It does not use PHP, Joomla, Laravel, Symfony, or any web framework.
+It is an Electron desktop application for macOS, with Linux AppImage packaging being added for testing. It does not use PHP, Joomla, Laravel, Symfony, or any web framework.
 
-The app reuses the working checker/parser and adds a macOS menu bar icon with:
+The app reuses the working checker/parser and adds a menu bar/tray icon with:
 
 - Check Now
 - Force Test Email
@@ -44,6 +44,8 @@ Runtime settings are stored outside the app bundle:
 ~/Library/Application Support/Walks Manager Watch/
 ```
 
+On Linux, Electron stores app data under the current user's standard application config/data folders.
+
 Logs are stored in:
 
 ```text
@@ -80,6 +82,14 @@ For a signed and notarized release build:
 ```bash
 npm run release:mac
 ```
+
+For an experimental Linux AppImage build:
+
+```bash
+npm run build:linux
+```
+
+The Linux build currently targets x64 AppImage. Tray visibility and start-on-login behaviour can vary by desktop environment; start-on-login is not configured automatically for Linux yet.
 
 The signing certificate must be installed in the macOS login keychain. Check it with:
 
