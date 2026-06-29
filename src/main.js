@@ -20,6 +20,7 @@ let loginWindow;
 let lastStatus = 'Starting...';
 const root = path.join(__dirname, '..');
 const reviewUrl = 'https://walks-manager.ramblers.org.uk/walks-manager/list?gid=414&review=1';
+const repoUrl = 'https://github.com/East-Cheshire-Ramblers/ra_walks_notifier';
 
 function readJson(file, fallback = {}) {
   try {
@@ -187,18 +188,13 @@ function updateTrayLabel() {
 }
 
 function trayIcon() {
-  const selectedLogo = logoPath();
-  const image = nativeImage.createFromPath(selectedLogo || path.join(root, 'assets', 'trayTemplate.png'));
+  const image = nativeImage.createFromPath(path.join(root, 'assets', 'trayTemplate.png'));
   if (image.isEmpty()) {
     return nativeImage.createFromPath(path.join(root, 'assets', 'trayTemplate.png'));
   }
   const resized = image.resize({ width: 18, height: 18 });
-  resized.setTemplateImage(false);
+  resized.setTemplateImage(true);
   return resized;
-}
-
-function updateTrayIcon() {
-  if (tray) tray.setImage(trayIcon());
 }
 
 async function chooseBrandLogo(showConfirmation = true) {
@@ -213,7 +209,6 @@ async function chooseBrandLogo(showConfirmation = true) {
   const cfg = appConfig();
   cfg.branding = Object.assign({}, cfg.branding, { logoPath: storedLogo });
   writeAppConfig(cfg);
-  updateTrayIcon();
   buildMenu();
   if (showConfirmation) {
     dialog.showMessageBox({
@@ -230,7 +225,6 @@ async function resetBrandLogo() {
   const cfg = appConfig();
   delete cfg.branding;
   writeAppConfig(cfg);
-  updateTrayIcon();
   buildMenu();
   dialog.showMessageBox({
     type: 'info',
@@ -238,6 +232,24 @@ async function resetBrandLogo() {
     message: 'Logo reset to the built-in Ramblers logo.'
   });
   return setupState();
+}
+
+function showAbout() {
+  dialog.showMessageBox({
+    type: 'info',
+    title: 'About Walks Manager Watch',
+    message: 'Walks Manager Watch',
+    detail: [
+      `Version: ${app.getVersion()}`,
+      'macOS menu bar app for monitoring Ramblers Walks Manager review queues.',
+      '',
+      repoUrl
+    ].join('\n'),
+    buttons: ['OK', 'Open GitHub'],
+    defaultId: 0
+  }).then(result => {
+    if (result.response === 1) shell.openExternal(repoUrl);
+  });
 }
 
 function showRecipientsWindow() {
@@ -594,12 +606,12 @@ function buildMenu() {
       : { label: 'Setup', click: () => showSetupWindow() },
     { label: 'Show Status', click: () => showStatus() },
     { label: 'Check Now', click: () => checkNow(false) },
-    { label: 'Force Test Email', click: () => checkNow(true) },
+    { label: 'Send Walks Report Email', click: () => checkNow(true) },
     { label: 'Manage Recipients', click: () => showRecipientsWindow() },
     { label: 'SMTP Settings', click: () => showSmtpWindow() },
     { label: 'Change Logo', click: () => chooseBrandLogo() },
     { label: 'Reset Logo', click: () => resetBrandLogo() },
-    { label: 'Send Test Email', click: () => runNode(['src/testEmail.js'], true) },
+    { label: 'Send SMTP Test Email', click: () => runNode(['src/testEmail.js'], true) },
     { label: 'Login to Walks Manager', click: () => openWalksManagerLoginWindow().then(result => {
       dialog.showMessageBox({
         type: result.code === 0 ? 'info' : 'error',
@@ -608,6 +620,7 @@ function buildMenu() {
       });
     }) },
     { label: 'Open Review List', click: () => shell.openExternal(reviewUrl) },
+    { label: 'About', click: () => showAbout() },
     { type: 'separator' },
     { label: 'Open Settings Folder', click: () => shell.openPath(path.dirname(configFilePath())) },
     { type: 'separator' },
