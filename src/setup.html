@@ -219,7 +219,8 @@
     });
 
     document.getElementById('save').addEventListener('click', async () => {
-      render(await window.setup.save(collect()));
+      const state = await window.setup.save(collect());
+      if (!state.complete) render(state);
     });
 
     document.getElementById('login').addEventListener('click', async () => {

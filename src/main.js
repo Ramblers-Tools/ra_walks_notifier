@@ -694,6 +694,12 @@ function startScheduler() {
   checkNow(false);
 }
 
+function refreshScheduler() {
+  if (timer) clearInterval(timer);
+  timer = null;
+  startScheduler();
+}
+
 app.whenReady().then(() => {
   if (app.dock) app.dock.hide();
 
@@ -743,8 +749,13 @@ ipcMain.handle('setup:save', (_event, settings) => {
     from: String(settings.smtp?.from || '').trim()
   };
   writeAppConfig(cfg);
+  const state = setupState();
   buildMenu();
-  return setupState();
+  if (state.complete) {
+    if (setupWindow) setupWindow.close();
+    refreshScheduler();
+  }
+  return state;
 });
 ipcMain.handle('setup:login', async () => {
   await dialog.showMessageBox({
