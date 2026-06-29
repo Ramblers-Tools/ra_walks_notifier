@@ -25,6 +25,7 @@ let updateStatus = 'Not checked';
 let manualUpdateCheck = false;
 let updateHandlersConfigured = false;
 let quittingForUpdate = false;
+let lastLoginAutoAdvanceAt = 0;
 const root = path.join(__dirname, '..');
 const repoUrl = 'https://github.com/East-Cheshire-Ramblers/ra_walks_notifier';
 const walksPartition = 'persist:walks-manager-watch-browser';
@@ -608,7 +609,6 @@ async function acceptCookieBanner(window) {
 }
 
 function looksLikeLoggedInRamblersPage(text, url) {
-  if (/walks-manager\.ramblers\.org\.uk/i.test(url)) return true;
   if (!/ramblers\.org\.uk/i.test(url)) return false;
   if (/password|sign in|log in|login|verification|multi-factor|one[- ]time|incorrect|invalid/i.test(text || '')) return false;
   return /my account|sign out|log out|logged in|profile|dashboard|member/i.test(text || '');
@@ -626,6 +626,9 @@ async function advanceLoginWindowToReviewList(window) {
   if (isWalksManagerReviewPage(text, url)) return { text, url };
 
   if (looksLikeLoggedInRamblersPage(text, url)) {
+    const now = Date.now();
+    if (now - lastLoginAutoAdvanceAt < 10000) return { text, url };
+    lastLoginAutoAdvanceAt = now;
     const target = reviewUrlForGroup();
     if (url !== target) {
       window.loadURL(target).catch(() => {});
@@ -639,6 +642,7 @@ function openWalksManagerLoginWindow() {
   if (loginWindow) {
     loginWindow.focus();
   } else {
+    lastLoginAutoAdvanceAt = 0;
     loginWindow = new BrowserWindow({
       width: 1180,
       height: 820,
