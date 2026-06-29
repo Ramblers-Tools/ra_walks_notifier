@@ -202,7 +202,7 @@ async function chooseBrandLogo() {
   const result = await dialog.showOpenDialog({
     title: 'Choose Ramblers Logo',
     properties: ['openFile'],
-    filters: [{ name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp'] }]
+    filters: [{ name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg'] }]
   });
   if (result.canceled || !result.filePaths.length) return setupState();
 

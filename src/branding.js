@@ -2,7 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const { paths } = require('./config');
 
-const imageExtensions = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp']);
+const imageExtensions = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg']);
 
 function readJson(file, fallback = {}) {
   try {
@@ -25,6 +25,11 @@ function logoPath(config = appConfig()) {
     if (fs.existsSync(candidate)) return candidate;
   }
 
+  for (const file of ['ramblers-logo.png', 'ramblers-logo.svg']) {
+    const candidate = path.join(paths.rootDir, 'assets', file);
+    if (fs.existsSync(candidate)) return candidate;
+  }
+
   return '';
 }
 
@@ -33,14 +38,18 @@ function logoDataUrl(config = appConfig()) {
   if (!file) return '';
 
   const ext = path.extname(file).toLowerCase();
-  const mime = ext === '.jpg' || ext === '.jpeg' ? 'image/jpeg' : `image/${ext.replace('.', '')}`;
+  const mime = ext === '.jpg' || ext === '.jpeg'
+    ? 'image/jpeg'
+    : ext === '.svg'
+      ? 'image/svg+xml'
+      : `image/${ext.replace('.', '')}`;
   return `data:${mime};base64,${fs.readFileSync(file).toString('base64')}`;
 }
 
 function copyLogo(sourceFile) {
   const ext = path.extname(sourceFile).toLowerCase();
   if (!imageExtensions.has(ext)) {
-    throw new Error('Choose a PNG, JPG, GIF, or WebP image.');
+    throw new Error('Choose a PNG, JPG, GIF, WebP, or SVG image.');
   }
 
   fs.mkdirSync(paths.brandingDir, { recursive: true });
