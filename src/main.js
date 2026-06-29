@@ -588,6 +588,53 @@ function isWalksManagerReviewPage(text, url) {
     && /Walks Manager|Submitted for checking|Awaiting publishing|Ready to publish/i.test(text || '');
 }
 
+async function acceptCookieBanner(window) {
+  return withTimeout(window.webContents.executeJavaScript(`
+    (() => {
+      const visible = (el) => {
+        if (!el) return false;
+        const style = window.getComputedStyle(el);
+        const rect = el.getBoundingClientRect();
+        return style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0 && !el.disabled;
+      };
+      const controls = Array.from(document.querySelectorAll('button, input[type="button"], input[type="submit"], a')).filter(visible);
+      const accept = controls.find(el => /^(accept|accept all|allow all|agree|ok)$/i.test(String(el.innerText || el.value || el.ariaLabel || el.title || '').trim()))
+        || controls.find(el => /accept.*cookie|allow.*cookie|agree.*cookie/i.test(String(el.innerText || el.value || el.ariaLabel || el.title || '')));
+      if (!accept) return false;
+      accept.click();
+      return true;
+    })()
+  `, true).catch(() => false), 3000, false);
+}
+
+function looksLikeLoggedInRamblersPage(text, url) {
+  if (/walks-manager\.ramblers\.org\.uk/i.test(url)) return true;
+  if (!/ramblers\.org\.uk/i.test(url)) return false;
+  if (/password|sign in|log in|login|verification|multi-factor|one[- ]time|incorrect|invalid/i.test(text || '')) return false;
+  return /my account|sign out|log out|logged in|profile|dashboard|member/i.test(text || '');
+}
+
+async function advanceLoginWindowToReviewList(window) {
+  const url = window.webContents.getURL();
+  const text = await withTimeout(
+    window.webContents.executeJavaScript('document.body ? document.body.innerText : ""', true).catch(() => ''),
+    5000,
+    ''
+  );
+  await acceptCookieBanner(window);
+
+  if (isWalksManagerReviewPage(text, url)) return { text, url };
+
+  if (looksLikeLoggedInRamblersPage(text, url)) {
+    const target = reviewUrlForGroup();
+    if (url !== target) {
+      window.loadURL(target).catch(() => {});
+    }
+  }
+
+  return { text, url };
+}
+
 function openWalksManagerLoginWindow() {
   if (loginWindow) {
     loginWindow.focus();
@@ -630,8 +677,7 @@ function openWalksManagerLoginWindow() {
       }
 
       try {
-        const url = loginWindow.webContents.getURL();
-        const text = await loginWindow.webContents.executeJavaScript('document.body ? document.body.innerText : ""', true);
+        const { text, url } = await advanceLoginWindowToReviewList(loginWindow);
         if (!isWalksManagerReviewPage(text, url)) return;
 
         const groups = await extractWalksManagerGroups(loginWindow);
