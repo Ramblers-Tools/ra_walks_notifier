@@ -346,11 +346,39 @@ function prepareForUpdateInstall() {
   if (timer) clearInterval(timer);
   timer = null;
   stopUpdateChecks();
+  cleanupShipItUpdateCache();
 }
 
 function installDownloadedUpdate() {
   prepareForUpdateInstall();
   setImmediate(() => autoUpdater.quitAndInstall(false, true));
+}
+
+function removePathIfPresent(target) {
+  try {
+    if (fs.existsSync(target)) fs.rmSync(target, { recursive: true, force: true });
+  } catch (error) {
+    log(`Could not remove update cache path ${target}: ${error.message}`);
+  }
+}
+
+function cleanupShipItUpdateCache() {
+  const shipItDir = path.join(app.getPath('home'), 'Library', 'Caches', 'uk.richardhigham.walksmanagerwatch.ShipIt');
+  for (const dir of [shipItDir]) {
+    try {
+      if (!fs.existsSync(dir)) continue;
+      for (const entry of fs.readdirSync(dir)) {
+        if (entry.startsWith('update.')) removePathIfPresent(path.join(dir, entry));
+      }
+    } catch (error) {
+      log(`Could not clean ShipIt update cache ${dir}: ${error.message}`);
+    }
+  }
+}
+
+function cleanupDownloadedUpdateCache() {
+  cleanupShipItUpdateCache();
+  removePathIfPresent(path.join(app.getPath('home'), 'Library', 'Caches', 'walks-manager-watch-updater'));
 }
 
 function configureUpdates() {
@@ -397,6 +425,7 @@ function configureUpdates() {
       if (result.response === 0) {
         updateStatus = 'Downloading...';
         buildMenu();
+        cleanupDownloadedUpdateCache();
         autoUpdater.downloadUpdate();
       }
     });
@@ -421,12 +450,16 @@ function configureUpdates() {
   autoUpdater.on('error', (error) => {
     updateStatus = 'Check failed';
     buildMenu();
+    const detail = error.stack || error.message;
+    const lowSpace = /no space left on device|ENOSPC|Could not write update request/i.test(detail);
     if (manualUpdateCheck) {
       dialog.showMessageBox({
         type: 'error',
         title: 'Walks Manager Watch Update',
         message: 'Update check failed.',
-        detail: error.stack || error.message
+        detail: lowSpace
+          ? `${detail}\n\nYour Mac needs more free disk space to unpack the update. Free at least 1-2 GB, then try Check for Updates again.`
+          : detail
       });
     }
     manualUpdateCheck = false;
