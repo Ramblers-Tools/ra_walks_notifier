@@ -1026,6 +1026,14 @@ ipcMain.handle('smtp:save', (_event, settings) => {
 ipcMain.handle('setup:load', () => setupState());
 ipcMain.handle('setup:choose-logo', () => chooseBrandLogo(false));
 ipcMain.handle('setup:save', (_event, settings) => {
+  const selectedGroups = resolveGroups({ groups: settings.groups }, []);
+  if (fs.existsSync(sessionFile()) && !selectedGroups.length) {
+    return {
+      ...setupState(),
+      error: 'Select a Walks Manager group before saving setup.'
+    };
+  }
+
   const cfg = appConfig();
   cfg.notificationRecipients = parseRecipients(settings.recipients);
   cfg.smtp = {
@@ -1037,7 +1045,7 @@ ipcMain.handle('setup:save', (_event, settings) => {
     fromName: String(settings.smtp?.fromName || '').trim(),
     from: String(settings.smtp?.from || '').trim()
   };
-  cfg.groups = resolveGroups({ groups: settings.groups }, []);
+  cfg.groups = selectedGroups;
   writeAppConfig(cfg);
   const state = setupState();
   buildMenu();
