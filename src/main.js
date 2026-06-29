@@ -1,4 +1,4 @@
-const { app, Tray, Menu, shell, dialog, Notification, BrowserWindow, ipcMain, nativeImage } = require('electron');
+const { app, Tray, Menu, shell, dialog, Notification, BrowserWindow, ipcMain, nativeImage, session: electronSession } = require('electron');
 const { spawn } = require('child_process');
 const path = require('path');
 const fs = require('fs');
@@ -21,6 +21,7 @@ let lastStatus = 'Starting...';
 const root = path.join(__dirname, '..');
 const reviewUrl = 'https://walks-manager.ramblers.org.uk/walks-manager/list?gid=414&review=1';
 const repoUrl = 'https://github.com/East-Cheshire-Ramblers/ra_walks_notifier';
+const walksPartition = 'persist:walks-manager-watch-browser';
 
 function readJson(file, fallback = {}) {
   try {
@@ -94,6 +95,32 @@ function sameWalk(a, b) {
 
 function asMap(walks) {
   return Object.fromEntries((walks || []).map(walk => [walk.id, walk]));
+}
+
+function cookieUrl(cookie) {
+  const domain = String(cookie.domain || 'walks-manager.ramblers.org.uk').replace(/^\./, '');
+  return `${cookie.secure === false ? 'http' : 'https'}://${domain}${cookie.path || '/'}`;
+}
+
+async function loadSavedSessionIntoElectron() {
+  const browserSession = electronSession.fromPartition(walksPartition);
+  await browserSession.clearStorageData({
+    storages: ['cookies', 'localstorage', 'sessionstorage', 'indexdb']
+  });
+
+  const saved = readJson(sessionFile(), { cookies: [], origins: [] });
+  for (const cookie of saved.cookies || []) {
+    await browserSession.cookies.set({
+      url: cookieUrl(cookie),
+      name: cookie.name,
+      value: cookie.value,
+      domain: cookie.domain,
+      path: cookie.path || '/',
+      secure: Boolean(cookie.secure),
+      httpOnly: Boolean(cookie.httpOnly),
+      expirationDate: cookie.expires && cookie.expires > 0 ? cookie.expires : undefined
+    }).catch(() => {});
+  }
 }
 
 function nodeExecutable() {
@@ -414,6 +441,7 @@ function openWalksManagerLoginWindow() {
       minimizable: true,
       fullscreenable: true,
       webPreferences: {
+        partition: walksPartition,
         nodeIntegration: false,
         contextIsolation: true
       }
@@ -544,10 +572,13 @@ async function runElectronCheck(force = false) {
       height: 900,
       show: false,
       webPreferences: {
+        partition: walksPartition,
         nodeIntegration: false,
         contextIsolation: true
       }
     });
+
+    await loadSavedSessionIntoElectron();
 
     for (const group of groups) {
       const url = `https://walks-manager.ramblers.org.uk/walks-manager/list?gid=${group.gid}&review=1`;
