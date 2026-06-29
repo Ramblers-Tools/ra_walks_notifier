@@ -72,16 +72,17 @@ function setupState() {
   const smtp = currentSmtp();
   const cfg = appConfig();
   const groups = resolveGroups(cfg, []);
+  const sessionPresent = fs.existsSync(sessionFile());
   return {
     recipients,
     smtp,
-    groups,
+    groups: sessionPresent ? groups : [],
     branding: {
       logoPath: logoPath(cfg),
       logoDataUrl: logoDataUrl(cfg)
     },
-    sessionPresent: fs.existsSync(sessionFile()),
-    complete: Boolean(recipients.length && smtp.host && smtp.user && smtp.pass && smtp.from && groups.length && fs.existsSync(sessionFile()))
+    sessionPresent,
+    complete: Boolean(recipients.length && smtp.host && smtp.user && smtp.pass && smtp.from && groups.length && sessionPresent)
   };
 }
 
