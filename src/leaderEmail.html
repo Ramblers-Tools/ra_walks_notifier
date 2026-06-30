@@ -154,7 +154,7 @@
     }
 
     window.leaderEmailSettings.load().then((settings) => {
-      fields.enabled.checked = settings.enabled !== false;
+      fields.enabled.checked = settings.enabled === true;
       fields.sendOnSubmit.checked = settings.sendOnSubmit !== false;
       fields.sendOnPublish.checked = settings.sendOnPublish !== false;
       fields.apiBaseUrl.value = settings.apiBaseUrl || 'https://ramblerseastcheshire.org.uk/api/index.php/v1';

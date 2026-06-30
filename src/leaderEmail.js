@@ -4,7 +4,7 @@ const { log } = require('./logger');
 function normalizeLeaderEmailSettings(config = {}) {
   const settings = config.leaderEmails || {};
   return {
-    enabled: settings.enabled !== false,
+    enabled: settings.enabled === true,
     sendOnSubmit: settings.sendOnSubmit !== false,
     sendOnPublish: settings.sendOnPublish !== false,
     apiBaseUrl: String(settings.apiBaseUrl || '').trim().replace(/\/$/, ''),

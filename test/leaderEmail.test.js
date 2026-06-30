@@ -12,11 +12,11 @@ const {
   isAllowedTestLeaderEmail
 } = require('../src/leaderEmail');
 
-test('leader email settings default to enabled but require API details', () => {
+test('leader email settings default to disabled and require API details', () => {
   assert.deepEqual(
     normalizeLeaderEmailSettings({}),
     {
-      enabled: true,
+      enabled: false,
       sendOnSubmit: true,
       sendOnPublish: true,
       apiBaseUrl: '',
