@@ -75,6 +75,29 @@ test('parseWalks captures manager detail links from review cards', async () => {
   );
 });
 
+test('parseWalks captures alternate manager walk links from review cards', async () => {
+  const page = fakePage([
+    {
+      href: '/go-walking/group-walks/ignore-rh-testing',
+      managerHref: '/walks-manager/walk/basic-information/7f46b1bd-9286-4a4b-a41d-b481680a3cc3',
+      title: 'IGNORE RH Testing',
+      cardText: [
+        'Submitted for checking',
+        'IGNORE RH Testing',
+        'Sunday 12th July 2026 at 1:40 pm',
+        'Led by: Richard H.'
+      ].join('\n')
+    }
+  ]);
+
+  const walks = await parseWalks(page, 'East Cheshire Group');
+
+  assert.equal(
+    walks[0].managerHref,
+    'https://walks-manager.ramblers.org.uk/walks-manager/walk/basic-information/7f46b1bd-9286-4a4b-a41d-b481680a3cc3'
+  );
+});
+
 test('parseWalks ignores links without a pending review status', async () => {
   const page = fakePage([
     {
@@ -141,6 +164,9 @@ function fakeCard(text, managerHref = '') {
   return {
     async count() {
       return hasStatus ? 1 : 0;
+    },
+    locator() {
+      return fakeManagerLink(managerHref);
     },
     first() {
       return {

@@ -17,6 +17,8 @@ function managerHrefFromEntry(entry) {
   return absoluteHref(entry.managerHref || '');
 }
 
+const managerLinkSelector = 'a[href*="/walks-manager/walk/"]';
+
 function parseWalkEntries(entries, groupName) {
   const statusRegex = /Submitted for checking|Awaiting publishing|Ready to publish/i;
   const found = [];
@@ -69,7 +71,11 @@ async function parseWalks(page, groupName) {
     if (!cardCount) continue;
 
     const cardElement = card.first();
-    const managerHref = await cardElement.locator('a[href*="/walks-manager/walk/basic-information/"], a[href*="/walks-manager/walk/description/"], a[href*="/walks-manager/walk/details/"], a[href*="/walks-manager/walk/meet-start-point/"]').first().getAttribute('href').catch(() => '');
+    let managerHref = await cardElement.locator(managerLinkSelector).first().getAttribute('href').catch(() => '');
+    if (!managerHref) {
+      const broaderCard = link.locator('xpath=ancestor::*[.//a[contains(@href, "/walks-manager/walk/")]][1]');
+      managerHref = await broaderCard.locator(managerLinkSelector).first().getAttribute('href').catch(() => '');
+    }
     entries.push({ href, title, managerHref, text: await cardElement.innerText().catch(() => '') });
   }
 

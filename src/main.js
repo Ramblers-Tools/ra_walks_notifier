@@ -1082,6 +1082,15 @@ function waitForWindowEvent(window, event, timeoutMs = 45000) {
 async function extractWalkEntries(window) {
   return window.webContents.executeJavaScript(`
     Array.from(document.querySelectorAll('a[href*="/go-walking/group-walks/"]')).map(link => {
+      const findManagerHref = (start) => {
+        let node = start;
+        while (node && node !== document.body) {
+          const managerLink = node.querySelector('a[href*="/walks-manager/walk/"]');
+          if (managerLink && managerLink.href) return managerLink.href;
+          node = node.parentElement;
+        }
+        return '';
+      };
       let node = link;
       let card = null;
       while (node && node !== document.body) {
@@ -1094,7 +1103,7 @@ async function extractWalkEntries(window) {
       }
       return {
         href: link.getAttribute('href') || '',
-        managerHref: card ? ((card.querySelector('a[href*="/walks-manager/walk/basic-information/"], a[href*="/walks-manager/walk/description/"], a[href*="/walks-manager/walk/details/"], a[href*="/walks-manager/walk/meet-start-point/"]') || {}).href || '') : '',
+        managerHref: findManagerHref(card || link),
         title: link.innerText || '',
         text: card ? card.innerText : ''
       };
