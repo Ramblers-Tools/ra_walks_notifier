@@ -1,9 +1,9 @@
 {
   "name": "walks-manager-watch",
-  "version": "4.3.20",
+  "version": "4.3.21",
   "description": "Menu bar app for monitoring Ramblers Walks Manager review queues",
   "main": "src/main.js",
-  "author": "Richard Higham",
+  "author": "Richard Higham <me@richyhigham.uk>",
   "license": "UNLICENSED",
   "scripts": {
     "app": "electron .",
@@ -16,8 +16,8 @@
     "build:mac:unsigned": "CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --mac dmg zip --publish never",
     "build:mac": "electron-builder --mac dmg zip",
     "build:mac:signed": "CSC_NAME=\"Richard Higham (9PG75A2TYV)\" electron-builder --mac dmg zip",
-    "build:linux": "electron-builder --linux AppImage --x64 --publish never",
-    "build:linux:release": "electron-builder --linux AppImage --x64",
+    "build:linux": "electron-builder --linux AppImage deb rpm --x64 --publish never",
+    "build:linux:release": "electron-builder --linux AppImage deb rpm --x64",
     "release:mac": "npm run build:mac:signed && npm run notary:submit",
     "notary:store": "xcrun notarytool store-credentials WalksManagerWatchNotary --apple-id YOUR_APPLE_ID --team-id 9PG75A2TYV --password YOUR_APP_SPECIFIC_PASSWORD",
     "notary:submit": "bash scripts/notarize-latest.sh"
@@ -67,9 +67,22 @@
     "linux": {
       "category": "Utility",
       "icon": "assets/ramblers-logo.png",
+      "artifactName": "Walks-Manager-Watch-${version}-${arch}.${ext}",
       "target": [
         {
           "target": "AppImage",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "deb",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "rpm",
           "arch": [
             "x64"
           ]

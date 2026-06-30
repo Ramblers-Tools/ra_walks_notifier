@@ -511,7 +511,11 @@
       const assets = release ? release.assets || [] : [];
       const dmg = assets.find(asset => /arm64\.dmg$/i.test(asset.name));
       const dmgUrl = dmg ? dmg.browser_download_url : latestReleaseUrl;
+      const deb = assets.find(asset => /\.deb$/i.test(asset.name));
+      const rpm = assets.find(asset => /\.rpm$/i.test(asset.name));
       const appImage = assets.find(asset => /\.AppImage$/i.test(asset.name));
+      const linuxInstaller = deb || rpm || appImage;
+      const linuxInstallerUrl = linuxInstaller ? linuxInstaller.browser_download_url : latestReleaseUrl;
       const appImageUrl = appImage ? appImage.browser_download_url : latestReleaseUrl;
 
       if (os === 'mac') {
@@ -585,18 +589,21 @@
 
       if (os === 'linux') {
         detected.textContent = 'Linux detected';
-        if (appImage) {
+        if (linuxInstaller) {
+          const rpmLink = rpm ? `<li>Fedora/openSUSE users can use the <a href="${rpm.browser_download_url}">RPM package</a>.</li>` : '';
+          const appImageLink = appImage ? `<li>The <a href="${appImageUrl}">AppImage</a> remains available as a portable option.</li>` : '';
           title.textContent = `Download ${version} for Linux`;
-          copy.textContent = 'Use the AppImage package on x64 Linux desktops. Tray behaviour can vary by desktop environment.';
-          download.href = appImageUrl;
-          download.textContent = 'Download Linux AppImage';
-          primary.href = appImageUrl;
+          copy.textContent = 'Use the DEB installer for Ubuntu, Debian, or Mint. RPM and AppImage packages are also published for other Linux desktops.';
+          download.href = linuxInstallerUrl;
+          download.textContent = deb ? 'Download Linux DEB' : rpm ? 'Download Linux RPM' : 'Download Linux AppImage';
+          primary.href = linuxInstallerUrl;
           primary.textContent = 'Download for Linux';
           instructionsTitle.textContent = 'Linux install instructions';
           instructions.innerHTML = `
-            <li>Download the AppImage package.</li>
-            <li>Mark it as executable.</li>
-            <li>Run the AppImage and complete setup: recipients, SMTP settings, Walks Manager login, and group selection.</li>
+            <li>Download and install the DEB package on Ubuntu, Debian, or Mint.</li>
+            ${rpmLink}
+            ${appImageLink}
+            <li>Launch Walks Manager Watch from the application menu and complete setup.</li>
             <li>If the tray icon is not visible, check that your desktop environment supports app indicators or status notifier items.</li>
           `;
         } else {

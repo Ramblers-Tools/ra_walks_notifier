@@ -83,13 +83,21 @@ For a signed and notarized release build:
 npm run release:mac
 ```
 
-For an experimental Linux AppImage build:
+For experimental Linux builds:
 
 ```bash
 npm run build:linux
 ```
 
-The Linux build currently targets x64 AppImage. Tray visibility and start-on-login behaviour can vary by desktop environment; start-on-login is not configured automatically for Linux yet.
+The Linux build currently targets x64 AppImage, DEB, and RPM packages. The DEB/RPM installers put the app into the desktop application launcher and keep it installed outside the Downloads folder.
+
+On Linux, **Start App on Login** uses the standard XDG autostart file:
+
+```text
+~/.config/autostart/walks-manager-watch.desktop
+```
+
+Tray visibility can vary by desktop environment. GNOME may need AppIndicator/status notifier support enabled.
 
 The signing certificate must be installed in the macOS login keychain. Check it with:
 

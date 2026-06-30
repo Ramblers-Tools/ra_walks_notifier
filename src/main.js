@@ -256,6 +256,39 @@ function trayIcon() {
   return resized;
 }
 
+function smtpErrorMessage(error) {
+  const code = String(error?.code || '');
+  const response = String(error?.response || '');
+  const message = String(error?.message || '');
+  const combined = `${code} ${response} ${message}`;
+
+  if (/EAUTH|535|authentication|auth/i.test(combined)) {
+    return {
+      message: 'SMTP login failed.',
+      detail: 'Check the SMTP username and password, then try sending the test email again.'
+    };
+  }
+
+  if (/ECONNECTION|ENOTFOUND|ECONNREFUSED|ETIMEDOUT|timeout|connect/i.test(combined)) {
+    return {
+      message: 'Could not connect to the SMTP server.',
+      detail: 'Check the SMTP host, port, SSL/TLS setting, and internet connection.'
+    };
+  }
+
+  if (/certificate|TLS|SSL|self.signed/i.test(combined)) {
+    return {
+      message: 'SMTP security check failed.',
+      detail: 'Check whether the SMTP server needs SSL/TLS enabled or disabled for the selected port.'
+    };
+  }
+
+  return {
+    message: 'SMTP test email failed.',
+    detail: message || 'Check the SMTP settings and try again.'
+  };
+}
+
 async function sendSmtpTestEmail(showDialog = true) {
   try {
     await sendEmail(
@@ -273,11 +306,12 @@ async function sendSmtpTestEmail(showDialog = true) {
     return { code: 0 };
   } catch (error) {
     if (showDialog) {
+      const formatted = smtpErrorMessage(error);
       dialog.showMessageBox({
         type: 'error',
         title: 'Walks Manager Watch',
-        message: 'SMTP test email failed.',
-        detail: error.stack || error.message
+        message: formatted.message,
+        detail: formatted.detail
       });
     }
     return { code: 1, error };
@@ -338,25 +372,52 @@ function showAbout() {
 }
 
 function supportsLoginItemSettings() {
-  return process.platform === 'darwin' || process.platform === 'win32';
+  return process.platform === 'darwin' || process.platform === 'win32' || process.platform === 'linux';
+}
+
+function linuxAutostartFile() {
+  const configHome = process.env.XDG_CONFIG_HOME || path.join(app.getPath('home'), '.config');
+  return path.join(configHome, 'autostart', 'walks-manager-watch.desktop');
+}
+
+function quoteDesktopExec(value) {
+  return `"${String(value).replace(/(["\\`$])/g, '\\$1')}"`;
+}
+
+function linuxAutostartEntry() {
+  return [
+    '[Desktop Entry]',
+    'Type=Application',
+    'Name=Walks Manager Watch',
+    'Comment=Monitor Ramblers Walks Manager review queues',
+    `Exec=${quoteDesktopExec(process.execPath)}`,
+    'Terminal=false',
+    'X-GNOME-Autostart-enabled=true',
+    'Categories=Utility;',
+    ''
+  ].join('\n');
 }
 
 function startAtBootEnabled() {
   if (!supportsLoginItemSettings()) return false;
+  if (process.platform === 'linux') return fs.existsSync(linuxAutostartFile());
   return app.getLoginItemSettings().openAtLogin;
 }
 
 function toggleStartAtBoot() {
-  if (!supportsLoginItemSettings()) {
-    dialog.showMessageBox({
-      type: 'info',
-      title: 'Walks Manager Watch',
-      message: 'Start on login is not configured automatically for this Linux build.'
-    });
+  const enabled = !startAtBootEnabled();
+  if (process.platform === 'linux') {
+    const autostartFile = linuxAutostartFile();
+    if (enabled) {
+      fs.mkdirSync(path.dirname(autostartFile), { recursive: true });
+      fs.writeFileSync(autostartFile, linuxAutostartEntry());
+    } else if (fs.existsSync(autostartFile)) {
+      fs.rmSync(autostartFile, { force: true });
+    }
+    buildMenu();
     return;
   }
 
-  const enabled = !startAtBootEnabled();
   app.setLoginItemSettings({
     openAtLogin: enabled,
     openAsHidden: true,
