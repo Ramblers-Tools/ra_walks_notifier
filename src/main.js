@@ -57,6 +57,17 @@ function writeAppConfig(config) {
   fs.writeFileSync(paths.configFile, `${JSON.stringify(config, null, 2)}\n`);
 }
 
+function includeBetaUpdates() {
+  return appConfig().updates?.includeBeta === true;
+}
+
+function toggleBetaUpdates() {
+  const cfg = appConfig();
+  cfg.updates = Object.assign({}, cfg.updates, { includeBeta: !includeBetaUpdates() });
+  writeAppConfig(cfg);
+  buildMenu();
+}
+
 function currentRecipients() {
   return resolveRecipients(appConfig(), process.env);
 }
@@ -624,6 +635,7 @@ function configureUpdates() {
 
 function checkForUpdates(manual = true) {
   configureUpdates();
+  autoUpdater.allowPrerelease = includeBetaUpdates();
   manualUpdateCheck = manual;
   if (!app.isPackaged) {
     if (manual) {
@@ -1269,6 +1281,7 @@ function buildMenu() {
   const statusLabel = configured ? lastStatus : 'Setup required';
   const canStartOnLogin = supportsLoginItemSettings();
   const bootEnabled = startAtBootEnabled();
+  const betaUpdates = includeBetaUpdates();
   const menu = Menu.buildFromTemplate([
     {
       label: `Status: ${statusLabel}`,
@@ -1305,6 +1318,12 @@ function buildMenu() {
           enabled: canStartOnLogin,
           checked: bootEnabled,
           click: () => toggleStartAtBoot()
+        },
+        {
+          label: 'Subscribe to Beta Updates',
+          type: 'checkbox',
+          checked: betaUpdates,
+          click: () => toggleBetaUpdates()
         },
         { type: 'separator' },
         { label: 'Change Logo', click: () => chooseBrandLogo() },
