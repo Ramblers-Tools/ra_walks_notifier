@@ -77,19 +77,28 @@ This produces installer/update artifacts in `dist/`:
 - `.dmg` for first install
 - `.zip` for future app update feeds
 
-For a signed and notarized release build:
+For a signed and notarized release build from a clean temporary folder:
 
 ```bash
-npm run release:mac
+npm run release:mac:clean
 ```
 
-For experimental Linux builds:
+For Linux installer/update artifacts, build on Linux:
 
 ```bash
-npm run build:linux
+npm run release:linux
 ```
 
 The Linux build currently targets x64 AppImage, DEB, and RPM packages. The DEB/RPM installers put the app into the desktop application launcher and keep it installed outside the Downloads folder.
+
+Before publishing a release, copy the Linux `dist/latest-linux.yml`, AppImage, DEB, and RPM files back to the Mac repo `dist/` folder, then run:
+
+```bash
+npm run release:validate
+npm run release:publish -- "Release notes go here."
+```
+
+The validator checks that both `latest-mac.yml` and `latest-linux.yml` match the current `package.json` version and that all expected update assets exist.
 
 On Linux, **Start App on Login** uses the standard XDG autostart file:
 
