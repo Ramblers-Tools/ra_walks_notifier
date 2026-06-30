@@ -58,7 +58,22 @@ function writeAppConfig(config) {
 }
 
 function includeBetaUpdates() {
-  return appConfig().updates?.includeBeta === true;
+  const configured = appConfig().updates?.includeBeta;
+  if (typeof configured === 'boolean') return configured;
+  return isBetaBuild();
+}
+
+function isBetaBuild() {
+  return /^4\.3\./.test(app.getVersion());
+}
+
+function releaseChannelLabel() {
+  return isBetaBuild() ? 'Beta' : 'Stable';
+}
+
+function displayVersion() {
+  const version = app.getVersion();
+  return isBetaBuild() ? `${version} Beta` : version;
 }
 
 function toggleBetaUpdates() {
@@ -244,6 +259,8 @@ function buildStatusText() {
   return [
     'Walks Manager Watch',
     '',
+    `Version: ${displayVersion()}`,
+    `Release channel: ${releaseChannelLabel()}`,
     `Status: ${running}`,
     `Pending walks: ${pending}`,
     statusList(groups.length === 1 ? 'Group' : 'Groups', groupNames, 'Not selected'),
@@ -442,7 +459,8 @@ function showAbout() {
     title: 'About Walks Manager Watch',
     message: 'Walks Manager Watch',
     detail: [
-      `Version: ${app.getVersion()}`,
+      `Version: ${displayVersion()}`,
+      `Release channel: ${releaseChannelLabel()}`,
       'Desktop tray app for monitoring Ramblers Walks Manager review queues.'
     ].join('\n'),
     buttons: ['OK', 'Open Website'],
