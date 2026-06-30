@@ -100,13 +100,19 @@ function statusFile() { const { paths } = require('./config'); return paths.stat
 function stateFile() { const { paths } = require('./config'); return paths.stateFile; }
 function sessionFile() { const { paths } = require('./config'); return paths.sessionFile; }
 function logFile() { const { paths } = require('./config'); return paths.logFile; }
+function ramblersLogoPath() {
+  return path.join(root, 'assets', 'ramblers-logo.png');
+}
 function appIconPath() {
   const eastCheshire = path.join(root, 'assets', 'east-cheshire-logo.png');
   if (fs.existsSync(eastCheshire)) return eastCheshire;
-  return path.join(root, 'assets', 'ramblers-logo.png');
+  return ramblersLogoPath();
 }
 function appWindowOptions(options) {
   return Object.assign({ icon: appIconPath() }, options);
+}
+function logWindowOptions(options) {
+  return Object.assign({ icon: ramblersLogoPath() }, options);
 }
 function readStatus() { return readJson(statusFile(), {}); }
 function writeJson(file, data) {
@@ -228,7 +234,7 @@ function reviewUrlForGroup(group = selectedGroup()) {
 }
 
 function showStatus() {
-  const iconPath = logoPath();
+  const iconPath = ramblersLogoPath();
   const icon = iconPath ? nativeImage.createFromPath(iconPath) : undefined;
   dialog.showMessageBox({
     type: 'info',
@@ -257,7 +263,7 @@ function showLogWindow() {
     return;
   }
 
-  logWindow = new BrowserWindow(appWindowOptions({
+  logWindow = new BrowserWindow(logWindowOptions({
     width: 900,
     height: 620,
     title: 'Walks Manager Watch Logs',
