@@ -31,6 +31,13 @@ test('submitted and published leader email triggers use review status safely', (
   assert.equal(shouldSendPublished({ status: 'Ready to publish' }), true);
   assert.equal(shouldSendPublished({ status: 'Awaiting publishing' }), true);
   assert.equal(shouldSendPublished({ status: 'Submitted for checking' }), false);
+  assert.equal(
+    shouldSendPublished(
+      { id: 'walk-1', status: 'Submitted for checking' },
+      { leaderEmails: { submitted: { 'walk-1': { email: 'leader@example.org' } } } }
+    ),
+    true
+  );
 });
 
 test('leader email template can use distinct header colours', () => {

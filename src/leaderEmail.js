@@ -156,8 +156,9 @@ function shouldSendSubmitted(walk) {
   return /Submitted for checking/i.test(walk.status || '');
 }
 
-function shouldSendPublished(walk) {
-  return /Awaiting publishing|Ready to publish/i.test(walk.status || '');
+function shouldSendPublished(walk, state = {}) {
+  if (/Awaiting publishing|Ready to publish/i.test(walk.status || '')) return true;
+  return Boolean(state.leaderEmails?.submitted?.[walk.id]);
 }
 
 async function sendLeaderEmails({ newWalks, clearedWalks, state, config }) {
@@ -178,7 +179,7 @@ async function sendLeaderEmails({ newWalks, clearedWalks, state, config }) {
 
   if (settings.sendOnPublish) {
     for (const walk of clearedWalks) {
-      if (!shouldSendPublished(walk) || state.leaderEmails.published[walk.id]) continue;
+      if (!shouldSendPublished(walk, state) || state.leaderEmails.published[walk.id]) continue;
       await sendLeaderEmailForWalk(walk, settings, 'published', state.leaderEmails.published, result);
     }
   }
