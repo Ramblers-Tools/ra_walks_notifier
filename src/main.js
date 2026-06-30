@@ -105,6 +105,9 @@ function appIconPath() {
   if (fs.existsSync(eastCheshire)) return eastCheshire;
   return path.join(root, 'assets', 'ramblers-logo.png');
 }
+function appWindowOptions(options) {
+  return Object.assign({ icon: appIconPath() }, options);
+}
 function readStatus() { return readJson(statusFile(), {}); }
 function writeJson(file, data) {
   fs.mkdirSync(path.dirname(file), { recursive: true });
@@ -254,17 +257,16 @@ function showLogWindow() {
     return;
   }
 
-  logWindow = new BrowserWindow({
+  logWindow = new BrowserWindow(appWindowOptions({
     width: 900,
     height: 620,
     title: 'Walks Manager Watch Logs',
-    icon: appIconPath(),
     webPreferences: {
       preload: path.join(__dirname, 'logPreload.js'),
       contextIsolation: true,
       nodeIntegration: false
     }
-  });
+  }));
 
   logWindow.on('closed', () => {
     logWindow = null;
@@ -628,7 +630,7 @@ function showRecipientsWindow() {
     return;
   }
 
-  recipientsWindow = new BrowserWindow({
+  recipientsWindow = new BrowserWindow(appWindowOptions({
     width: 520,
     height: 360,
     title: 'Notification Recipients',
@@ -638,7 +640,7 @@ function showRecipientsWindow() {
     webPreferences: {
       preload: path.join(__dirname, 'recipientsPreload.js')
     }
-  });
+  }));
 
   recipientsWindow.on('closed', () => {
     recipientsWindow = null;
@@ -653,7 +655,7 @@ function showSmtpWindow() {
     return;
   }
 
-  smtpWindow = new BrowserWindow({
+  smtpWindow = new BrowserWindow(appWindowOptions({
     width: 520,
     height: 520,
     title: 'SMTP Settings',
@@ -663,7 +665,7 @@ function showSmtpWindow() {
     webPreferences: {
       preload: path.join(__dirname, 'smtpPreload.js')
     }
-  });
+  }));
 
   smtpWindow.on('closed', () => {
     smtpWindow = null;
@@ -682,7 +684,7 @@ function showScheduleWindow() {
     return;
   }
 
-  scheduleWindow = new BrowserWindow({
+  scheduleWindow = new BrowserWindow(appWindowOptions({
     width: 520,
     height: 320,
     title: 'Check Schedule and Active Hours',
@@ -692,7 +694,7 @@ function showScheduleWindow() {
     webPreferences: {
       preload: path.join(__dirname, 'schedulePreload.js')
     }
-  });
+  }));
 
   scheduleWindow.on('closed', () => {
     scheduleWindow = null;
@@ -707,7 +709,7 @@ function showSetupWindow() {
     return;
   }
 
-  setupWindow = new BrowserWindow({
+  setupWindow = new BrowserWindow(appWindowOptions({
     width: 640,
     height: 900,
     title: 'Walks Manager Watch Setup',
@@ -717,7 +719,7 @@ function showSetupWindow() {
     webPreferences: {
       preload: path.join(__dirname, 'setupPreload.js')
     }
-  });
+  }));
 
   setupWindow.on('closed', () => {
     setupWindow = null;
@@ -851,7 +853,7 @@ function openWalksManagerLoginWindow() {
     loginWindow.focus();
   } else {
     lastLoginAutoAdvanceAt = 0;
-    loginWindow = new BrowserWindow({
+    loginWindow = new BrowserWindow(appWindowOptions({
       width: 1180,
       height: 820,
       title: 'Walks Manager Login',
@@ -863,7 +865,7 @@ function openWalksManagerLoginWindow() {
         nodeIntegration: false,
         contextIsolation: true
       }
-    });
+    }));
 
     loginWindow.on('closed', () => {
       loginWindow = null;
@@ -1048,7 +1050,7 @@ async function runElectronCheck(force = false) {
   let checkWindow;
 
   try {
-    checkWindow = new BrowserWindow({
+    checkWindow = new BrowserWindow(appWindowOptions({
       width: 1200,
       height: 900,
       show: false,
@@ -1057,7 +1059,7 @@ async function runElectronCheck(force = false) {
         nodeIntegration: false,
         contextIsolation: true
       }
-    });
+    }));
 
     await loadSavedSessionIntoElectron();
 
