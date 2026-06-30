@@ -9,7 +9,11 @@ if [ -z "$TARGET" ]; then
   echo "No built .dmg or .zip for version $VERSION found in dist/. Run npm run build:mac:signed first."
   exit 1
 fi
-xcrun notarytool submit "$TARGET" --keychain-profile WalksManagerWatchNotary --wait
+NOTARY_ARGS=(--keychain-profile WalksManagerWatchNotary)
+if [ -n "${WMW_NOTARY_KEYCHAIN:-}" ]; then
+  NOTARY_ARGS+=(--keychain "$WMW_NOTARY_KEYCHAIN")
+fi
+xcrun notarytool submit "$TARGET" "${NOTARY_ARGS[@]}" --wait
 if [[ "$TARGET" == *.dmg ]]; then
   xcrun stapler staple "$TARGET"
   spctl -a -t open --context context:primary-signature -vv "$TARGET" || true
