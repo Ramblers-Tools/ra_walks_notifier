@@ -9,7 +9,7 @@ const { isWithinActiveHours, normalizeSchedule } = require('./schedule');
 const { parseWalkEntries } = require('./parser');
 const { buildEmail } = require('./emailSummary');
 const { sendEmail } = require('./email');
-const { leaderDetailsScript } = require('./leaderDetails');
+const { leaderDetailsScript, managerEditHrefScript } = require('./leaderDetails');
 const { normalizeLeaderEmailSettings, sendLeaderEmails, testLeaderEmailApi } = require('./leaderEmail');
 const { log, ensureDirs } = require('./logger');
 const { copyLogo, logoDataUrl, logoPath } = require('./branding');
@@ -1120,7 +1120,19 @@ async function enrichWalkLeaderDetails(window, walks) {
       window.loadURL(detailHref);
       await loaded;
       await new Promise(resolve => setTimeout(resolve, 1500));
-      const details = await window.webContents.executeJavaScript(leaderDetailsScript, true);
+      let details = await window.webContents.executeJavaScript(leaderDetailsScript, true);
+      if (!details || !details.leaderFullName) {
+        const managerHref = await window.webContents.executeJavaScript(managerEditHrefScript, true).catch(() => '');
+        if (managerHref && managerHref !== window.webContents.getURL()) {
+          walk.managerHref = managerHref;
+          log(`Following manager detail link for ${walk.title}: ${managerHref}`);
+          const managerLoaded = waitForWindowEvent(window, 'did-finish-load', 45000);
+          window.loadURL(managerHref);
+          await managerLoaded;
+          await new Promise(resolve => setTimeout(resolve, 1500));
+          details = await window.webContents.executeJavaScript(leaderDetailsScript, true);
+        }
+      }
       if (details && details.leaderFullName) walk.leaderFullName = details.leaderFullName;
       if (details && details.leaderVolunteerId) walk.leaderVolunteerId = details.leaderVolunteerId;
       log(details && details.leaderFullName
@@ -1203,6 +1215,9 @@ async function runElectronCheck(force = false) {
     const changedWalks = currentWalks.filter(walk => prevMap[walk.id] && !sameWalk(walk, prevMap[walk.id]));
     const clearedWalks = (prev.walks || []).filter(walk => !currentMap[walk.id]);
     log(`Summary: ${currentWalks.length} current, ${newWalks.length} new, ${changedWalks.length} changed, ${clearedWalks.length} cleared.`);
+    if (newWalks.length) log(`New walks: ${newWalks.map(walk => walk.title).join('; ')}`);
+    if (changedWalks.length) log(`Changed walks: ${changedWalks.map(walk => walk.title).join('; ')}`);
+    if (clearedWalks.length) log(`Cleared walks: ${clearedWalks.map(walk => walk.title).join('; ')}`);
 
     const cfg = appConfig();
     const shouldEmail = force || (cfg.notifyOnNew !== false && newWalks.length) || (cfg.notifyOnChanged !== false && changedWalks.length);

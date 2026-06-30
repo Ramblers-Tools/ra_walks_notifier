@@ -8,7 +8,7 @@ const { parseWalks } = require('./parser');
 const { nowUkDateTime } = require('./time');
 const { buildEmail } = require('./emailSummary');
 const { isLoginPage, sendSessionExpiredEmail } = require('./sessionExpiry');
-const { extractLeaderDetailsFromPlaywright } = require('./leaderDetails');
+const { extractLeaderDetailsFromPlaywright, extractManagerEditHrefFromPlaywright } = require('./leaderDetails');
 const { sendLeaderEmails } = require('./leaderEmail');
 
 const forceEmail = process.argv.includes('--force-email');
@@ -24,7 +24,17 @@ async function enrichWalkLeaderDetails(page, walks) {
     try {
       await page.goto(detailHref, { waitUntil: 'domcontentloaded', timeout: 45000 });
       await page.waitForTimeout(1500);
-      const details = await extractLeaderDetailsFromPlaywright(page);
+      let details = await extractLeaderDetailsFromPlaywright(page);
+      if (!details.leaderFullName) {
+        const managerHref = await extractManagerEditHrefFromPlaywright(page);
+        if (managerHref && managerHref !== page.url()) {
+          walk.managerHref = managerHref;
+          log(`Following manager detail link for ${walk.title}: ${managerHref}`);
+          await page.goto(managerHref, { waitUntil: 'domcontentloaded', timeout: 45000 });
+          await page.waitForTimeout(1500);
+          details = await extractLeaderDetailsFromPlaywright(page);
+        }
+      }
       if (details.leaderFullName) walk.leaderFullName = details.leaderFullName;
       if (details.leaderVolunteerId) walk.leaderVolunteerId = details.leaderVolunteerId;
       log(details.leaderFullName
@@ -106,6 +116,9 @@ async function notifyMac(title, message) {
     const changedWalks = currentWalks.filter(w => prevMap[w.id] && !sameWalk(w, prevMap[w.id]));
     const clearedWalks = (prev.walks || []).filter(w => !currentMap[w.id]);
     log(`Summary: ${currentWalks.length} current, ${newWalks.length} new, ${changedWalks.length} changed, ${clearedWalks.length} cleared.`);
+    if (newWalks.length) log(`New walks: ${newWalks.map(w => w.title).join('; ')}`);
+    if (changedWalks.length) log(`Changed walks: ${changedWalks.map(w => w.title).join('; ')}`);
+    if (clearedWalks.length) log(`Cleared walks: ${clearedWalks.map(w => w.title).join('; ')}`);
     const shouldEmail = forceEmail || (app.notifyOnNew !== false && newWalks.length) || (app.notifyOnChanged !== false && changedWalks.length);
     if (shouldEmail) {
       const total = newWalks.length + changedWalks.length;

@@ -20,8 +20,25 @@ const leaderDetailsScript = `
 })()
 `;
 
+const managerEditHrefScript = `
+(() => {
+  const link = Array.from(document.querySelectorAll('a[href*="/walks-manager/walk/"]'))
+    .find(anchor => /\\/walks-manager\\/walk\\/(basic-information|description|details|meet-start-point|shape|media|publishing)\\//.test(anchor.href || anchor.getAttribute('href') || ''));
+  return link ? link.href : '';
+})()
+`;
+
 async function extractLeaderDetailsFromPlaywright(page) {
   return page.evaluate(leaderDetailsScript).catch(() => ({ leaderFullName: '', leaderVolunteerId: '' }));
 }
 
-module.exports = { leaderDetailsScript, extractLeaderDetailsFromPlaywright };
+async function extractManagerEditHrefFromPlaywright(page) {
+  return page.evaluate(managerEditHrefScript).catch(() => '');
+}
+
+module.exports = {
+  leaderDetailsScript,
+  managerEditHrefScript,
+  extractLeaderDetailsFromPlaywright,
+  extractManagerEditHrefFromPlaywright
+};
