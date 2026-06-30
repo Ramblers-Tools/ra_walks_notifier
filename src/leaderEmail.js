@@ -161,6 +161,33 @@ function shouldSendPublished(walk, state = {}) {
   return Boolean(state.leaderEmails?.submitted?.[walk.id]);
 }
 
+function htmlToText(html) {
+  return String(html || '').replace(/<script[\s\S]*?<\/script>/gi, ' ')
+    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+async function confirmWalkPublished(walk) {
+  const href = String(walk.href || '').trim();
+  if (!href) return { ok: false, reason: 'no public walk link' };
+
+  const response = await fetch(href, { headers: { Accept: 'text/html' } });
+  if (!response.ok) return { ok: false, reason: `public walk page returned HTTP ${response.status}` };
+
+  const text = htmlToText(await response.text());
+  const title = String(walk.title || '').trim();
+  if (/page not found|not found|access denied|permission denied/i.test(text)) {
+    return { ok: false, reason: 'public walk page was not available' };
+  }
+  if (title && !normalizeName(text).includes(normalizeName(title))) {
+    return { ok: false, reason: 'public walk page did not match the cleared walk' };
+  }
+
+  return { ok: true };
+}
+
 async function sendLeaderEmails({ newWalks, clearedWalks, state, config }) {
   const settings = normalizeLeaderEmailSettings(config);
   const result = { sent: 0, skipped: 0 };
@@ -180,6 +207,12 @@ async function sendLeaderEmails({ newWalks, clearedWalks, state, config }) {
   if (settings.sendOnPublish) {
     for (const walk of clearedWalks) {
       if (!shouldSendPublished(walk, state) || state.leaderEmails.published[walk.id]) continue;
+      const published = await confirmWalkPublished(walk);
+      if (!published.ok) {
+        log(`Leader published email skipped for ${walk.title}: ${published.reason}.`);
+        result.skipped += 1;
+        continue;
+      }
       await sendLeaderEmailForWalk(walk, settings, 'published', state.leaderEmails.published, result);
     }
   }
@@ -232,6 +265,7 @@ module.exports = {
   lookupLeaderEmail,
   testLeaderEmailApi,
   leaderEmailHtml,
+  confirmWalkPublished,
   sendLeaderEmails,
   shouldSendSubmitted,
   shouldSendPublished,

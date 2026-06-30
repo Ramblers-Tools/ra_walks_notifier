@@ -8,6 +8,7 @@ const {
   lookupLeaderEmail,
   testLeaderEmailApi,
   leaderEmailHtml,
+  confirmWalkPublished,
   isAllowedTestLeaderEmail
 } = require('../src/leaderEmail');
 
@@ -46,6 +47,46 @@ test('leader email template can use distinct header colours', () => {
 
   assert.match(submitted, /background:#5f6872;color:#ffffff/);
   assert.match(published, /background:#173b2f;color:#ffffff/);
+});
+
+test('confirmWalkPublished accepts a public page containing the walk title', async () => {
+  const originalFetch = global.fetch;
+  global.fetch = async () => ({
+    ok: true,
+    status: 200,
+    async text() {
+      return '<html><h1>RH test walk</h1><p>Walk details</p></html>';
+    }
+  });
+
+  try {
+    assert.deepEqual(
+      await confirmWalkPublished({ href: 'https://example.org/walk', title: 'RH test walk' }),
+      { ok: true }
+    );
+  } finally {
+    global.fetch = originalFetch;
+  }
+});
+
+test('confirmWalkPublished rejects missing or deleted public pages', async () => {
+  const originalFetch = global.fetch;
+  global.fetch = async () => ({
+    ok: false,
+    status: 404,
+    async text() {
+      return 'Page not found';
+    }
+  });
+
+  try {
+    assert.deepEqual(
+      await confirmWalkPublished({ href: 'https://example.org/deleted-walk', title: 'Deleted walk' }),
+      { ok: false, reason: 'public walk page returned HTTP 404' }
+    );
+  } finally {
+    global.fetch = originalFetch;
+  }
 });
 
 test('lookupLeaderEmail prefers exact profile matches over role-wrapped matches', async () => {
