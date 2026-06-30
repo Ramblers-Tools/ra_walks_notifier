@@ -8,6 +8,8 @@ const { parseWalks } = require('./parser');
 const { nowUkDateTime } = require('./time');
 const { buildEmail } = require('./emailSummary');
 const { isLoginPage, sendSessionExpiredEmail } = require('./sessionExpiry');
+const { extractLeaderDetailsFromPlaywright } = require('./leaderDetails');
+const { sendLeaderEmails } = require('./leaderEmail');
 
 const forceEmail = process.argv.includes('--force-email');
 
@@ -15,6 +17,20 @@ function readJson(file, fallback) { try { return fs.existsSync(file) ? JSON.pars
 function writeJson(file, data) { fs.mkdirSync(path.dirname(file), { recursive: true }); fs.writeFileSync(file, JSON.stringify(data, null, 2)); }
 function sameWalk(a, b) { return JSON.stringify({ title:a.title,date:a.date,leader:a.leader,status:a.status,href:a.href }) === JSON.stringify({ title:b.title,date:b.date,leader:b.leader,status:b.status,href:b.href }); }
 function asMap(walks) { return Object.fromEntries(walks.map(w => [w.id, w])); }
+async function enrichWalkLeaderDetails(page, walks) {
+  for (const walk of walks) {
+    if (!walk.href || walk.leaderFullName) continue;
+    try {
+      await page.goto(walk.href, { waitUntil: 'domcontentloaded', timeout: 45000 });
+      await page.waitForTimeout(1500);
+      const details = await extractLeaderDetailsFromPlaywright(page);
+      if (details.leaderFullName) walk.leaderFullName = details.leaderFullName;
+      if (details.leaderVolunteerId) walk.leaderVolunteerId = details.leaderVolunteerId;
+    } catch (error) {
+      log(`Could not read leader details for ${walk.title}: ${error.message}`);
+    }
+  }
+}
 async function notifyMac(title, message) {
   if (!app.macNotifications) return;
   const { execFile } = require('child_process');
@@ -75,6 +91,7 @@ async function notifyMac(title, message) {
         return;
       }
       const walks = await parseWalks(page, group.name);
+      await enrichWalkLeaderDetails(page, walks);
       log(`Found ${walks.length} pending walk(s) for ${group.name}.`);
       currentWalks.push(...walks);
     }
@@ -97,7 +114,17 @@ async function notifyMac(title, message) {
     } else {
       log('No notification needed.');
     }
-    writeJson(paths.stateFile, { updatedAt: nowUkDateTime(), walks: currentWalks });
+    const leaderEmailResult = await sendLeaderEmails({
+      newWalks,
+      clearedWalks,
+      state: prev,
+      config: app
+    });
+    if (leaderEmailResult.sent || leaderEmailResult.skipped) {
+      log(`Leader emails: ${leaderEmailResult.sent} sent, ${leaderEmailResult.skipped} skipped.`);
+      if (leaderEmailResult.sent) status.lastEmailAt = nowUkDateTime();
+    }
+    writeJson(paths.stateFile, { updatedAt: nowUkDateTime(), walks: currentWalks, leaderEmails: prev.leaderEmails || { submitted: {}, published: {} } });
     status.lastCheckCompletedAt = nowUkDateTime();
     status.pendingWalks = currentWalks.length;
     status.lastResult = `${currentWalks.length} pending; ${newWalks.length} new; ${changedWalks.length} changed; ${clearedWalks.length} cleared`;

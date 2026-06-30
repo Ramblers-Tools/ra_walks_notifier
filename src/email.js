@@ -34,7 +34,7 @@ function formatFromAddress(name, address) {
   return `"${trimmedName.replace(/"/g, '\\"')}" <${trimmedAddress}>`;
 }
 
-async function sendEmail(subject, text, html) {
+async function sendEmail(subject, text, html, options = {}) {
   const smtp = emailSettings();
   validateEmailConfig(smtp);
   const logo = logoPath() || path.join(paths.rootDir, 'assets', 'trayTemplate.png');
@@ -46,7 +46,7 @@ async function sendEmail(subject, text, html) {
   });
   const message = {
     from: formatFromAddress(smtp.fromName, smtp.from),
-    to: smtp.to.join(', '),
+    to: (options.to || smtp.to).join(', '),
     subject,
     text,
     html

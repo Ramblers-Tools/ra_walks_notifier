@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Leader Email Settings</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      margin: 0;
+      padding: 20px;
+      color: #1f2933;
+      background: #f7f8fa;
+    }
+
+    h1 {
+      font-size: 18px;
+      margin: 0 0 14px;
+    }
+
+    label {
+      display: block;
+      font-size: 13px;
+      font-weight: 600;
+      margin: 12px 0 6px;
+    }
+
+    input {
+      box-sizing: border-box;
+      width: 100%;
+      border: 1px solid #b8c1cc;
+      border-radius: 6px;
+      padding: 8px 10px;
+      font-size: 14px;
+      background: white;
+    }
+
+    .checkbox {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin: 12px 0;
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    .checkbox input {
+      width: auto;
+    }
+
+    .hint {
+      margin: 8px 0 18px;
+      color: #52606d;
+      font-size: 12px;
+      line-height: 1.4;
+    }
+
+    .actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+      margin-top: 20px;
+    }
+
+    button {
+      border: 1px solid #9aa5b1;
+      border-radius: 6px;
+      padding: 7px 14px;
+      font-size: 13px;
+      background: white;
+    }
+
+    button.primary {
+      border-color: #1264a3;
+      background: #1264a3;
+      color: white;
+    }
+  </style>
+</head>
+<body>
+  <h1>Leader Email Settings</h1>
+
+  <label class="checkbox">
+    <input id="enabled" type="checkbox">
+    Email walk leaders
+  </label>
+
+  <label class="checkbox">
+    <input id="sendOnSubmit" type="checkbox">
+    Send when a walk is submitted for checking
+  </label>
+
+  <label class="checkbox">
+    <input id="sendOnPublish" type="checkbox">
+    Send when a walk is published
+  </label>
+
+  <label for="apiBaseUrl">Joomla API URL</label>
+  <input id="apiBaseUrl" autocomplete="off" placeholder="https://ramblerseastcheshire.org.uk/api/index.php/v1">
+
+  <label for="apiToken">Joomla API token</label>
+  <input id="apiToken" type="password" autocomplete="off">
+
+  <div class="hint">
+    The API token is used to look up the walk leader's email address from RA Mailman. If more than one matching profile is found, the app will skip the leader email rather than guess.
+  </div>
+
+  <div class="actions">
+    <button id="cancel">Cancel</button>
+    <button id="save" class="primary">Save</button>
+  </div>
+
+  <script>
+    const fields = {
+      enabled: document.getElementById('enabled'),
+      sendOnSubmit: document.getElementById('sendOnSubmit'),
+      sendOnPublish: document.getElementById('sendOnPublish'),
+      apiBaseUrl: document.getElementById('apiBaseUrl'),
+      apiToken: document.getElementById('apiToken')
+    };
+
+    window.leaderEmailSettings.load().then((settings) => {
+      fields.enabled.checked = settings.enabled !== false;
+      fields.sendOnSubmit.checked = settings.sendOnSubmit !== false;
+      fields.sendOnPublish.checked = settings.sendOnPublish !== false;
+      fields.apiBaseUrl.value = settings.apiBaseUrl || 'https://ramblerseastcheshire.org.uk/api/index.php/v1';
+      fields.apiToken.value = settings.apiToken || '';
+    });
+
+    document.getElementById('save').addEventListener('click', async () => {
+      await window.leaderEmailSettings.save({
+        enabled: fields.enabled.checked,
+        sendOnSubmit: fields.sendOnSubmit.checked,
+        sendOnPublish: fields.sendOnPublish.checked,
+        apiBaseUrl: fields.apiBaseUrl.value,
+        apiToken: fields.apiToken.value
+      });
+      window.close();
+    });
+
+    document.getElementById('cancel').addEventListener('click', () => {
+      window.close();
+    });
+  </script>
+</body>
+</html>

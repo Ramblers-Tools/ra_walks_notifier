@@ -9,6 +9,8 @@ const { isWithinActiveHours, normalizeSchedule } = require('./schedule');
 const { parseWalkEntries } = require('./parser');
 const { buildEmail } = require('./emailSummary');
 const { sendEmail } = require('./email');
+const { leaderDetailsScript } = require('./leaderDetails');
+const { normalizeLeaderEmailSettings, sendLeaderEmails } = require('./leaderEmail');
 const { log, ensureDirs } = require('./logger');
 const { copyLogo, logoDataUrl, logoPath } = require('./branding');
 const { isLoginPage, sendSessionExpiredEmail } = require('./sessionExpiry');
@@ -20,6 +22,7 @@ let initialUpdateTimer;
 let recipientsWindow;
 let smtpWindow;
 let scheduleWindow;
+let leaderEmailWindow;
 let setupWindow;
 let loginWindow;
 let logWindow;
@@ -115,7 +118,7 @@ function logWindowOptions(options) {
   return Object.assign({ icon: ramblersLogoPath() }, options);
 }
 function visibleAppWindows() {
-  return [recipientsWindow, smtpWindow, scheduleWindow, setupWindow, loginWindow, logWindow].filter(window => window && !window.isDestroyed());
+  return [recipientsWindow, smtpWindow, scheduleWindow, leaderEmailWindow, setupWindow, loginWindow, logWindow].filter(window => window && !window.isDestroyed());
 }
 function showDockIcon(iconPath = appIconPath()) {
   if (!app.dock) return;
@@ -707,6 +710,17 @@ function currentSchedule() {
   return normalizeSchedule(appConfig());
 }
 
+function currentLeaderEmailSettings() {
+  const settings = normalizeLeaderEmailSettings(appConfig());
+  return {
+    enabled: settings.enabled,
+    sendOnSubmit: settings.sendOnSubmit,
+    sendOnPublish: settings.sendOnPublish,
+    apiBaseUrl: settings.apiBaseUrl,
+    apiToken: settings.apiToken
+  };
+}
+
 function showScheduleWindow() {
   if (scheduleWindow) {
     scheduleWindow.focus();
@@ -730,6 +744,31 @@ function showScheduleWindow() {
   });
 
   scheduleWindow.loadFile(path.join(root, 'src', 'schedule.html'));
+}
+
+function showLeaderEmailWindow() {
+  if (leaderEmailWindow) {
+    leaderEmailWindow.focus();
+    return;
+  }
+
+  leaderEmailWindow = trackVisibleWindow(new BrowserWindow(appWindowOptions({
+    width: 560,
+    height: 470,
+    title: 'Leader Email Settings',
+    resizable: false,
+    minimizable: false,
+    fullscreenable: false,
+    webPreferences: {
+      preload: path.join(__dirname, 'leaderEmailPreload.js')
+    }
+  })));
+
+  leaderEmailWindow.on('closed', () => {
+    leaderEmailWindow = null;
+  });
+
+  leaderEmailWindow.loadFile(path.join(root, 'src', 'leaderEmail.html'));
 }
 
 function showSetupWindow() {
@@ -1062,6 +1101,23 @@ async function extractWalkEntries(window) {
   `, true);
 }
 
+async function enrichWalkLeaderDetails(window, walks) {
+  for (const walk of walks) {
+    if (!walk.href || walk.leaderFullName) continue;
+    try {
+      const loaded = waitForWindowEvent(window, 'did-finish-load', 45000);
+      window.loadURL(walk.href);
+      await loaded;
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      const details = await window.webContents.executeJavaScript(leaderDetailsScript, true);
+      if (details && details.leaderFullName) walk.leaderFullName = details.leaderFullName;
+      if (details && details.leaderVolunteerId) walk.leaderVolunteerId = details.leaderVolunteerId;
+    } catch (error) {
+      log(`Could not read leader details for ${walk.title}: ${error.message}`);
+    }
+  }
+}
+
 async function runElectronCheck(force = false) {
   const { nowUkDateTime } = require('./time');
   const groups = groupsConfig();
@@ -1119,6 +1175,7 @@ async function runElectronCheck(force = false) {
       }
       const entries = await extractWalkEntries(checkWindow);
       const walks = parseWalkEntries(entries, group.name);
+      await enrichWalkLeaderDetails(checkWindow, walks);
       log(`Found ${walks.length} pending walk(s) for ${group.name}.`);
       currentWalks.push(...walks);
     }
@@ -1147,7 +1204,18 @@ async function runElectronCheck(force = false) {
       log('No notification needed.');
     }
 
-    writeJson(stateFile(), { updatedAt: nowUkDateTime(), walks: currentWalks });
+    const leaderEmailResult = await sendLeaderEmails({
+      newWalks,
+      clearedWalks,
+      state: prev,
+      config: cfg
+    });
+    if (leaderEmailResult.sent || leaderEmailResult.skipped) {
+      log(`Leader emails: ${leaderEmailResult.sent} sent, ${leaderEmailResult.skipped} skipped.`);
+      if (leaderEmailResult.sent) status.lastEmailAt = nowUkDateTime();
+    }
+
+    writeJson(stateFile(), { updatedAt: nowUkDateTime(), walks: currentWalks, leaderEmails: prev.leaderEmails || { submitted: {}, published: {} } });
     status.lastCheckCompletedAt = nowUkDateTime();
     status.pendingWalks = currentWalks.length;
     status.lastResult = `${currentWalks.length} pending; ${newWalks.length} new; ${changedWalks.length} changed; ${clearedWalks.length} cleared`;
@@ -1192,6 +1260,7 @@ function buildMenu() {
         { type: 'separator' },
         { label: 'Manage Recipients', click: () => showRecipientsWindow() },
         { label: 'SMTP Settings', click: () => showSmtpWindow() },
+        { label: 'Leader Email Settings', click: () => showLeaderEmailWindow() },
         { label: 'Check Schedule and Active Hours', click: () => showScheduleWindow() },
         { label: 'Refresh Walks Manager Login', click: () => openWalksManagerLoginWindow().then(result => {
           dialog.showMessageBox({
@@ -1284,6 +1353,20 @@ ipcMain.handle('schedule:save', (_event, settings) => {
   buildMenu();
   refreshScheduler();
   return currentSchedule();
+});
+ipcMain.handle('leader-email:load', () => currentLeaderEmailSettings());
+ipcMain.handle('leader-email:save', (_event, settings) => {
+  const cfg = appConfig();
+  cfg.leaderEmails = {
+    enabled: Boolean(settings.enabled),
+    sendOnSubmit: Boolean(settings.sendOnSubmit),
+    sendOnPublish: Boolean(settings.sendOnPublish),
+    apiBaseUrl: String(settings.apiBaseUrl || '').trim().replace(/\/$/, ''),
+    apiToken: String(settings.apiToken || '').trim()
+  };
+  writeAppConfig(cfg);
+  buildMenu();
+  return currentLeaderEmailSettings();
 });
 ipcMain.handle('logs:load', () => readLogLines());
 ipcMain.handle('setup:load', () => setupState());
