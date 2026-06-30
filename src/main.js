@@ -22,6 +22,7 @@ let smtpWindow;
 let scheduleWindow;
 let setupWindow;
 let loginWindow;
+let logWindow;
 let lastStatus = 'Starting...';
 let updateStatus = 'Not checked';
 let manualUpdateCheck = false;
@@ -99,6 +100,11 @@ function statusFile() { const { paths } = require('./config'); return paths.stat
 function stateFile() { const { paths } = require('./config'); return paths.stateFile; }
 function sessionFile() { const { paths } = require('./config'); return paths.sessionFile; }
 function logFile() { const { paths } = require('./config'); return paths.logFile; }
+function appIconPath() {
+  const eastCheshire = path.join(root, 'assets', 'east-cheshire-logo.png');
+  if (fs.existsSync(eastCheshire)) return eastCheshire;
+  return path.join(root, 'assets', 'ramblers-logo.png');
+}
 function readStatus() { return readJson(statusFile(), {}); }
 function writeJson(file, data) {
   fs.mkdirSync(path.dirname(file), { recursive: true });
@@ -230,11 +236,41 @@ function showStatus() {
     defaultId: 0
   }).then(result => {
     if (result.response === 1) {
-      ensureDirs();
-      if (!fs.existsSync(logFile())) fs.writeFileSync(logFile(), '');
-      shell.openPath(logFile());
+      showLogWindow();
     }
   });
+}
+
+function readLogLines(limit = 1000) {
+  ensureDirs();
+  if (!fs.existsSync(logFile())) fs.writeFileSync(logFile(), '');
+  const lines = fs.readFileSync(logFile(), 'utf8').split(/\r?\n/).filter(Boolean);
+  return lines.slice(-limit).reverse();
+}
+
+function showLogWindow() {
+  if (logWindow) {
+    logWindow.focus();
+    return;
+  }
+
+  logWindow = new BrowserWindow({
+    width: 900,
+    height: 620,
+    title: 'Walks Manager Watch Logs',
+    icon: appIconPath(),
+    webPreferences: {
+      preload: path.join(__dirname, 'logPreload.js'),
+      contextIsolation: true,
+      nodeIntegration: false
+    }
+  });
+
+  logWindow.on('closed', () => {
+    logWindow = null;
+  });
+
+  logWindow.loadFile(path.join(__dirname, 'log.html'));
 }
 
 function updateTrayLabel() {
@@ -1168,6 +1204,7 @@ function refreshScheduler() {
 }
 
 app.whenReady().then(() => {
+  if (app.dock) app.dock.setIcon(appIconPath());
   if (app.dock) app.dock.hide();
   configureUpdates();
 
@@ -1217,6 +1254,7 @@ ipcMain.handle('schedule:save', (_event, settings) => {
   refreshScheduler();
   return currentSchedule();
 });
+ipcMain.handle('logs:load', () => readLogLines());
 ipcMain.handle('setup:load', () => setupState());
 ipcMain.handle('setup:choose-logo', () => chooseBrandLogo(false));
 ipcMain.handle('setup:save', (_event, settings) => {
