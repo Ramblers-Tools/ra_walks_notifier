@@ -36,6 +36,7 @@ test('parseWalks reads pending walk cards from Walks Manager links', async () =>
       leader: 'Jane Walker',
       status: 'Submitted for checking',
       href: 'https://walks-manager.ramblers.org.uk/go-walking/group-walks/macclesfield-forest',
+      managerHref: '',
       id: 'https://walks-manager.ramblers.org.uk/go-walking/group-walks/macclesfield-forest'
     },
     {
@@ -45,9 +46,33 @@ test('parseWalks reads pending walk cards from Walks Manager links', async () =>
       leader: 'John Rambler',
       status: 'Ready to publish',
       href: 'https://walks-manager.ramblers.org.uk/go-walking/group-walks/shining-tor',
+      managerHref: '',
       id: 'https://walks-manager.ramblers.org.uk/go-walking/group-walks/shining-tor'
     }
   ]);
+});
+
+test('parseWalks captures manager detail links from review cards', async () => {
+  const page = fakePage([
+    {
+      href: '/go-walking/group-walks/test-walk',
+      managerHref: '/walks-manager/walk/basic-information/83c25f50-545a-413e-b0b1-b2aab2784648',
+      title: 'Test walk',
+      cardText: [
+        'Submitted for checking',
+        'Test walk',
+        'Saturday 12th July 2026 at 10:30 am',
+        'Led by: Richard H.'
+      ].join('\n')
+    }
+  ]);
+
+  const walks = await parseWalks(page, 'East Cheshire Group');
+
+  assert.equal(
+    walks[0].managerHref,
+    'https://walks-manager.ramblers.org.uk/walks-manager/walk/basic-information/83c25f50-545a-413e-b0b1-b2aab2784648'
+  );
 });
 
 test('parseWalks ignores links without a pending review status', async () => {
@@ -105,12 +130,12 @@ function fakeLink(entry) {
       return entry.title;
     },
     locator() {
-      return fakeCard(entry.cardText);
+      return fakeCard(entry.cardText, entry.managerHref || '');
     }
   };
 }
 
-function fakeCard(text) {
+function fakeCard(text, managerHref = '') {
   const hasStatus = /Submitted for checking|Awaiting publishing|Ready to publish/i.test(text);
 
   return {
@@ -119,8 +144,24 @@ function fakeCard(text) {
     },
     first() {
       return {
+        locator() {
+          return fakeManagerLink(managerHref);
+        },
         async innerText() {
           return text;
+        }
+      };
+    }
+  };
+}
+
+function fakeManagerLink(href) {
+  return {
+    first() {
+      return {
+        async getAttribute(name) {
+          assert.equal(name, 'href');
+          return href;
         }
       };
     }

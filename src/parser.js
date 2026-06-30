@@ -13,6 +13,10 @@ function absoluteHref(href) {
   return href;
 }
 
+function managerHrefFromEntry(entry) {
+  return absoluteHref(entry.managerHref || '');
+}
+
 function parseWalkEntries(entries, groupName) {
   const statusRegex = /Submitted for checking|Awaiting publishing|Ready to publish/i;
   const found = [];
@@ -35,7 +39,7 @@ function parseWalkEntries(entries, groupName) {
     const date = clean((text.match(/(?:Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)\s+\d{1,2}(?:st|nd|rd|th)?\s+\w+\s+\d{4}\s+at\s+\d{1,2}:\d{2}\s*(?:am|pm)?/i) || [''])[0]);
     const leader = clean((text.match(/Led by:\s*([^\n\r]+?)(?:\s{2,}|$)/i) || [,''])[1]) || clean((text.match(/Leader:\s*([^\n\r]+?)(?:\s{2,}|$)/i) || [,''])[1]);
 
-    const walk = { groupName, title, date, leader, status, href, id: '' };
+    const walk = { groupName, title, date, leader, status, href, managerHref: managerHrefFromEntry(entry), id: '' };
     walk.id = stableId(walk);
     if (!seen.has(walk.id)) {
       seen.add(walk.id);
@@ -64,7 +68,9 @@ async function parseWalks(page, groupName) {
     const cardCount = await card.count().catch(() => 0);
     if (!cardCount) continue;
 
-    entries.push({ href, title, text: await card.first().innerText().catch(() => '') });
+    const cardElement = card.first();
+    const managerHref = await cardElement.locator('a[href*="/walks-manager/walk/basic-information/"], a[href*="/walks-manager/walk/description/"], a[href*="/walks-manager/walk/details/"], a[href*="/walks-manager/walk/meet-start-point/"]').first().getAttribute('href').catch(() => '');
+    entries.push({ href, title, managerHref, text: await cardElement.innerText().catch(() => '') });
   }
 
   return parseWalkEntries(entries, groupName);

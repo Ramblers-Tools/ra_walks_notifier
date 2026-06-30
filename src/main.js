@@ -1094,6 +1094,7 @@ async function extractWalkEntries(window) {
       }
       return {
         href: link.getAttribute('href') || '',
+        managerHref: card ? ((card.querySelector('a[href*="/walks-manager/walk/basic-information/"], a[href*="/walks-manager/walk/description/"], a[href*="/walks-manager/walk/details/"], a[href*="/walks-manager/walk/meet-start-point/"]') || {}).href || '') : '',
         title: link.innerText || '',
         text: card ? card.innerText : ''
       };
@@ -1103,15 +1104,19 @@ async function extractWalkEntries(window) {
 
 async function enrichWalkLeaderDetails(window, walks) {
   for (const walk of walks) {
-    if (!walk.href || walk.leaderFullName) continue;
+    const detailHref = walk.managerHref || walk.href;
+    if (!detailHref || walk.leaderFullName) continue;
     try {
       const loaded = waitForWindowEvent(window, 'did-finish-load', 45000);
-      window.loadURL(walk.href);
+      window.loadURL(detailHref);
       await loaded;
       await new Promise(resolve => setTimeout(resolve, 1500));
       const details = await window.webContents.executeJavaScript(leaderDetailsScript, true);
       if (details && details.leaderFullName) walk.leaderFullName = details.leaderFullName;
       if (details && details.leaderVolunteerId) walk.leaderVolunteerId = details.leaderVolunteerId;
+      log(details && details.leaderFullName
+        ? `Leader details found for ${walk.title}: ${details.leaderFullName}.`
+        : `Leader details not found for ${walk.title} at ${window.webContents.getURL()}.`);
     } catch (error) {
       log(`Could not read leader details for ${walk.title}: ${error.message}`);
     }

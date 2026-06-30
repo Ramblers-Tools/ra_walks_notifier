@@ -19,13 +19,17 @@ function sameWalk(a, b) { return JSON.stringify({ title:a.title,date:a.date,lead
 function asMap(walks) { return Object.fromEntries(walks.map(w => [w.id, w])); }
 async function enrichWalkLeaderDetails(page, walks) {
   for (const walk of walks) {
-    if (!walk.href || walk.leaderFullName) continue;
+    const detailHref = walk.managerHref || walk.href;
+    if (!detailHref || walk.leaderFullName) continue;
     try {
-      await page.goto(walk.href, { waitUntil: 'domcontentloaded', timeout: 45000 });
+      await page.goto(detailHref, { waitUntil: 'domcontentloaded', timeout: 45000 });
       await page.waitForTimeout(1500);
       const details = await extractLeaderDetailsFromPlaywright(page);
       if (details.leaderFullName) walk.leaderFullName = details.leaderFullName;
       if (details.leaderVolunteerId) walk.leaderVolunteerId = details.leaderVolunteerId;
+      log(details.leaderFullName
+        ? `Leader details found for ${walk.title}: ${details.leaderFullName}.`
+        : `Leader details not found for ${walk.title} at ${page.url()}.`);
     } catch (error) {
       log(`Could not read leader details for ${walk.title}: ${error.message}`);
     }
