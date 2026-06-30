@@ -7,6 +7,7 @@ const {
   shouldSendPublished,
   lookupLeaderEmail,
   testLeaderEmailApi,
+  leaderEmailHtml,
   isAllowedTestLeaderEmail
 } = require('../src/leaderEmail');
 
@@ -30,6 +31,14 @@ test('submitted and published leader email triggers use review status safely', (
   assert.equal(shouldSendPublished({ status: 'Ready to publish' }), true);
   assert.equal(shouldSendPublished({ status: 'Awaiting publishing' }), true);
   assert.equal(shouldSendPublished({ status: 'Submitted for checking' }), false);
+});
+
+test('leader email template can use distinct header colours', () => {
+  const submitted = leaderEmailHtml('Walk submitted', ['Thanks'], { title: 'Test walk', date: 'Tuesday' }, { headerBackground: '#5f6872' });
+  const published = leaderEmailHtml('Walk published', ['Published'], { title: 'Test walk', date: 'Tuesday' }, { headerBackground: '#173b2f' });
+
+  assert.match(submitted, /background:#5f6872;color:#ffffff/);
+  assert.match(published, /background:#173b2f;color:#ffffff/);
 });
 
 test('lookupLeaderEmail prefers exact profile matches over role-wrapped matches', async () => {

@@ -84,14 +84,15 @@ function publishedSubject(walk) {
   return `Your walk has been published: ${walk.title}`;
 }
 
-function leaderEmailHtml(title, paragraphs, walk) {
+function leaderEmailHtml(title, paragraphs, walk, options = {}) {
+  const headerBackground = options.headerBackground || '#173b2f';
   const body = paragraphs.map(p => `<p style="margin:0 0 14px;line-height:1.5;">${escapeHtml(p)}</p>`).join('');
   return `<!doctype html>
 <html>
   <body style="margin:0;padding:0;background:#f4f6f8;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;color:#17212b;">
     <div style="max-width:640px;margin:0 auto;padding:24px;">
       <div style="background:#ffffff;border:1px solid #d8dee8;border-radius:8px;overflow:hidden;">
-        <div style="padding:20px 24px;background:#173b2f;color:#ffffff;">
+        <div style="padding:20px 24px;background:${headerBackground};color:#ffffff;">
           <img src="cid:walks-manager-watch-logo" width="140" alt="Ramblers" style="display:block;max-width:140px;height:auto;">
           <h1 style="margin:16px 0 0;font-size:22px;line-height:1.25;">${escapeHtml(title)}</h1>
         </div>
@@ -127,7 +128,7 @@ async function sendLeaderSubmittedEmail(walk, email) {
     `Hello ${name},`,
     `Thank you for submitting your walk "${walk.title}". Your walk has been received and is now being reviewed by the walks team.`,
     'Thanks for volunteering as a walk leader.'
-  ], walk);
+  ], walk, { headerBackground: '#5f6872' });
 
   await sendEmail(submittedSubject(walk), text, html, { to: [email] });
 }
@@ -146,7 +147,7 @@ async function sendLeaderPublishedEmail(walk, email) {
     `Hello ${name},`,
     `Your walk "${walk.title}" has now been published.`,
     'Thank you for leading walks and supporting the group programme.'
-  ], walk);
+  ], walk, { headerBackground: '#173b2f' });
 
   await sendEmail(publishedSubject(walk), text, html, { to: [email] });
 }
@@ -229,6 +230,7 @@ module.exports = {
   leaderEmailConfigured,
   lookupLeaderEmail,
   testLeaderEmailApi,
+  leaderEmailHtml,
   sendLeaderEmails,
   shouldSendSubmitted,
   shouldSendPublished,
