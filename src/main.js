@@ -1266,12 +1266,13 @@ function buildMenu() {
   const lastCheck = formatUkDateTime(s.lastCheckCompletedAt);
   const setup = setupState();
   const configured = setup.complete;
+  const statusLabel = configured ? lastStatus : 'Setup required';
   const canStartOnLogin = supportsLoginItemSettings();
   const bootEnabled = startAtBootEnabled();
   const menu = Menu.buildFromTemplate([
     {
-      label: `Status: ${lastStatus}`,
-      enabled: !configured && lastStatus === 'Setup required',
+      label: `Status: ${statusLabel}`,
+      enabled: !configured,
       click: () => showSetupWindow()
     },
     { label: `Last check: ${lastCheck}`, enabled: false },
@@ -1312,7 +1313,7 @@ function buildMenu() {
     },
     { type: 'separator' },
     { label: 'Send SMTP Test Email', enabled: configured, click: () => sendSmtpTestEmail(true) },
-    { label: 'Check for Updates', enabled: configured, click: () => checkForUpdates(true) },
+    { label: 'Check for Updates', click: () => checkForUpdates(true) },
     { label: 'About', click: () => showAbout() },
     { type: 'separator' },
     { label: 'Quit', click: () => app.quit() }
