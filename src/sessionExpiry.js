@@ -6,7 +6,7 @@ function isLoginPage(url, text) {
     || /sign in|single sign-on|single sign on|password|verify your identity|Microsoft|Ramblers account/i.test(pageText);
 }
 
-async function sendSessionExpiredEmail() {
+async function sendSessionExpiredEmail(paths) {
   const text = [
     'Walks Manager Watch could not access the Walks Manager review list.',
     '',
@@ -34,7 +34,7 @@ async function sendSessionExpiredEmail() {
       </body>
     </html>`;
 
-  await sendEmail('Walks Manager Watch: login required', text, html);
+  await sendEmail('Walks Manager Watch: login required', text, html, { paths });
 }
 
 module.exports = { isLoginPage, sendSessionExpiredEmail };

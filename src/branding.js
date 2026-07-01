@@ -1,6 +1,6 @@
 const fs = require('fs');
 const path = require('path');
-const { paths } = require('./config');
+const { paths: defaultPaths } = require('./config');
 
 const imageExtensions = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg']);
 
@@ -12,11 +12,12 @@ function readJson(file, fallback = {}) {
   }
 }
 
-function appConfig() {
+function appConfig(paths = defaultPaths) {
   return readJson(paths.configFile, readJson(paths.rootConfigFile, {}));
 }
 
-function logoPath(config = appConfig()) {
+function logoPath(config, paths = defaultPaths) {
+  if (config === undefined) config = appConfig(paths);
   const configured = String(config.branding?.logoPath || '').trim();
   if (configured && fs.existsSync(configured)) return configured;
 
@@ -33,8 +34,9 @@ function logoPath(config = appConfig()) {
   return '';
 }
 
-function logoDataUrl(config = appConfig()) {
-  const file = logoPath(config);
+function logoDataUrl(config, paths = defaultPaths) {
+  if (config === undefined) config = appConfig(paths);
+  const file = logoPath(config, paths);
   if (!file) return '';
 
   const ext = path.extname(file).toLowerCase();
@@ -46,7 +48,7 @@ function logoDataUrl(config = appConfig()) {
   return `data:${mime};base64,${fs.readFileSync(file).toString('base64')}`;
 }
 
-function copyLogo(sourceFile) {
+function copyLogo(sourceFile, paths = defaultPaths) {
   const ext = path.extname(sourceFile).toLowerCase();
   if (!imageExtensions.has(ext)) {
     throw new Error('Choose a PNG, JPG, GIF, WebP, or SVG image.');
@@ -58,4 +60,4 @@ function copyLogo(sourceFile) {
   return destination;
 }
 
-module.exports = { copyLogo, logoDataUrl, logoPath };
+module.exports = { copyLogo, logoDataUrl, logoPath, appConfig };

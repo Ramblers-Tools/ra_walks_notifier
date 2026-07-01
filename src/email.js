@@ -1,7 +1,7 @@
 const nodemailer = require('nodemailer');
 const fs = require('fs');
 const path = require('path');
-const { paths, resolveSmtp } = require('./config');
+const { paths: defaultPaths, resolveSmtp } = require('./config');
 const { logoPath } = require('./branding');
 
 function readJson(file, fallback = {}) {
@@ -12,7 +12,7 @@ function readJson(file, fallback = {}) {
   }
 }
 
-function emailSettings() {
+function emailSettings(paths = defaultPaths) {
   return resolveSmtp(readJson(paths.configFile, readJson(paths.rootConfigFile, {})), process.env);
 }
 
@@ -35,9 +35,10 @@ function formatFromAddress(name, address) {
 }
 
 async function sendEmail(subject, text, html, options = {}) {
-  const smtp = emailSettings();
+  const paths = options.paths || defaultPaths;
+  const smtp = emailSettings(paths);
   validateEmailConfig(smtp);
-  const logo = logoPath() || path.join(paths.rootDir, 'assets', 'trayTemplate.png');
+  const logo = logoPath(undefined, paths) || path.join(paths.rootDir, 'assets', 'trayTemplate.png');
   const transporter = nodemailer.createTransport({
     host: smtp.host,
     port: smtp.port,
