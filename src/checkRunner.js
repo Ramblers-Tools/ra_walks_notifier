@@ -115,7 +115,20 @@ async function runCheckForTenant({ paths, config, forceEmail = false }) {
         await browser.close();
         return status;
       }
-      const walks = await parseWalks(page, group.name);
+      let walks = await parseWalks(page, group.name);
+      if (!walks.length) {
+        // A transient slow/incomplete page render can look identical to a
+        // genuinely empty review list, and would otherwise be read as every
+        // walk being cleared (and re-reported as new next cycle once the
+        // page recovers). Reload and re-scrape once before trusting a zero
+        // result.
+        log(`No walks found for ${group.name} on first attempt - reloading to confirm before treating as cleared.`, paths);
+        await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 45000 });
+        await page.waitForTimeout(8000);
+        walks = await parseWalks(page, group.name);
+        if (!walks.length) log(`Still no walks found for ${group.name} after reloading - treating as genuinely empty.`, paths);
+        else log(`Found ${walks.length} walk(s) for ${group.name} after reloading - first attempt was a false empty read.`, paths);
+      }
       await enrichWalkLeaderDetails(page, walks, paths);
       log(`Found ${walks.length} pending walk(s) for ${group.name}.`, paths);
       currentWalks.push(...walks);
