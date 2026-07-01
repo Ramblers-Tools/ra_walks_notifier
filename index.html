@@ -66,14 +66,9 @@
       object-fit: contain;
     }
 
-    .ramblers-logo {
-      width: 54px;
-      height: 54px;
-    }
-
-    .east-logo {
-      width: 76px;
-      height: 76px;
+    .brand-logo {
+      height: 44px;
+      width: auto;
     }
 
     .repo-link {
@@ -335,9 +330,8 @@
         font-size: 42px;
       }
 
-      .east-logo {
-        width: 72px;
-        height: 72px;
+      .brand-logo {
+        height: 36px;
       }
     }
   </style>
@@ -346,8 +340,7 @@
   <header class="site-header">
     <nav class="nav" aria-label="Main navigation">
       <div class="brand-strip">
-        <img class="ramblers-logo" src="assets/ramblers-logo.svg" alt="Ramblers">
-        <img class="east-logo" src="assets/east-cheshire-logo.png" alt="East Cheshire Ramblers">
+        <img class="brand-logo" src="assets/wmw-logo.svg" alt="Walks Manager Watch">
       </div>
       <a class="repo-link" href="https://github.com/East-Cheshire-Ramblers/ra_walks_notifier">GitHub repository</a>
     </nav>
@@ -367,7 +360,7 @@
           <p id="release-note" class="release-note">Checking the latest GitHub release...</p>
         </div>
         <div class="hero-panel">
-          <img src="assets/screenshot-menu.svg" alt="Walks Manager Watch menu bar status menu">
+          <img src="assets/screenshot-setup.png" alt="Walks Manager Watch setup window">
         </div>
       </div>
     </section>
@@ -427,47 +420,48 @@
       <div class="section-heading">
         <div>
           <h2>Setup flow</h2>
-          <p>The first launch collects the details needed for background checks and email notifications.</p>
+          <p>On first launch the app opens the Setup window automatically. Work through it top to bottom — everything is saved locally on your Mac, nothing is sent anywhere except the emails you configure.</p>
         </div>
       </div>
       <div class="steps">
         <article class="step">
           <h3>Add recipients</h3>
-          <p>Enter one or more email addresses for walk review notifications.</p>
+          <p>In "Notification Recipients", enter the email addresses that should receive walk review alerts — one per line.</p>
         </article>
         <article class="step">
           <h3>Configure SMTP</h3>
-          <p>Add host, port, username, password, from address, and display name.</p>
+          <p>Fill in "SMTP Email Settings" — host, port, SSL/TLS, username, password, from address, and from name — then use "Send Test Email" to confirm delivery.</p>
         </article>
         <article class="step">
-          <h3>Sign in</h3>
-          <p>Open the Walks Manager login window, sign in, and let the app detect available groups.</p>
+          <h3>Sign in to Walks Manager</h3>
+          <p>Click "Open Walks Manager Login" under "Walks Manager Login". A browser window opens for you to sign in; the app saves the session so background checks don't need you logged in again.</p>
         </article>
         <article class="step">
-          <h3>Select group</h3>
-          <p>Choose the group to monitor, then save setup and run the first check.</p>
+          <h3>Pick a group and schedule</h3>
+          <p>Choose your group under "Walks Manager Group", set how often to check under "Check Schedule", then click "Save". The app runs its first check immediately.</p>
         </article>
       </div>
+      <p class="release-note" style="margin-top:18px;">Reopen Setup any time from the menu bar icon under <strong>Settings &amp; Configuration</strong>. The same menu also has quick actions for Check Now, Open Review List, and Show Status.</p>
     </section>
 
     <section class="section">
       <div class="section-heading">
         <div>
           <h2>Screenshots</h2>
-          <p>Setup, menu status, and email notifications.</p>
+          <p>The actual setup window, activity log, and notification email produced by the app.</p>
         </div>
       </div>
       <div class="screenshots">
         <figure class="shot">
-          <img src="assets/screenshot-setup.svg" alt="Setup screen">
+          <img src="assets/screenshot-setup.png" alt="Walks Manager Watch setup window">
           <figcaption>First-run setup</figcaption>
         </figure>
         <figure class="shot">
-          <img src="assets/screenshot-menu.svg" alt="Menu bar menu">
-          <figcaption>Menu bar status</figcaption>
+          <img src="assets/screenshot-log.png" alt="Walks Manager Watch activity log window">
+          <figcaption>Activity log</figcaption>
         </figure>
         <figure class="shot">
-          <img src="assets/screenshot-email.svg" alt="Email notification">
+          <img src="assets/screenshot-email.png" alt="Walks Manager Watch notification email">
           <figcaption>Email notification</figcaption>
         </figure>
       </div>
