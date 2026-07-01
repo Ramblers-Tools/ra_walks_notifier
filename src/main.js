@@ -76,9 +76,25 @@ function displayVersion() {
   return isBetaBuild() ? `${version} Beta` : version;
 }
 
-function toggleBetaUpdates() {
+async function toggleBetaUpdates() {
+  const nextValue = !includeBetaUpdates();
+  if (nextValue) {
+    const result = await dialog.showMessageBox({
+      type: 'warning',
+      title: 'Subscribe to Beta Updates',
+      message: 'Subscribe to beta updates?',
+      detail: 'Beta versions may include unfinished changes and may not work correctly. Use this option only if you are happy to test new builds.',
+      buttons: ['Cancel', 'Subscribe'],
+      defaultId: 0,
+      cancelId: 0
+    });
+    if (result.response !== 1) {
+      buildMenu();
+      return;
+    }
+  }
   const cfg = appConfig();
-  cfg.updates = Object.assign({}, cfg.updates, { includeBeta: !includeBetaUpdates() });
+  cfg.updates = Object.assign({}, cfg.updates, { includeBeta: nextValue });
   writeAppConfig(cfg);
   buildMenu();
 }
@@ -1321,7 +1337,6 @@ function buildMenu() {
         { type: 'separator' },
         { label: 'Manage Recipients', click: () => showRecipientsWindow() },
         { label: 'SMTP Settings', click: () => showSmtpWindow() },
-        { label: 'Leader Email Settings', click: () => showLeaderEmailWindow() },
         { label: 'Check Schedule and Active Hours', click: () => showScheduleWindow() },
         { label: 'Refresh Walks Manager Login', click: () => openWalksManagerLoginWindow().then(result => {
           dialog.showMessageBox({
