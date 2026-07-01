@@ -7,11 +7,12 @@ const { normalizeSchedule, isWithinActiveHours } = require('./schedule');
 const { normalizeLeaderEmailSettings, leaderEmailConfigured, testLeaderEmailApi } = require('./leaderEmail');
 const { runCheckForTenant } = require('./checkRunner');
 const { sendEmail } = require('./email');
+const { saveLogoBuffer, removeLogo, logoDataUrl } = require('./branding');
 const { log } = require('./logger');
 const { nowUkDateTime } = require('./time');
 
 const PORT = Number(process.env.PORT || 7001);
-const MAX_BODY_BYTES = 2 * 1024 * 1024;
+const MAX_BODY_BYTES = 10 * 1024 * 1024;
 
 function readJson(file, fallback) {
   try {
@@ -108,19 +109,24 @@ function mergeConfig(existing, updates) {
 }
 
 const schedulerHandles = new Map();
+const runningChecks = new Set();
 
 function scheduleTenant(tenantId) {
   clearTenantSchedule(tenantId);
   const tick = async () => {
+    if (runningChecks.has(tenantId)) return;
     try {
       const tenantPaths = pathsForTenant(tenantId);
       const config = readJson(tenantPaths.configFile, {});
       const schedule = normalizeSchedule(config);
       const currentHour = Number(new Date().toLocaleString('en-GB', { timeZone: 'Europe/London', hour: 'numeric', hour12: false }));
       if (!isWithinActiveHours(schedule.activeHours, currentHour)) return;
+      runningChecks.add(tenantId);
       await runCheckForTenant({ paths: tenantPaths, config });
     } catch (error) {
       log(`Scheduled check failed for tenant ${tenantId}: ${error.message}`, pathsForTenant(tenantId));
+    } finally {
+      runningChecks.delete(tenantId);
     }
   };
   const config = readJson(pathsForTenant(tenantId).configFile, {});
@@ -156,7 +162,8 @@ async function handleRequest(req, res) {
 
   try {
     if (req.method === 'GET' && url.pathname === '/api/status') {
-      return sendJson(res, 200, readJson(tenantPaths.statusFile, {}));
+      const status = readJson(tenantPaths.statusFile, {});
+      return sendJson(res, 200, { ...status, checking: runningChecks.has(tenant.tenantId) });
     }
 
     if (req.method === 'GET' && url.pathname === '/api/config') {
@@ -193,11 +200,47 @@ async function handleRequest(req, res) {
       return sendJson(res, 200, { lines: all.slice(-lines) });
     }
 
+    if (req.method === 'GET' && url.pathname === '/api/branding/logo') {
+      const config = readJson(tenantPaths.configFile, {});
+      return sendJson(res, 200, { dataUrl: logoDataUrl(config, tenantPaths) });
+    }
+
+    if (req.method === 'PUT' && url.pathname === '/api/branding/logo') {
+      const body = await readBody(req);
+      if (!body || typeof body.data !== 'string' || typeof body.ext !== 'string') {
+        return sendJson(res, 400, { error: 'expected { data: <base64>, ext: <file extension> }' });
+      }
+      try {
+        saveLogoBuffer(Buffer.from(body.data, 'base64'), body.ext, tenantPaths);
+      } catch (error) {
+        return sendJson(res, 400, { error: error.message });
+      }
+      const config = readJson(tenantPaths.configFile, {});
+      return sendJson(res, 200, { dataUrl: logoDataUrl(config, tenantPaths) });
+    }
+
+    if (req.method === 'DELETE' && url.pathname === '/api/branding/logo') {
+      removeLogo(tenantPaths);
+      const config = readJson(tenantPaths.configFile, {});
+      return sendJson(res, 200, { dataUrl: logoDataUrl(config, tenantPaths) });
+    }
+
     if (req.method === 'POST' && url.pathname === '/api/check-now') {
+      if (runningChecks.has(tenant.tenantId)) {
+        return sendJson(res, 409, { error: 'a check is already in progress for this tenant' });
+      }
       const body = await readBody(req) || {};
       const config = readJson(tenantPaths.configFile, {});
-      const status = await runCheckForTenant({ paths: tenantPaths, config, forceEmail: Boolean(body.forceEmail) });
-      return sendJson(res, 200, status);
+      // A check can take well over a minute (Playwright navigation + leader
+      // enrichment), which is longer than the Cloudflare Tunnel's default
+      // proxy keepalive timeout - run it in the background and let the
+      // caller poll GET /api/status (which reports `checking: true` while
+      // this is in flight) instead of holding the HTTP request open.
+      runningChecks.add(tenant.tenantId);
+      runCheckForTenant({ paths: tenantPaths, config, forceEmail: Boolean(body.forceEmail) })
+        .catch(() => {})
+        .finally(() => runningChecks.delete(tenant.tenantId));
+      return sendJson(res, 202, { accepted: true });
     }
 
     if (req.method === 'POST' && url.pathname === '/api/test-email') {
@@ -240,4 +283,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { createServer, scheduleAllTenants, scheduleTenant, clearTenantSchedule, stopScheduler, mergeConfig, maskConfigForResponse };
+module.exports = { createServer, scheduleAllTenants, scheduleTenant, clearTenantSchedule, stopScheduler, mergeConfig, maskConfigForResponse, runningChecks };

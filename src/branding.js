@@ -60,4 +60,29 @@ function copyLogo(sourceFile, paths = defaultPaths) {
   return destination;
 }
 
-module.exports = { copyLogo, logoDataUrl, logoPath, appConfig };
+// Same as copyLogo, but for bytes received directly (e.g. an API upload)
+// rather than an existing file on disk.
+function saveLogoBuffer(buffer, ext, paths = defaultPaths) {
+  const normalizedExt = ext.startsWith('.') ? ext.toLowerCase() : `.${ext.toLowerCase()}`;
+  if (!imageExtensions.has(normalizedExt)) {
+    throw new Error('Choose a PNG, JPG, GIF, WebP, or SVG image.');
+  }
+
+  fs.mkdirSync(paths.brandingDir, { recursive: true });
+  for (const existingExt of imageExtensions) {
+    const existing = path.join(paths.brandingDir, `logo${existingExt}`);
+    if (fs.existsSync(existing)) fs.unlinkSync(existing);
+  }
+  const destination = path.join(paths.brandingDir, `logo${normalizedExt}`);
+  fs.writeFileSync(destination, buffer);
+  return destination;
+}
+
+function removeLogo(paths = defaultPaths) {
+  for (const ext of imageExtensions) {
+    const existing = path.join(paths.brandingDir, `logo${ext}`);
+    if (fs.existsSync(existing)) fs.unlinkSync(existing);
+  }
+}
+
+module.exports = { copyLogo, saveLogoBuffer, removeLogo, logoDataUrl, logoPath, appConfig };

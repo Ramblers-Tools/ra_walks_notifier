@@ -10,7 +10,7 @@ process.env.WMW_TENANT_LOGS_DIR = path.join(tmpRoot, '__logs__');
 
 const { createTenant } = require('../src/tenants');
 const { pathsForTenant } = require('../src/config');
-const { createServer, mergeConfig, maskConfigForResponse, stopScheduler } = require('../src/server');
+const { createServer, mergeConfig, maskConfigForResponse, stopScheduler, runningChecks } = require('../src/server');
 
 let server;
 let baseUrl;
@@ -53,10 +53,29 @@ test('health check requires no auth', async () => {
   assert.equal(body.ok, true);
 });
 
-test('GET /api/status returns an empty object before any check has run', async () => {
+test('GET /api/status reports checking:false before any check has run', async () => {
   const response = await authed('/api/status');
   assert.equal(response.status, 200);
-  assert.deepEqual(await response.json(), {});
+  assert.deepEqual(await response.json(), { checking: false });
+});
+
+test('POST /api/check-now returns immediately with 202 rather than waiting for the check to finish', async () => {
+  const response = await authed('/api/check-now', { method: 'POST' });
+  assert.equal(response.status, 202);
+  assert.deepEqual(await response.json(), { accepted: true });
+  // The no-session/no-groups path resolves almost immediately; give it a
+  // tick so it clears itself from runningChecks before the next test.
+  await new Promise(resolve => setTimeout(resolve, 50));
+});
+
+test('POST /api/check-now rejects a second concurrent request for the same tenant', async () => {
+  runningChecks.add(tenant.tenantId);
+  try {
+    const response = await authed('/api/check-now', { method: 'POST' });
+    assert.equal(response.status, 409);
+  } finally {
+    runningChecks.delete(tenant.tenantId);
+  }
 });
 
 test('GET /api/config never returns the leaderEmails API token', async () => {
@@ -88,6 +107,45 @@ test('PUT /api/config preserves an existing secret when the update omits it', as
 
   const onDisk = JSON.parse(fs.readFileSync(tenantPaths.configFile, 'utf8'));
   assert.equal(onDisk.leaderEmails.apiToken, 'keep-me');
+});
+
+test('GET /api/branding/logo falls back to the default logo when nothing has been uploaded', async () => {
+  const response = await authed('/api/branding/logo');
+  assert.equal(response.status, 200);
+  const body = await response.json();
+  assert.ok(body.dataUrl.startsWith('data:image/'));
+});
+
+test('PUT /api/branding/logo uploads a custom logo and GET reflects it', async () => {
+  const put = await authed('/api/branding/logo', {
+    method: 'PUT',
+    body: JSON.stringify({ data: Buffer.from('fake-logo-bytes').toString('base64'), ext: 'png' })
+  });
+  assert.equal(put.status, 200);
+  const putBody = await put.json();
+  assert.equal(putBody.dataUrl, `data:image/png;base64,${Buffer.from('fake-logo-bytes').toString('base64')}`);
+
+  const get = await authed('/api/branding/logo');
+  assert.deepEqual(await get.json(), putBody);
+});
+
+test('PUT /api/branding/logo rejects an unsupported file extension', async () => {
+  const response = await authed('/api/branding/logo', {
+    method: 'PUT',
+    body: JSON.stringify({ data: Buffer.from('x').toString('base64'), ext: 'exe' })
+  });
+  assert.equal(response.status, 400);
+});
+
+test('DELETE /api/branding/logo removes the custom logo and falls back to the default', async () => {
+  await authed('/api/branding/logo', {
+    method: 'PUT',
+    body: JSON.stringify({ data: Buffer.from('custom').toString('base64'), ext: 'png' })
+  });
+  const del = await authed('/api/branding/logo', { method: 'DELETE' });
+  assert.equal(del.status, 200);
+  const body = await del.json();
+  assert.ok(!body.dataUrl.includes(Buffer.from('custom').toString('base64')));
 });
 
 test('POST /api/session accepts a storageState blob and it is never returned by any route', async () => {
