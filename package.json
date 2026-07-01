@@ -1,6 +1,6 @@
 {
   "name": "walks-manager-watch",
-  "version": "1.1.0-beta.5",
+  "version": "1.1.0-beta.6",
   "description": "Menu bar app for monitoring Ramblers Walks Manager review queues",
   "main": "src/main.js",
   "author": "Richard Higham <me@richyhigham.uk>",
