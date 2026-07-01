@@ -151,17 +151,23 @@
     }
 
     .hero-panel {
+      display: flex;
+      align-items: center;
+      justify-content: center;
       background: var(--panel);
       border: 1px solid var(--line);
       border-radius: 8px;
-      overflow: hidden;
+      padding: 32px;
       box-shadow: 0 20px 45px rgba(22, 48, 41, .12);
     }
 
     .hero-panel img {
       display: block;
       width: 100%;
+      max-width: 280px;
       height: auto;
+      border-radius: 6px;
+      box-shadow: 0 8px 24px rgba(22, 48, 41, .18);
     }
 
     .section {
@@ -364,7 +370,7 @@
           <p id="release-note" class="release-note">Checking the latest GitHub release...</p>
         </div>
         <div class="hero-panel">
-          <img src="assets/screenshot-setup.png" alt="Walks Manager Watch setup window">
+          <img src="assets/screenshot-menu.png" alt="Walks Manager Watch menu bar status menu">
         </div>
       </div>
     </section>
