@@ -370,7 +370,7 @@
           <p id="release-note" class="release-note">Checking the latest GitHub release...</p>
         </div>
         <div class="hero-panel">
-          <img src="assets/screenshot-menu.png" alt="Walks Manager Watch menu bar status menu">
+          <img id="hero-shot" src="assets/screenshot-menu.png" alt="Walks Manager Watch menu bar status menu">
         </div>
       </div>
     </section>
@@ -500,7 +500,19 @@
       return 'unknown';
     }
 
+    function setHeroShot(os) {
+      const shot = document.getElementById('hero-shot');
+      if (os === 'linux') {
+        shot.src = 'assets/screenshot-menu-linux.png';
+        shot.alt = 'Walks Manager Watch system tray status menu on Linux';
+      } else {
+        shot.src = 'assets/screenshot-menu.png';
+        shot.alt = 'Walks Manager Watch menu bar status menu on macOS';
+      }
+    }
+
     function setInstructions(os, release) {
+      setHeroShot(os);
       const detected = document.getElementById('detected-os');
       const title = document.getElementById('download-title');
       const copy = document.getElementById('download-copy');
