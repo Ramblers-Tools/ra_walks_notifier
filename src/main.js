@@ -763,7 +763,9 @@ function currentLeaderEmailSettings() {
     sendOnSubmit: settings.sendOnSubmit,
     sendOnPublish: settings.sendOnPublish,
     apiBaseUrl: settings.apiBaseUrl,
-    apiToken: settings.apiToken
+    apiToken: settings.apiToken,
+    notifyOnLookupFailure: settings.notifyOnLookupFailure,
+    lookupFailureNotifyAddress: settings.lookupFailureNotifyAddress
   };
 }
 
@@ -1181,6 +1183,7 @@ async function enrichWalkLeaderDetails(window, walks) {
       }
       if (details && details.leaderFullName) walk.leaderFullName = details.leaderFullName;
       if (details && details.leaderVolunteerId) walk.leaderVolunteerId = details.leaderVolunteerId;
+      if (details && details.contactPreferences) walk.leaderContactPreferences = details.contactPreferences;
       log(details && details.leaderFullName
         ? `Leader details found for ${walk.title}: ${details.leaderFullName}.`
         : `Leader details not found for ${walk.title} at ${window.webContents.getURL()}.`);
@@ -1445,7 +1448,9 @@ ipcMain.handle('leader-email:save', (_event, settings) => {
     sendOnSubmit: Boolean(settings.sendOnSubmit),
     sendOnPublish: Boolean(settings.sendOnPublish),
     apiBaseUrl: String(settings.apiBaseUrl || '').trim().replace(/\/$/, ''),
-    apiToken: String(settings.apiToken || '').trim()
+    apiToken: String(settings.apiToken || '').trim(),
+    notifyOnLookupFailure: Boolean(settings.notifyOnLookupFailure),
+    lookupFailureNotifyAddress: String(settings.lookupFailureNotifyAddress || '').trim()
   };
   writeAppConfig(cfg);
   buildMenu();

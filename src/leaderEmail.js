@@ -8,7 +8,9 @@ function normalizeLeaderEmailSettings(config = {}) {
     sendOnSubmit: settings.sendOnSubmit !== false,
     sendOnPublish: settings.sendOnPublish !== false,
     apiBaseUrl: String(settings.apiBaseUrl || '').trim().replace(/\/$/, ''),
-    apiToken: String(settings.apiToken || '').trim()
+    apiToken: String(settings.apiToken || '').trim(),
+    notifyOnLookupFailure: settings.notifyOnLookupFailure === true,
+    lookupFailureNotifyAddress: String(settings.lookupFailureNotifyAddress || '').trim()
   };
 }
 
@@ -23,6 +25,10 @@ function normalizeName(value) {
 
 function displayName(walk) {
   return String(walk.leaderFullName || walk.leader || '').replace(/\s+/g, ' ').trim();
+}
+
+function firstName(walk) {
+  return displayName(walk).split(' ')[0] || '';
 }
 
 async function lookupLeaderEmail(name, settings) {
@@ -86,7 +92,10 @@ function publishedSubject(walk) {
 
 function leaderEmailHtml(title, paragraphs, walk, options = {}) {
   const headerBackground = options.headerBackground || '#173b2f';
-  const body = paragraphs.map(p => `<p style="margin:0 0 14px;line-height:1.5;">${escapeHtml(p)}</p>`).join('');
+  const body = paragraphs.map(p => `<p style="margin:0 0 14px;line-height:1.5;">${typeof p === 'object' && p.html ? p.html : escapeHtml(p)}</p>`).join('');
+  const afterDetails = (options.afterDetails || [])
+    .map(note => `<p style="margin:14px 0 0;line-height:1.5;${note.red ? 'color:#c0392b;font-weight:600;' : ''}">${note.html}</p>`)
+    .join('');
   return `<!doctype html>
 <html>
   <body style="margin:0;padding:0;background:#f4f6f8;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;color:#17212b;">
@@ -102,6 +111,7 @@ function leaderEmailHtml(title, paragraphs, walk, options = {}) {
             <strong>${escapeHtml(walk.title)}</strong><br>
             ${escapeHtml(walk.date || '')}
           </div>
+          ${afterDetails}
         </div>
       </div>
     </div>
@@ -113,22 +123,69 @@ function escapeHtml(value) {
   return String(value || '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 
+const CONTACT_PREFERENCES_URL = 'https://walks-manager.ramblers.org.uk/user/contact-preferences';
+const CONTACT_PREFERENCE_LABELS = { phone: 'phone number', email: 'email address', personalInfo: 'display name' };
+
+function missingContactPreferences(walk) {
+  const prefs = walk.leaderContactPreferences;
+  if (!prefs) return [];
+  return Object.keys(CONTACT_PREFERENCE_LABELS).filter(key => !prefs[key]);
+}
+
+function contactPreferencesListText(missing) {
+  const labels = missing.map(key => CONTACT_PREFERENCE_LABELS[key]);
+  return labels.length > 1 ? `${labels.slice(0, -1).join(', ')} and ${labels[labels.length - 1]}` : labels[0];
+}
+
+function contactPreferenceNotes(missing) {
+  const notes = [];
+
+  if (missing.includes('personalInfo')) {
+    const text = 'We recommend sharing at least your name with walkers (please note the public listing will not show your full name, but your first name and the first initial of your surname, for example "John S.").';
+    const html = 'We recommend sharing at least your name with walkers (please note the public listing will not show your full name, but your first name and the first initial of your surname, for example &quot;John S.&quot;).';
+    notes.push({ text, html, red: true });
+  }
+
+  const otherMissing = missing.filter(key => key !== 'personalInfo');
+  if (otherMissing.length) {
+    const list = contactPreferencesListText(otherMissing);
+    const verb = otherMissing.length > 1 ? 'are' : 'is';
+    const also = missing.includes('personalInfo') ? ' also' : '';
+    const text = `Your ${list} ${verb}${also} currently not shared with walkers.`;
+    const html = `Your ${escapeHtml(list)} ${verb}${also} currently not shared with walkers.`;
+    notes.push({ text, html, red: false });
+  }
+
+  if (notes.length) {
+    notes.push({
+      text: `You can update your preferences here: ${CONTACT_PREFERENCES_URL}`,
+      html: `You can update your preferences <a href="${CONTACT_PREFERENCES_URL}">here</a>.`,
+      red: false
+    });
+  }
+
+  return notes;
+}
+
 async function sendLeaderSubmittedEmail(walk, email) {
-  const name = displayName(walk) || 'there';
+  const name = firstName(walk) || 'there';
+  const missing = missingContactPreferences(walk);
+  const notes = contactPreferenceNotes(missing);
   const text = [
-    `Hello ${name},`,
+    `Hi ${name},`,
     '',
     `Thank you for submitting your walk "${walk.title}".`,
     'Your walk has been received and is now being reviewed by the walks team.',
-    'Thanks for volunteering as a walk leader.',
+    "Thanks for stepping up as a walk leader — it's a big help to the group, and we appreciate you taking the time to plan and lead walks.",
     '',
-    walk.date || ''
+    walk.date || '',
+    ...notes.flatMap(note => ['', note.text])
   ].join('\n');
   const html = leaderEmailHtml('Walk submitted', [
-    `Hello ${name},`,
+    `Hi ${name},`,
     `Thank you for submitting your walk "${walk.title}". Your walk has been received and is now being reviewed by the walks team.`,
-    'Thanks for volunteering as a walk leader.'
-  ], walk, { headerBackground: '#5f6872' });
+    "Thanks for stepping up as a walk leader — it's a big help to the group, and we appreciate you taking the time to plan and lead walks."
+  ], walk, { headerBackground: '#5f6872', afterDetails: notes });
 
   await sendEmail(submittedSubject(walk), text, html, { to: [email] });
 }
@@ -220,6 +277,19 @@ async function sendLeaderEmails({ newWalks, clearedWalks, state, config }) {
   return result;
 }
 
+async function sendLeaderLookupFailureEmail(walk, kind, name, reason, notifyAddress) {
+  const subject = `Walks Manager Watch: leader email lookup failed for ${walk.title}`;
+  const text = [
+    `The ${kind} email for walk "${walk.title}" could not be sent because the leader's email address could not be resolved.`,
+    '',
+    `Leader name: ${name}`,
+    `Reason: ${reason}`,
+    `Walk: ${walk.title}`,
+    walk.date || ''
+  ].join('\n');
+  await sendEmail(subject, text, `<p>${escapeHtml(text).replace(/\n/g, '<br>')}</p>`, { to: [notifyAddress] });
+}
+
 async function sendLeaderEmailForWalk(walk, settings, kind, bucket, result) {
   const name = displayName(walk);
   if (!name) {
@@ -233,6 +303,9 @@ async function sendLeaderEmailForWalk(walk, settings, kind, bucket, result) {
     if (!lookup.email) {
       log(`Leader ${kind} email skipped for ${name}: ${lookup.reason}.`);
       result.skipped += 1;
+      if (settings.notifyOnLookupFailure && settings.lookupFailureNotifyAddress) {
+        await sendLeaderLookupFailureEmail(walk, kind, name, lookup.reason, settings.lookupFailureNotifyAddress);
+      }
       return;
     }
 
@@ -269,5 +342,8 @@ module.exports = {
   sendLeaderEmails,
   shouldSendSubmitted,
   shouldSendPublished,
-  isAllowedTestLeaderEmail
+  isAllowedTestLeaderEmail,
+  missingContactPreferences,
+  contactPreferenceNotes,
+  sendLeaderSubmittedEmail
 };

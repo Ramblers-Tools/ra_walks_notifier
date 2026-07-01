@@ -120,6 +120,14 @@
     The API token is used to look up the walk leader's email address from RA Mailman. If more than one matching profile is found, the app will skip the leader email rather than guess.
   </div>
 
+  <label class="checkbox">
+    <input id="notifyOnLookupFailure" type="checkbox">
+    Email a report if a leader's email address can't be resolved
+  </label>
+
+  <label for="lookupFailureNotifyAddress">Report address</label>
+  <input id="lookupFailureNotifyAddress" autocomplete="off" placeholder="admin@example.org">
+
   <div id="message" class="message"></div>
 
   <div class="actions">
@@ -134,7 +142,9 @@
       sendOnSubmit: document.getElementById('sendOnSubmit'),
       sendOnPublish: document.getElementById('sendOnPublish'),
       apiBaseUrl: document.getElementById('apiBaseUrl'),
-      apiToken: document.getElementById('apiToken')
+      apiToken: document.getElementById('apiToken'),
+      notifyOnLookupFailure: document.getElementById('notifyOnLookupFailure'),
+      lookupFailureNotifyAddress: document.getElementById('lookupFailureNotifyAddress')
     };
     const message = document.getElementById('message');
 
@@ -144,7 +154,9 @@
         sendOnSubmit: fields.sendOnSubmit.checked,
         sendOnPublish: fields.sendOnPublish.checked,
         apiBaseUrl: fields.apiBaseUrl.value,
-        apiToken: fields.apiToken.value
+        apiToken: fields.apiToken.value,
+        notifyOnLookupFailure: fields.notifyOnLookupFailure.checked,
+        lookupFailureNotifyAddress: fields.lookupFailureNotifyAddress.value
       };
     }
 
@@ -159,6 +171,8 @@
       fields.sendOnPublish.checked = settings.sendOnPublish !== false;
       fields.apiBaseUrl.value = settings.apiBaseUrl || 'https://ramblerseastcheshire.org.uk/api/index.php/v1';
       fields.apiToken.value = settings.apiToken || '';
+      fields.notifyOnLookupFailure.checked = settings.notifyOnLookupFailure === true;
+      fields.lookupFailureNotifyAddress.value = settings.lookupFailureNotifyAddress || '';
     });
 
     document.getElementById('testApi').addEventListener('click', async () => {

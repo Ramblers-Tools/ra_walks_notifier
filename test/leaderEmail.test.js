@@ -9,7 +9,9 @@ const {
   testLeaderEmailApi,
   leaderEmailHtml,
   confirmWalkPublished,
-  isAllowedTestLeaderEmail
+  isAllowedTestLeaderEmail,
+  missingContactPreferences,
+  contactPreferenceNotes
 } = require('../src/leaderEmail');
 
 test('leader email settings default to disabled and require API details', () => {
@@ -20,10 +22,29 @@ test('leader email settings default to disabled and require API details', () => 
       sendOnSubmit: true,
       sendOnPublish: true,
       apiBaseUrl: '',
-      apiToken: ''
+      apiToken: '',
+      notifyOnLookupFailure: false,
+      lookupFailureNotifyAddress: ''
     }
   );
   assert.equal(leaderEmailConfigured({}), false);
+});
+
+test('leader email settings read the lookup-failure notification option', () => {
+  assert.deepEqual(
+    normalizeLeaderEmailSettings({
+      leaderEmails: { notifyOnLookupFailure: true, lookupFailureNotifyAddress: ' admin@example.org ' }
+    }),
+    {
+      enabled: false,
+      sendOnSubmit: true,
+      sendOnPublish: true,
+      apiBaseUrl: '',
+      apiToken: '',
+      notifyOnLookupFailure: true,
+      lookupFailureNotifyAddress: 'admin@example.org'
+    }
+  );
 });
 
 test('submitted and published leader email triggers use review status safely', () => {
@@ -205,4 +226,63 @@ test('leader email test gate only allows the configured test leader', () => {
     isAllowedTestLeaderEmail('other.leader@example.org', { testAllowedEmails: ['other.leader@example.org'] }),
     true
   );
+});
+
+test('missingContactPreferences reports nothing when preferences are absent or all enabled', () => {
+  assert.deepEqual(missingContactPreferences({}), []);
+  assert.deepEqual(
+    missingContactPreferences({ leaderContactPreferences: { phone: true, email: true, personalInfo: true } }),
+    []
+  );
+});
+
+test('missingContactPreferences lists only the disabled preferences', () => {
+  assert.deepEqual(
+    missingContactPreferences({ leaderContactPreferences: { phone: false, email: true, personalInfo: false } }),
+    ['phone', 'personalInfo']
+  );
+});
+
+test('contactPreferenceNotes is empty when nothing is missing', () => {
+  assert.deepEqual(contactPreferenceNotes([]), []);
+});
+
+test('contactPreferenceNotes highlights a missing name in red with the alias explanation, plus one shared link', () => {
+  assert.deepEqual(contactPreferenceNotes(['personalInfo']), [
+    {
+      red: true,
+      text: 'We recommend sharing at least your name with walkers (please note the public listing will not show your full name, but your first name and the first initial of your surname, for example "John S.").',
+      html: 'We recommend sharing at least your name with walkers (please note the public listing will not show your full name, but your first name and the first initial of your surname, for example &quot;John S.&quot;).'
+    },
+    {
+      red: false,
+      text: 'You can update your preferences here: https://walks-manager.ramblers.org.uk/user/contact-preferences',
+      html: 'You can update your preferences <a href="https://walks-manager.ramblers.org.uk/user/contact-preferences">here</a>.'
+    }
+  ]);
+});
+
+test('contactPreferenceNotes keeps phone/email note un-highlighted, joins with "and", and links once', () => {
+  assert.deepEqual(contactPreferenceNotes(['phone', 'email']), [
+    {
+      red: false,
+      text: 'Your phone number and email address are currently not shared with walkers.',
+      html: 'Your phone number and email address are currently not shared with walkers.'
+    },
+    {
+      red: false,
+      text: 'You can update your preferences here: https://walks-manager.ramblers.org.uk/user/contact-preferences',
+      html: 'You can update your preferences <a href="https://walks-manager.ramblers.org.uk/user/contact-preferences">here</a>.'
+    }
+  ]);
+});
+
+test('contactPreferenceNotes returns a red name note, a normal phone/email note, and one shared link when all are missing', () => {
+  const notes = contactPreferenceNotes(['phone', 'email', 'personalInfo']);
+  assert.equal(notes.length, 3);
+  assert.equal(notes[2].text, 'You can update your preferences here: https://walks-manager.ramblers.org.uk/user/contact-preferences');
+  assert.equal(notes[0].red, true);
+  assert.match(notes[0].text, /^We recommend sharing at least your name/);
+  assert.equal(notes[1].red, false);
+  assert.match(notes[1].text, /^Your phone number and email address are also currently not shared/);
 });
