@@ -37,6 +37,7 @@ async function enrichWalkLeaderDetails(page, walks) {
       }
       if (details.leaderFullName) walk.leaderFullName = details.leaderFullName;
       if (details.leaderVolunteerId) walk.leaderVolunteerId = details.leaderVolunteerId;
+      if (details.contactPreferences) walk.leaderContactPreferences = details.contactPreferences;
       log(details.leaderFullName
         ? `Leader details found for ${walk.title}: ${details.leaderFullName}.`
         : `Leader details not found for ${walk.title} at ${page.url()}.`);
