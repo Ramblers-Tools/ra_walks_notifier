@@ -24,7 +24,9 @@ test('leader email settings default to disabled and require API details', () => 
       apiBaseUrl: '',
       apiToken: '',
       notifyOnLookupFailure: false,
-      lookupFailureNotifyAddress: ''
+      lookupFailureNotifyAddress: '',
+      testModeEnabled: false,
+      testAllowedEmails: []
     }
   );
   assert.equal(leaderEmailConfigured({}), false);
@@ -42,8 +44,26 @@ test('leader email settings read the lookup-failure notification option', () => 
       apiBaseUrl: '',
       apiToken: '',
       notifyOnLookupFailure: true,
-      lookupFailureNotifyAddress: 'admin@example.org'
+      lookupFailureNotifyAddress: 'admin@example.org',
+      testModeEnabled: false,
+      testAllowedEmails: []
     }
+  );
+});
+
+test('leader email settings ignore notifyOnLookupFailure when no report address is set', () => {
+  const settings = normalizeLeaderEmailSettings({ leaderEmails: { notifyOnLookupFailure: true, lookupFailureNotifyAddress: '   ' } });
+  assert.equal(settings.notifyOnLookupFailure, false);
+});
+
+test('leader email settings normalize testAllowedEmails from a comma/newline separated string or array', () => {
+  assert.deepEqual(
+    normalizeLeaderEmailSettings({ leaderEmails: { testModeEnabled: true, testAllowedEmails: ' a@example.org,\nb@example.org ,, ' } }).testAllowedEmails,
+    ['a@example.org', 'b@example.org']
+  );
+  assert.deepEqual(
+    normalizeLeaderEmailSettings({ leaderEmails: { testAllowedEmails: ['a@example.org', ' ', 'b@example.org'] } }).testAllowedEmails,
+    ['a@example.org', 'b@example.org']
   );
 });
 
@@ -219,8 +239,8 @@ test('testLeaderEmailApi confirms a resolved profile', async () => {
   }
 });
 
-test('leader email test gate only allows the configured test leader', () => {
-  assert.equal(isAllowedTestLeaderEmail('me@richyhigham.uk', {}), true);
+test('leader email test gate only allows addresses on the configured test allow list', () => {
+  assert.equal(isAllowedTestLeaderEmail('me@richyhigham.uk', {}), false);
   assert.equal(isAllowedTestLeaderEmail('other.leader@example.org', {}), false);
   assert.equal(
     isAllowedTestLeaderEmail('other.leader@example.org', { testAllowedEmails: ['other.leader@example.org'] }),

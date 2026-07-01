@@ -765,7 +765,9 @@ function currentLeaderEmailSettings() {
     apiBaseUrl: settings.apiBaseUrl,
     apiToken: settings.apiToken,
     notifyOnLookupFailure: settings.notifyOnLookupFailure,
-    lookupFailureNotifyAddress: settings.lookupFailureNotifyAddress
+    lookupFailureNotifyAddress: settings.lookupFailureNotifyAddress,
+    testModeEnabled: settings.testModeEnabled,
+    testAllowedEmails: settings.testAllowedEmails
   };
 }
 
@@ -1443,15 +1445,7 @@ ipcMain.handle('schedule:save', (_event, settings) => {
 ipcMain.handle('leader-email:load', () => currentLeaderEmailSettings());
 ipcMain.handle('leader-email:save', (_event, settings) => {
   const cfg = appConfig();
-  cfg.leaderEmails = {
-    enabled: Boolean(settings.enabled),
-    sendOnSubmit: Boolean(settings.sendOnSubmit),
-    sendOnPublish: Boolean(settings.sendOnPublish),
-    apiBaseUrl: String(settings.apiBaseUrl || '').trim().replace(/\/$/, ''),
-    apiToken: String(settings.apiToken || '').trim(),
-    notifyOnLookupFailure: Boolean(settings.notifyOnLookupFailure),
-    lookupFailureNotifyAddress: String(settings.lookupFailureNotifyAddress || '').trim()
-  };
+  cfg.leaderEmails = normalizeLeaderEmailSettings({ leaderEmails: settings });
   writeAppConfig(cfg);
   buildMenu();
   return currentLeaderEmailSettings();

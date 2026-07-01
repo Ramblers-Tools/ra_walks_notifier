@@ -1,16 +1,24 @@
 const { sendEmail } = require('./email');
 const { log } = require('./logger');
 
+function normalizeEmailList(value) {
+  const list = Array.isArray(value) ? value : String(value || '').split(/[,\n]/);
+  return list.map(entry => String(entry || '').trim()).filter(Boolean);
+}
+
 function normalizeLeaderEmailSettings(config = {}) {
   const settings = config.leaderEmails || {};
+  const lookupFailureNotifyAddress = String(settings.lookupFailureNotifyAddress || '').trim();
   return {
     enabled: settings.enabled === true,
     sendOnSubmit: settings.sendOnSubmit !== false,
     sendOnPublish: settings.sendOnPublish !== false,
     apiBaseUrl: String(settings.apiBaseUrl || '').trim().replace(/\/$/, ''),
     apiToken: String(settings.apiToken || '').trim(),
-    notifyOnLookupFailure: settings.notifyOnLookupFailure === true,
-    lookupFailureNotifyAddress: String(settings.lookupFailureNotifyAddress || '').trim()
+    notifyOnLookupFailure: settings.notifyOnLookupFailure === true && Boolean(lookupFailureNotifyAddress),
+    lookupFailureNotifyAddress,
+    testModeEnabled: settings.testModeEnabled === true,
+    testAllowedEmails: normalizeEmailList(settings.testAllowedEmails)
   };
 }
 
@@ -309,7 +317,7 @@ async function sendLeaderEmailForWalk(walk, settings, kind, bucket, result) {
       return;
     }
 
-    if (!isAllowedTestLeaderEmail(lookup.email, settings)) {
+    if (settings.testModeEnabled && !isAllowedTestLeaderEmail(lookup.email, settings)) {
       log(`Leader ${kind} email skipped for ${name}: ${lookup.email} is not in the test allow list.`);
       result.skipped += 1;
       return;
@@ -328,7 +336,7 @@ async function sendLeaderEmailForWalk(walk, settings, kind, bucket, result) {
 }
 
 function isAllowedTestLeaderEmail(email, settings) {
-  const allowed = settings.testAllowedEmails || ['me@richyhigham.uk'];
+  const allowed = settings.testAllowedEmails || [];
   return allowed.map(value => String(value).trim().toLowerCase()).includes(String(email || '').trim().toLowerCase());
 }
 

@@ -24,7 +24,7 @@
       margin: 12px 0 6px;
     }
 
-    input {
+    input, textarea {
       box-sizing: border-box;
       width: 100%;
       border: 1px solid #b8c1cc;
@@ -32,6 +32,12 @@
       padding: 8px 10px;
       font-size: 14px;
       background: white;
+      font-family: inherit;
+    }
+
+    textarea {
+      resize: vertical;
+      min-height: 60px;
     }
 
     .checkbox {
@@ -128,6 +134,18 @@
   <label for="lookupFailureNotifyAddress">Report address</label>
   <input id="lookupFailureNotifyAddress" autocomplete="off" placeholder="admin@example.org">
 
+  <label class="checkbox">
+    <input id="testModeEnabled" type="checkbox">
+    Test mode (only send leader emails to the addresses below)
+  </label>
+
+  <label for="testAllowedEmails">Test leader email addresses</label>
+  <textarea id="testAllowedEmails" autocomplete="off" placeholder="one address per line, e.g. me@example.org"></textarea>
+
+  <div class="hint">
+    While test mode is on, leader emails will only be sent if the resolved leader address matches one of these. Everyone else is skipped. Off by default so real leaders receive emails once you're ready.
+  </div>
+
   <div id="message" class="message"></div>
 
   <div class="actions">
@@ -144,7 +162,9 @@
       apiBaseUrl: document.getElementById('apiBaseUrl'),
       apiToken: document.getElementById('apiToken'),
       notifyOnLookupFailure: document.getElementById('notifyOnLookupFailure'),
-      lookupFailureNotifyAddress: document.getElementById('lookupFailureNotifyAddress')
+      lookupFailureNotifyAddress: document.getElementById('lookupFailureNotifyAddress'),
+      testModeEnabled: document.getElementById('testModeEnabled'),
+      testAllowedEmails: document.getElementById('testAllowedEmails')
     };
     const message = document.getElementById('message');
 
@@ -156,8 +176,20 @@
         apiBaseUrl: fields.apiBaseUrl.value,
         apiToken: fields.apiToken.value,
         notifyOnLookupFailure: fields.notifyOnLookupFailure.checked,
-        lookupFailureNotifyAddress: fields.lookupFailureNotifyAddress.value
+        lookupFailureNotifyAddress: fields.lookupFailureNotifyAddress.value,
+        testModeEnabled: fields.testModeEnabled.checked,
+        testAllowedEmails: fields.testAllowedEmails.value
       };
+    }
+
+    function validationError(settings) {
+      if (settings.notifyOnLookupFailure && !settings.lookupFailureNotifyAddress.trim()) {
+        return 'Enter a report address, or turn off the lookup-failure email.';
+      }
+      if (settings.testModeEnabled && !settings.testAllowedEmails.trim()) {
+        return 'Enter at least one test leader email address, or turn off test mode.';
+      }
+      return '';
     }
 
     function setMessage(text, kind) {
@@ -173,6 +205,8 @@
       fields.apiToken.value = settings.apiToken || '';
       fields.notifyOnLookupFailure.checked = settings.notifyOnLookupFailure === true;
       fields.lookupFailureNotifyAddress.value = settings.lookupFailureNotifyAddress || '';
+      fields.testModeEnabled.checked = settings.testModeEnabled === true;
+      fields.testAllowedEmails.value = Array.isArray(settings.testAllowedEmails) ? settings.testAllowedEmails.join('\n') : '';
     });
 
     document.getElementById('testApi').addEventListener('click', async () => {
@@ -190,7 +224,13 @@
     });
 
     document.getElementById('save').addEventListener('click', async () => {
-      await window.leaderEmailSettings.save(currentSettings());
+      const settings = currentSettings();
+      const error = validationError(settings);
+      if (error) {
+        setMessage(error, 'error');
+        return;
+      }
+      await window.leaderEmailSettings.save(settings);
       window.close();
     });
 
