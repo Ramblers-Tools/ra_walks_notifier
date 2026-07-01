@@ -256,8 +256,10 @@ async function handleRequest(req, res) {
 
     if (req.method === 'POST' && url.pathname === '/api/test-leader-api') {
       const body = await readBody(req) || {};
-      const config = readJson(tenantPaths.configFile, {});
-      const settings = normalizeLeaderEmailSettings(config);
+      // Test whatever the caller is currently typing, even if unsaved -
+      // not the tenant's persisted config - so the settings window's "Test
+      // API" button can validate a draft before Save.
+      const settings = normalizeLeaderEmailSettings({ leaderEmails: body });
       const result = await testLeaderEmailApi(settings, body.name);
       return sendJson(res, 200, result);
     }

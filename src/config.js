@@ -19,6 +19,7 @@ function buildPaths(appSupportDir, logsDir) {
     debugDir: path.join(logsDir, 'debug'),
     configFile: path.join(appSupportDir, 'config.json'),
     rootConfigFile: path.join(rootDir, 'config.json'),
+    clientConfigFile: path.join(appSupportDir, 'client.json'),
     groupsFile: path.join(rootDir, 'groups.json'),
     plistTemplate: path.join(rootDir, 'launchd', 'uk.richard.walkswatch.plist'),
     userPlist: path.join(process.env.HOME || '', 'Library', 'LaunchAgents', 'uk.richard.walkswatch.plist')
