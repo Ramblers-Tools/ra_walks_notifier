@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="Walks Manager Watch is a macOS menu bar app for monitoring Ramblers Walks Manager review queues.">
+  <meta name="description" content="Walks Manager Watch is a macOS and Linux desktop tray app for monitoring Ramblers Walks Manager review queues.">
   <title>Walks Manager Watch</title>
   <style>
     :root {
@@ -151,17 +151,23 @@
     }
 
     .hero-panel {
+      display: flex;
+      align-items: center;
+      justify-content: center;
       background: var(--panel);
       border: 1px solid var(--line);
       border-radius: 8px;
-      overflow: hidden;
+      padding: 32px;
       box-shadow: 0 20px 45px rgba(22, 48, 41, .12);
     }
 
     .hero-panel img {
       display: block;
       width: 100%;
+      max-width: 280px;
       height: auto;
+      border-radius: 6px;
+      box-shadow: 0 8px 24px rgba(22, 48, 41, .18);
     }
 
     .section {
@@ -181,6 +187,10 @@
       font-size: 34px;
       line-height: 1.16;
       letter-spacing: 0;
+    }
+
+    .section-heading.inline {
+      align-items: center;
     }
 
     .section-heading p,
@@ -350,9 +360,9 @@
     <section class="hero">
       <div class="hero-inner">
         <div>
-          <p class="eyebrow">macOS menu bar app for Walks Manager</p>
+          <p class="eyebrow">Desktop tray app for Walks Manager</p>
           <h1>Walks Manager Watch</h1>
-          <p class="lead">Monitor Ramblers Walks Manager review queues, receive email notifications, and keep pending walks visible from the macOS menu bar.</p>
+          <p class="lead">Monitor Ramblers Walks Manager review queues, receive email notifications, and keep pending walks visible from your menu bar or system tray. Available for macOS and Linux.</p>
           <div class="actions">
             <a id="primary-download" class="button primary" href="https://github.com/East-Cheshire-Ramblers/ra_walks_notifier/releases/latest">Download latest release</a>
             <a class="button secondary" href="#setup">Setup guide</a>
@@ -360,17 +370,14 @@
           <p id="release-note" class="release-note">Checking the latest GitHub release...</p>
         </div>
         <div class="hero-panel">
-          <img src="assets/screenshot-setup.png" alt="Walks Manager Watch setup window">
+          <img src="assets/screenshot-menu.png" alt="Walks Manager Watch menu bar status menu">
         </div>
       </div>
     </section>
 
     <section class="section" id="download">
-      <div class="section-heading">
-        <div>
-          <h2>Download</h2>
-          <p>The page adapts the instructions to your operating system.</p>
-        </div>
+      <div class="section-heading inline">
+        <h2>Download</h2>
         <span id="detected-os" class="detected">Detecting OS...</span>
       </div>
       <div class="download-panel">
@@ -411,7 +418,7 @@
         </article>
         <article class="card">
           <h3>Handles setup locally</h3>
-          <p>Stores SMTP settings, recipients, branding, group selection, and the Walks Manager browser session on the Mac.</p>
+          <p>Stores SMTP settings, recipients, branding, group selection, and the Walks Manager browser session on your computer.</p>
         </article>
       </div>
     </section>
@@ -533,16 +540,16 @@
       if (os === 'windows') {
         detected.textContent = 'Windows detected';
         title.textContent = 'Windows build not published yet';
-        copy.textContent = 'Walks Manager Watch is currently distributed for macOS. Windows support is planned for a later packaging pass.';
+        copy.textContent = 'Walks Manager Watch is currently distributed for macOS and Linux. Windows support is planned for a later packaging pass.';
         download.href = latestReleaseUrl;
-        download.textContent = 'View macOS release';
+        download.textContent = 'View latest release';
         primary.href = latestReleaseUrl;
         primary.textContent = 'View latest release';
         instructionsTitle.textContent = 'Windows status';
         instructions.innerHTML = `
           <li>A Windows installer is not available yet.</li>
           <li>The app core is Electron-based, so Windows packaging can be added later.</li>
-          <li>For now, use the app on a supported Mac.</li>
+          <li>For now, use the app on a supported macOS or Linux computer.</li>
         `;
         return;
       }
@@ -550,15 +557,15 @@
       if (os === 'ios') {
         detected.textContent = 'iPhone or iPad detected';
         title.textContent = 'Mac required';
-        copy.textContent = 'Walks Manager Watch is a macOS menu bar app. It cannot be installed on iPhone or iPad.';
+        copy.textContent = 'Walks Manager Watch is a macOS and Linux desktop tray app. It cannot be installed on iPhone or iPad.';
         download.href = latestReleaseUrl;
         download.textContent = 'View latest release';
         primary.href = latestReleaseUrl;
         primary.textContent = 'View latest release';
         instructionsTitle.textContent = 'iPhone and iPad status';
         instructions.innerHTML = `
-          <li>This app needs macOS and the Mac menu bar.</li>
-          <li>Use a supported Mac to download and install Walks Manager Watch.</li>
+          <li>This app needs a desktop menu bar or system tray on macOS or Linux.</li>
+          <li>Use a supported macOS or Linux computer to download and install Walks Manager Watch.</li>
           <li>You can still view the latest release details from this device.</li>
         `;
         return;
@@ -567,15 +574,15 @@
       if (os === 'android') {
         detected.textContent = 'Android detected';
         title.textContent = 'Mac required';
-        copy.textContent = 'Walks Manager Watch is a macOS menu bar app. It cannot be installed on Android.';
+        copy.textContent = 'Walks Manager Watch is a macOS and Linux desktop tray app. It cannot be installed on Android.';
         download.href = latestReleaseUrl;
         download.textContent = 'View latest release';
         primary.href = latestReleaseUrl;
         primary.textContent = 'View latest release';
         instructionsTitle.textContent = 'Android status';
         instructions.innerHTML = `
-          <li>This app needs macOS and the Mac menu bar.</li>
-          <li>Use a supported Mac to download and install Walks Manager Watch.</li>
+          <li>This app needs a desktop menu bar or system tray on macOS or Linux.</li>
+          <li>Use a supported macOS or Linux computer to download and install Walks Manager Watch.</li>
           <li>You can still view the latest release details from this device.</li>
         `;
         return;
