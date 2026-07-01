@@ -256,10 +256,17 @@ async function handleRequest(req, res) {
 
     if (req.method === 'POST' && url.pathname === '/api/test-leader-api') {
       const body = await readBody(req) || {};
-      // Test whatever the caller is currently typing, even if unsaved -
-      // not the tenant's persisted config - so the settings window's "Test
-      // API" button can validate a draft before Save.
-      const settings = normalizeLeaderEmailSettings({ leaderEmails: body });
+      // Test whatever the caller is currently typing, even if unsaved - not
+      // the tenant's persisted config - so the settings window's "Test API"
+      // button can validate a draft before Save. A blank apiToken means the
+      // field was left untouched (secrets are never sent back to the
+      // client), so fall back to the saved token rather than testing empty.
+      const draft = { ...body };
+      if (!draft.apiToken) {
+        const existing = readJson(tenantPaths.configFile, {}).leaderEmails || {};
+        draft.apiToken = existing.apiToken || '';
+      }
+      const settings = normalizeLeaderEmailSettings({ leaderEmails: draft });
       const result = await testLeaderEmailApi(settings, body.name);
       return sendJson(res, 200, result);
     }

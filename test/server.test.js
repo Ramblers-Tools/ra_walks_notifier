@@ -190,3 +190,41 @@ test('maskConfigForResponse strips smtp entirely and never leaks apiToken', () =
   assert.equal(masked.leaderEmails.apiToken, undefined);
   assert.equal(masked.leaderEmails.apiTokenIsSet, true);
 });
+
+test('POST /api/test-leader-api falls back to the saved token when the draft leaves it blank', async () => {
+  const tenantPaths = pathsForTenant(tenant.tenantId);
+  fs.writeFileSync(tenantPaths.configFile, JSON.stringify({
+    leaderEmails: { apiBaseUrl: 'https://example.org/api', apiToken: 'saved-token' }
+  }));
+
+  const originalFetch = global.fetch;
+  let capturedHeaders;
+  global.fetch = async (url, options) => {
+    if (String(url).startsWith(baseUrl)) return originalFetch(url, options);
+    capturedHeaders = options.headers;
+    return { ok: true, async json() { return { data: [] }; } };
+  };
+  try {
+    const response = await authed('/api/test-leader-api', {
+      method: 'POST',
+      body: JSON.stringify({ apiBaseUrl: 'https://example.org/api', apiToken: '', name: 'Richard Higham' })
+    });
+    assert.equal(response.status, 200);
+    assert.equal(capturedHeaders['X-Joomla-Token'], 'saved-token');
+  } finally {
+    global.fetch = originalFetch;
+  }
+});
+
+test('POST /api/test-leader-api reports missing credentials when neither the draft nor the saved config has a token', async () => {
+  const tenantPaths = pathsForTenant(tenant.tenantId);
+  fs.writeFileSync(tenantPaths.configFile, JSON.stringify({ leaderEmails: {} }));
+
+  const response = await authed('/api/test-leader-api', {
+    method: 'POST',
+    body: JSON.stringify({ apiBaseUrl: 'https://example.org/api', apiToken: '', name: 'Richard Higham' })
+  });
+  const body = await response.json();
+  assert.equal(body.ok, false);
+  assert.match(body.message, /Enter the Joomla API URL and token first/);
+});

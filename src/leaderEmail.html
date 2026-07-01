@@ -124,6 +124,7 @@
 
   <div class="hint">
     The API token is used to look up the walk leader's email address from RA Mailman. If more than one matching profile is found, the app will skip the leader email rather than guess.
+    Leave this blank when saving to keep the currently saved token unchanged.
   </div>
 
   <label class="checkbox">
@@ -202,7 +203,8 @@
       fields.sendOnSubmit.checked = settings.sendOnSubmit !== false;
       fields.sendOnPublish.checked = settings.sendOnPublish !== false;
       fields.apiBaseUrl.value = settings.apiBaseUrl || 'https://ramblerseastcheshire.org.uk/api/index.php/v1';
-      fields.apiToken.value = settings.apiToken || '';
+      fields.apiToken.value = '';
+      fields.apiToken.placeholder = settings.apiTokenIsSet ? '•••• (already set - leave blank to keep it)' : '';
       fields.notifyOnLookupFailure.checked = settings.notifyOnLookupFailure === true;
       fields.lookupFailureNotifyAddress.value = settings.lookupFailureNotifyAddress || '';
       fields.testModeEnabled.checked = settings.testModeEnabled === true;
