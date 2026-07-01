@@ -9,6 +9,13 @@ TAG="v$VERSION"
 REPO="East-Cheshire-Ramblers/ra_walks_notifier"
 NOTES=${1:-"Walks Manager Watch $TAG release."}
 
+PRERELEASE_FLAGS=()
+TARGET_BRANCH="main"
+if [[ "$VERSION" == *-beta.* ]]; then
+  PRERELEASE_FLAGS+=(--prerelease)
+  TARGET_BRANCH="beta"
+fi
+
 bash scripts/validate-release-assets.sh
 
 assets=(
@@ -27,9 +34,10 @@ if gh release view "$TAG" --repo "$REPO" >/dev/null 2>&1; then
 else
   gh release create "$TAG" \
     --repo "$REPO" \
-    --target main \
+    --target "$TARGET_BRANCH" \
     --title "Walks Manager Watch $TAG" \
     --notes "$NOTES" \
+    "${PRERELEASE_FLAGS[@]}" \
     "${assets[@]}"
 fi
 
