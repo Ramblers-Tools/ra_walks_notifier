@@ -4,12 +4,12 @@ After=network.target
 
 [Service]
 Type=simple
-User=richard
-WorkingDirectory=/home/richard/Documents/code/ra_walks_notifier
+User=root
+WorkingDirectory=/opt/rawalksnotifier
 ExecStart=/usr/bin/node src/server.js
 Restart=on-failure
 RestartSec=5
-EnvironmentFile=/home/richard/Documents/code/ra_walks_notifier/.env
+EnvironmentFile=/opt/rawalksnotifier/.env
 
 [Install]
 WantedBy=multi-user.target

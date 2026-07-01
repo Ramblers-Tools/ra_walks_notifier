@@ -1,0 +1,251 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Server Connection &amp; Login</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      margin: 0;
+      padding: 20px;
+      color: #1f2933;
+      background: #f7f8fa;
+    }
+
+    h1 {
+      font-size: 18px;
+      margin: 0 0 4px;
+    }
+
+    h2 {
+      font-size: 14px;
+      margin: 20px 0 8px;
+    }
+
+    section {
+      background: white;
+      border: 1px solid #d8dee8;
+      border-radius: 8px;
+      padding: 14px 16px;
+      margin-bottom: 14px;
+    }
+
+    section.disabled {
+      opacity: 0.5;
+      pointer-events: none;
+    }
+
+    label {
+      display: block;
+      font-size: 13px;
+      font-weight: 600;
+      margin-bottom: 6px;
+    }
+
+    input[type="password"], input[type="text"] {
+      box-sizing: border-box;
+      width: 100%;
+      border: 1px solid #b8c1cc;
+      border-radius: 6px;
+      padding: 8px 10px;
+      font-size: 14px;
+      background: white;
+    }
+
+    .hint {
+      margin: 6px 0 0;
+      color: #52606d;
+      font-size: 12px;
+      line-height: 1.4;
+    }
+
+    .actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+      margin-top: 10px;
+    }
+
+    button {
+      border: 1px solid #9aa5b1;
+      border-radius: 6px;
+      padding: 7px 14px;
+      font-size: 13px;
+      background: white;
+    }
+
+    button.primary {
+      border-color: #1264a3;
+      background: #1264a3;
+      color: white;
+    }
+
+    .message {
+      min-height: 18px;
+      margin-top: 8px;
+      font-size: 12px;
+      line-height: 1.4;
+      color: #52606d;
+    }
+
+    .message.ok { color: #1f7a3f; }
+    .message.error { color: #b42318; }
+
+    .group-list {
+      max-height: 160px;
+      overflow-y: auto;
+      border: 1px solid #d8dee8;
+      border-radius: 6px;
+      padding: 8px;
+      background: #fafbfc;
+    }
+
+    .group-list label {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-weight: 400;
+      margin: 4px 0;
+    }
+  </style>
+</head>
+<body>
+  <h1>Server Connection &amp; Login</h1>
+
+  <section id="apiKeySection">
+    <h2>1. Server Connection</h2>
+    <label for="apiKey">API key</label>
+    <input id="apiKey" type="password" autocomplete="off" placeholder="Paste the API key you were given">
+    <div class="actions">
+      <button id="saveApiKey" class="primary">Save &amp; Test</button>
+    </div>
+    <div id="apiKeyMessage" class="message"></div>
+  </section>
+
+  <section id="loginSection" class="disabled">
+    <h2>2. Walks Manager Login</h2>
+    <div class="hint">A browser window will open. Sign in to Walks Manager and wait until the review list loads. The session is uploaded to the server automatically.</div>
+    <div class="actions">
+      <button id="login" class="primary">Login to Walks Manager</button>
+    </div>
+    <div id="loginMessage" class="message"></div>
+  </section>
+
+  <section id="groupsSection" class="disabled">
+    <h2>3. Group Selection</h2>
+    <div id="groupList" class="group-list"><div class="hint">Login first to detect your group(s).</div></div>
+    <div class="actions">
+      <button id="saveGroups" class="primary">Save Group Selection</button>
+    </div>
+    <div id="groupsMessage" class="message"></div>
+  </section>
+
+  <div class="actions">
+    <button id="close">Close</button>
+  </div>
+
+  <script>
+    const apiKeyInput = document.getElementById('apiKey');
+    const apiKeyMessage = document.getElementById('apiKeyMessage');
+    const loginSection = document.getElementById('loginSection');
+    const loginMessage = document.getElementById('loginMessage');
+    const groupsSection = document.getElementById('groupsSection');
+    const groupList = document.getElementById('groupList');
+    const groupsMessage = document.getElementById('groupsMessage');
+
+    function setMessage(el, text, kind) {
+      el.textContent = text || '';
+      el.className = `message ${kind || ''}`;
+    }
+
+    function renderGroups(groups, selectedGids) {
+      if (!groups || !groups.length) {
+        groupList.innerHTML = '<div class="hint">No groups found yet.</div>';
+        return;
+      }
+      groupList.innerHTML = groups.map(group => `
+        <label>
+          <input type="checkbox" value="${group.gid}" ${selectedGids.includes(group.gid) ? 'checked' : ''}>
+          ${group.name}
+        </label>
+      `).join('');
+    }
+
+    function selectedGroups(groups) {
+      return Array.from(groupList.querySelectorAll('input[type="checkbox"]:checked'))
+        .map(input => groups.find(group => String(group.gid) === input.value))
+        .filter(Boolean);
+    }
+
+    let knownGroups = [];
+
+    window.connect.status().then((status) => {
+      if (status.apiKeySet) {
+        apiKeyInput.placeholder = 'API key saved (hidden)';
+        setMessage(apiKeyMessage, 'Connected.', 'ok');
+        loginSection.classList.remove('disabled');
+        groupsSection.classList.remove('disabled');
+      }
+      if (status.groups && status.groups.length) {
+        knownGroups = status.groups;
+        renderGroups(status.groups, status.groups.map(g => g.gid));
+      }
+      if (status.sessionPresent) {
+        setMessage(loginMessage, 'Walks Manager session is present.', 'ok');
+      }
+    });
+
+    document.getElementById('saveApiKey').addEventListener('click', async () => {
+      const button = document.getElementById('saveApiKey');
+      button.disabled = true;
+      setMessage(apiKeyMessage, 'Testing...', '');
+      try {
+        await window.connect.saveApiKey(apiKeyInput.value);
+        setMessage(apiKeyMessage, 'Connected.', 'ok');
+        loginSection.classList.remove('disabled');
+        groupsSection.classList.remove('disabled');
+      } catch (error) {
+        setMessage(apiKeyMessage, error.message, 'error');
+      } finally {
+        button.disabled = false;
+      }
+    });
+
+    document.getElementById('login').addEventListener('click', async () => {
+      const button = document.getElementById('login');
+      button.disabled = true;
+      setMessage(loginMessage, 'Waiting for login...', '');
+      try {
+        const result = await window.connect.login();
+        setMessage(loginMessage, result.message, result.code === 0 ? 'ok' : 'error');
+        if (result.groups && result.groups.length) {
+          knownGroups = result.groups;
+          renderGroups(result.groups, result.groups.length === 1 ? [result.groups[0].gid] : []);
+        }
+      } catch (error) {
+        setMessage(loginMessage, error.message, 'error');
+      } finally {
+        button.disabled = false;
+      }
+    });
+
+    document.getElementById('saveGroups').addEventListener('click', async () => {
+      const groups = selectedGroups(knownGroups);
+      if (!groups.length) {
+        setMessage(groupsMessage, 'Select at least one group.', 'error');
+        return;
+      }
+      try {
+        await window.connect.saveGroups(groups);
+        setMessage(groupsMessage, `Saved ${groups.length} group${groups.length === 1 ? '' : 's'}.`, 'ok');
+      } catch (error) {
+        setMessage(groupsMessage, error.message, 'error');
+      }
+    });
+
+    document.getElementById('close').addEventListener('click', () => {
+      window.close();
+    });
+  </script>
+</body>
+</html>
