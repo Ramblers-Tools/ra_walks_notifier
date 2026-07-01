@@ -13,6 +13,8 @@
     "check:force": "node src/check.js --force-email",
     "status": "node src/status.js",
     "test-email": "node src/testEmail.js",
+    "tenant:create": "node src/tenantCreate.js",
+    "server": "node src/server.js",
     "build:mac:unsigned": "npm run clean:mac:xattrs && CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --mac dmg zip --publish never",
     "build:mac": "npm run clean:mac:xattrs && electron-builder --mac dmg zip",
     "build:mac:signed": "npm run clean:mac:xattrs && CSC_NAME=\"Richard Higham (9PG75A2TYV)\" electron-builder --mac dmg zip",

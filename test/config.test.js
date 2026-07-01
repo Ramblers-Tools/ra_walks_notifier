@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { parseRecipients, resolveRecipients, resolveSmtp, resolveGroups } = require('../src/config');
+const { parseRecipients, resolveRecipients, resolveSmtp, resolveGroups, pathsForTenant } = require('../src/config');
 
 test('parseRecipients accepts comma-separated recipient strings', () => {
   assert.deepEqual(
@@ -99,4 +99,29 @@ test('resolveGroups returns no groups when no group has been selected', () => {
     ),
     []
   );
+});
+
+test('pathsForTenant isolates two tenants under separate directories', () => {
+  const a = pathsForTenant('tenant-a');
+  const b = pathsForTenant('tenant-b');
+
+  assert.notEqual(a.appSupportDir, b.appSupportDir);
+  assert.notEqual(a.configFile, b.configFile);
+  assert.notEqual(a.stateFile, b.stateFile);
+  assert.notEqual(a.statusFile, b.statusFile);
+  assert.notEqual(a.sessionFile, b.sessionFile);
+  assert.notEqual(a.logFile, b.logFile);
+  assert.notEqual(a.metaFile, b.metaFile);
+
+  assert.ok(a.configFile.includes('tenant-a'));
+  assert.ok(a.sessionFile.includes('tenant-a'));
+  assert.ok(a.logFile.includes('tenant-a'));
+  assert.equal(a.tenantId, 'tenant-a');
+});
+
+test('pathsForTenant rejects ids that could escape the tenant directory', () => {
+  assert.throws(() => pathsForTenant('../escape'));
+  assert.throws(() => pathsForTenant('has/slash'));
+  assert.throws(() => pathsForTenant(''));
+  assert.throws(() => pathsForTenant(undefined));
 });

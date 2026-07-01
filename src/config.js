@@ -6,21 +6,53 @@ require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
 const rootDir = path.resolve(__dirname, '..');
 const appSupportDir = process.env.WMW_APP_DATA || path.join(os.homedir(), 'Library', 'Application Support', 'Walks Manager Watch');
 const logsDir = process.env.WMW_LOG_DIR || path.join(os.homedir(), 'Library', 'Logs', 'Walks Manager Watch');
-const paths = {
-  rootDir,
-  appSupportDir,
-  brandingDir: path.join(appSupportDir, 'branding'),
-  sessionFile: path.join(appSupportDir, 'sessions', 'auth.json'),
-  stateFile: path.join(appSupportDir, 'data', 'state.json'),
-  statusFile: path.join(appSupportDir, 'data', 'status.json'),
-  logFile: path.join(logsDir, 'WalksManagerWatch.log'),
-  debugDir: path.join(logsDir, 'debug'),
-  configFile: path.join(appSupportDir, 'config.json'),
-  rootConfigFile: path.join(rootDir, 'config.json'),
-  groupsFile: path.join(rootDir, 'groups.json'),
-  plistTemplate: path.join(rootDir, 'launchd', 'uk.richard.walkswatch.plist'),
-  userPlist: path.join(process.env.HOME || '', 'Library', 'LaunchAgents', 'uk.richard.walkswatch.plist')
-};
+
+function buildPaths(appSupportDir, logsDir) {
+  return {
+    rootDir,
+    appSupportDir,
+    brandingDir: path.join(appSupportDir, 'branding'),
+    sessionFile: path.join(appSupportDir, 'sessions', 'auth.json'),
+    stateFile: path.join(appSupportDir, 'data', 'state.json'),
+    statusFile: path.join(appSupportDir, 'data', 'status.json'),
+    logFile: path.join(logsDir, 'WalksManagerWatch.log'),
+    debugDir: path.join(logsDir, 'debug'),
+    configFile: path.join(appSupportDir, 'config.json'),
+    rootConfigFile: path.join(rootDir, 'config.json'),
+    clientConfigFile: path.join(appSupportDir, 'client.json'),
+    groupsFile: path.join(rootDir, 'groups.json'),
+    plistTemplate: path.join(rootDir, 'launchd', 'uk.richard.walkswatch.plist'),
+    userPlist: path.join(process.env.HOME || '', 'Library', 'LaunchAgents', 'uk.richard.walkswatch.plist')
+  };
+}
+
+const paths = buildPaths(appSupportDir, logsDir);
+
+const TENANT_ID_PATTERN = /^[a-zA-Z0-9_-]+$/;
+
+function tenantsRootDir() {
+  return process.env.WMW_TENANTS_DIR || path.join(rootDir, 'data', 'tenants');
+}
+
+function tenantLogsRootDir() {
+  return process.env.WMW_TENANT_LOGS_DIR || path.join(rootDir, 'logs', 'tenants');
+}
+
+// Builds an isolated paths object for one tenant, rooted under its own
+// directory, so two tenants can never read or write each other's config,
+// state, session, or logs.
+function pathsForTenant(tenantId) {
+  if (!tenantId || typeof tenantId !== 'string' || !TENANT_ID_PATTERN.test(tenantId)) {
+    throw new Error(`Invalid tenant id: ${tenantId}`);
+  }
+  const tenantAppSupportDir = path.join(tenantsRootDir(), tenantId);
+  const tenantLogsDir = path.join(tenantLogsRootDir(), tenantId);
+  return {
+    ...buildPaths(tenantAppSupportDir, tenantLogsDir),
+    tenantId,
+    metaFile: path.join(tenantAppSupportDir, 'meta.json')
+  };
+}
 
 function readJson(file, fallback) {
   try {
@@ -102,4 +134,4 @@ function validateEmailConfig() {
   }
 }
 
-module.exports = { paths, app, groups, smtp, validateEmailConfig, parseRecipients, resolveRecipients, resolveSmtp, normalizeGroups, resolveGroups };
+module.exports = { paths, app, groups, smtp, validateEmailConfig, parseRecipients, resolveRecipients, resolveSmtp, normalizeGroups, resolveGroups, pathsForTenant, readJson };

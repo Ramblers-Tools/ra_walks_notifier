@@ -175,7 +175,7 @@ function contactPreferenceNotes(missing) {
   return notes;
 }
 
-async function sendLeaderSubmittedEmail(walk, email) {
+async function sendLeaderSubmittedEmail(walk, email, paths) {
   const name = firstName(walk) || 'there';
   const missing = missingContactPreferences(walk);
   const notes = contactPreferenceNotes(missing);
@@ -195,10 +195,10 @@ async function sendLeaderSubmittedEmail(walk, email) {
     "Thanks for stepping up as a walk leader — it's a big help to the group, and we appreciate you taking the time to plan and lead walks."
   ], walk, { headerBackground: '#5f6872', afterDetails: notes });
 
-  await sendEmail(submittedSubject(walk), text, html, { to: [email] });
+  await sendEmail(submittedSubject(walk), text, html, { to: [email], paths });
 }
 
-async function sendLeaderPublishedEmail(walk, email) {
+async function sendLeaderPublishedEmail(walk, email, paths) {
   const name = displayName(walk) || 'there';
   const text = [
     `Hello ${name},`,
@@ -214,7 +214,7 @@ async function sendLeaderPublishedEmail(walk, email) {
     'Thank you for leading walks and supporting the group programme.'
   ], walk, { headerBackground: '#173b2f' });
 
-  await sendEmail(publishedSubject(walk), text, html, { to: [email] });
+  await sendEmail(publishedSubject(walk), text, html, { to: [email], paths });
 }
 
 function shouldSendSubmitted(walk) {
@@ -253,7 +253,7 @@ async function confirmWalkPublished(walk) {
   return { ok: true };
 }
 
-async function sendLeaderEmails({ newWalks, clearedWalks, state, config }) {
+async function sendLeaderEmails({ newWalks, clearedWalks, state, config, paths }) {
   const settings = normalizeLeaderEmailSettings(config);
   const result = { sent: 0, skipped: 0 };
   if (!leaderEmailConfigured(config)) return result;
@@ -265,7 +265,7 @@ async function sendLeaderEmails({ newWalks, clearedWalks, state, config }) {
   if (settings.sendOnSubmit) {
     for (const walk of newWalks) {
       if (!shouldSendSubmitted(walk) || state.leaderEmails.submitted[walk.id]) continue;
-      await sendLeaderEmailForWalk(walk, settings, 'submitted', state.leaderEmails.submitted, result);
+      await sendLeaderEmailForWalk(walk, settings, 'submitted', state.leaderEmails.submitted, result, paths);
     }
   }
 
@@ -278,14 +278,14 @@ async function sendLeaderEmails({ newWalks, clearedWalks, state, config }) {
         result.skipped += 1;
         continue;
       }
-      await sendLeaderEmailForWalk(walk, settings, 'published', state.leaderEmails.published, result);
+      await sendLeaderEmailForWalk(walk, settings, 'published', state.leaderEmails.published, result, paths);
     }
   }
 
   return result;
 }
 
-async function sendLeaderLookupFailureEmail(walk, kind, name, reason, notifyAddress) {
+async function sendLeaderLookupFailureEmail(walk, kind, name, reason, notifyAddress, paths) {
   const subject = `Walks Manager Watch: leader email lookup failed for ${walk.title}`;
   const text = [
     `The ${kind} email for walk "${walk.title}" could not be sent because the leader's email address could not be resolved.`,
@@ -295,10 +295,10 @@ async function sendLeaderLookupFailureEmail(walk, kind, name, reason, notifyAddr
     `Walk: ${walk.title}`,
     walk.date || ''
   ].join('\n');
-  await sendEmail(subject, text, `<p>${escapeHtml(text).replace(/\n/g, '<br>')}</p>`, { to: [notifyAddress] });
+  await sendEmail(subject, text, `<p>${escapeHtml(text).replace(/\n/g, '<br>')}</p>`, { to: [notifyAddress], paths });
 }
 
-async function sendLeaderEmailForWalk(walk, settings, kind, bucket, result) {
+async function sendLeaderEmailForWalk(walk, settings, kind, bucket, result, paths) {
   const name = displayName(walk);
   if (!name) {
     log(`Leader ${kind} email skipped for ${walk.title}: no full leader name.`);
@@ -312,7 +312,7 @@ async function sendLeaderEmailForWalk(walk, settings, kind, bucket, result) {
       log(`Leader ${kind} email skipped for ${name}: ${lookup.reason}.`);
       result.skipped += 1;
       if (settings.notifyOnLookupFailure && settings.lookupFailureNotifyAddress) {
-        await sendLeaderLookupFailureEmail(walk, kind, name, lookup.reason, settings.lookupFailureNotifyAddress);
+        await sendLeaderLookupFailureEmail(walk, kind, name, lookup.reason, settings.lookupFailureNotifyAddress, paths);
       }
       return;
     }
@@ -323,8 +323,8 @@ async function sendLeaderEmailForWalk(walk, settings, kind, bucket, result) {
       return;
     }
 
-    if (kind === 'published') await sendLeaderPublishedEmail(walk, lookup.email);
-    else await sendLeaderSubmittedEmail(walk, lookup.email);
+    if (kind === 'published') await sendLeaderPublishedEmail(walk, lookup.email, paths);
+    else await sendLeaderSubmittedEmail(walk, lookup.email, paths);
 
     bucket[walk.id] = { sentAt: new Date().toISOString(), email: lookup.email, name };
     result.sent += 1;
