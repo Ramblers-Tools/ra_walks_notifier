@@ -5,6 +5,19 @@ const fs = require('fs');
 const { formatUkDateTime } = require('./time');
 const { migrateLegacyConfig, parseRecipients } = require('./config');
 
+if (!app.requestSingleInstanceLock()) {
+  app.quit();
+  process.exit(0);
+}
+
+app.on('second-instance', () => {
+  if (isConfigured()) {
+    showStatus();
+  } else {
+    showConnectWindow();
+  }
+});
+
 migrateLegacyConfig();
 
 const apiClient = require('./apiClient');
