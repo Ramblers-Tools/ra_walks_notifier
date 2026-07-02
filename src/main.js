@@ -100,12 +100,7 @@ async function toggleBetaUpdates() {
 function ramblersLogoPath() {
   return path.join(root, 'assets', 'ramblers-logo.png');
 }
-function brandLockupPath() {
-  return path.join(root, 'assets', 'brand-lockup.png');
-}
 function appIconPath() {
-  const eastCheshire = path.join(root, 'assets', 'east-cheshire-logo.png');
-  if (fs.existsSync(eastCheshire)) return eastCheshire;
   return ramblersLogoPath();
 }
 function appWindowOptions(options) {
