@@ -594,7 +594,7 @@ function showConnectWindow() {
 
   connectWindow = trackVisibleWindow(new BrowserWindow(appWindowOptions({
     width: 560,
-    height: 720,
+    height: 860,
     title: 'Server Connection & Login',
     resizable: false,
     minimizable: false,
@@ -963,6 +963,7 @@ function buildMenu() {
 }
 
 app.whenReady().then(async () => {
+  Menu.setApplicationMenu(null);
   if (app.dock) app.dock.setIcon(appIconPath());
   if (app.dock) app.dock.hide();
   configureUpdates();

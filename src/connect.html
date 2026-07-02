@@ -140,6 +140,17 @@
     <div id="groupsMessage" class="message"></div>
   </section>
 
+  <section id="recipientsSection" class="disabled">
+    <h2>4. Notification Recipients</h2>
+    <label for="recipients">Email addresses</label>
+    <textarea id="recipients" rows="4" spellcheck="false" style="box-sizing: border-box; width: 100%; resize: none; border: 1px solid #b8c1cc; border-radius: 6px; padding: 8px 10px; font: 13px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; background: white;"></textarea>
+    <div class="hint">Enter one address per line, or separate addresses with commas. At least one is required before the app is fully set up.</div>
+    <div class="actions">
+      <button id="saveRecipients" class="primary">Save Recipients</button>
+    </div>
+    <div id="recipientsMessage" class="message"></div>
+  </section>
+
   <div class="actions">
     <button id="close">Close</button>
   </div>
@@ -152,6 +163,9 @@
     const groupsSection = document.getElementById('groupsSection');
     const groupList = document.getElementById('groupList');
     const groupsMessage = document.getElementById('groupsMessage');
+    const recipientsSection = document.getElementById('recipientsSection');
+    const recipientsInput = document.getElementById('recipients');
+    const recipientsMessage = document.getElementById('recipientsMessage');
 
     function setMessage(el, text, kind) {
       el.textContent = text || '';
@@ -186,6 +200,10 @@
         setMessage(apiKeyMessage, 'Connected.', 'ok');
         loginSection.classList.remove('disabled');
         groupsSection.classList.remove('disabled');
+        recipientsSection.classList.remove('disabled');
+        window.connect.loadRecipients().then((recipients) => {
+          recipientsInput.value = recipients.join('\n');
+        });
       }
       if (status.groups && status.groups.length) {
         knownGroups = status.groups;
@@ -205,6 +223,10 @@
         setMessage(apiKeyMessage, 'Connected.', 'ok');
         loginSection.classList.remove('disabled');
         groupsSection.classList.remove('disabled');
+        recipientsSection.classList.remove('disabled');
+        window.connect.loadRecipients().then((recipients) => {
+          recipientsInput.value = recipients.join('\n');
+        });
       } catch (error) {
         setMessage(apiKeyMessage, error.message, 'error');
       } finally {
@@ -241,6 +263,16 @@
         setMessage(groupsMessage, `Saved ${groups.length} group${groups.length === 1 ? '' : 's'}.`, 'ok');
       } catch (error) {
         setMessage(groupsMessage, error.message, 'error');
+      }
+    });
+
+    document.getElementById('saveRecipients').addEventListener('click', async () => {
+      try {
+        const recipients = await window.connect.saveRecipients(recipientsInput.value);
+        recipientsInput.value = recipients.join('\n');
+        setMessage(recipientsMessage, `Saved ${recipients.length} recipient${recipients.length === 1 ? '' : 's'}.`, recipients.length ? 'ok' : 'error');
+      } catch (error) {
+        setMessage(recipientsMessage, error.message, 'error');
       }
     });
 
