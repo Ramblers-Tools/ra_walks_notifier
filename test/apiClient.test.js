@@ -66,6 +66,25 @@ test('apiFetch surfaces the server error message on a non-2xx response', async (
   }
 });
 
+test('apiFetch flags maintenance mode distinctly from other errors', async () => {
+  apiClient.setApiKey('test-key');
+  const originalFetch = global.fetch;
+  global.fetch = async () => ({
+    ok: false,
+    status: 503,
+    json: async () => ({ error: 'maintenance', message: 'Back shortly.' })
+  });
+  try {
+    await assert.rejects(() => apiClient.getStatus(), (error) => {
+      assert.equal(error.code, 'maintenance');
+      assert.match(error.message, /Back shortly\./);
+      return true;
+    });
+  } finally {
+    global.fetch = originalFetch;
+  }
+});
+
 test('testConnection rejects with a clear message on 401 without requiring a saved key', async () => {
   const originalFetch = global.fetch;
   global.fetch = async () => ({ ok: false, status: 401, json: async () => ({}) });

@@ -158,7 +158,7 @@ function buildStatusText() {
   const schedule = { checkIntervalMinutes: cachedConfig?.checkIntervalMinutes || 5, activeHours: cachedConfig?.activeHours || { start: 7, end: 22 } };
   const pending = Number(s.pendingWalks || 0);
   return [
-    `Status: ${apiClient.hasApiKey() ? 'Connected' : 'Not connected'}`,
+    `Status: ${s.maintenanceMessage ? 'Server offline (maintenance)' : apiClient.hasApiKey() ? 'Connected' : 'Not connected'}`,
     `Last error: ${s.lastError || 'None'}`,
     `Session: ${cachedSessionPresent ? 'Present' : 'Missing'}`,
     `Pending walks: ${pending}`,
@@ -252,7 +252,11 @@ async function refreshCache() {
     cachedGroups = config.groups || [];
     cachedSessionPresent = sessionStatus.present;
   } catch (error) {
-    cachedStatus = { ...(cachedStatus || {}), lastError: `Could not reach server: ${error.message}` };
+    if (error.code === 'maintenance') {
+      cachedStatus = { ...(cachedStatus || {}), maintenanceMessage: error.message };
+    } else {
+      cachedStatus = { ...(cachedStatus || {}), maintenanceMessage: null, lastError: `Could not reach server: ${error.message}` };
+    }
   }
   updateTrayLabel();
 }
@@ -267,7 +271,9 @@ function updateTrayLabel() {
   const s = cachedStatus || {};
   const count = Number(s.pendingWalks || 0);
   const err = s.lastError;
-  lastStatus = s.checking ? 'Checking...' : err ? `Error: ${err}` : `${count} pending walk${count === 1 ? '' : 's'}`;
+  lastStatus = s.maintenanceMessage
+    ? '⚠ Server offline (maintenance)'
+    : s.checking ? 'Checking...' : err ? `Error: ${err}` : `${count} pending walk${count === 1 ? '' : 's'}`;
   if (tray) tray.setTitle(` ${count}`);
   buildMenu();
 }
@@ -1074,7 +1080,17 @@ ipcMain.handle('about:load', () => ({
 }));
 ipcMain.handle('about:open-website', () => shell.openExternal(websiteUrl));
 
-ipcMain.handle('status:load', () => buildStatusText());
+ipcMain.handle('status:load', () => ({
+  text: buildStatusText(),
+  maintenanceMessage: cachedStatus?.maintenanceMessage || null
+}));
+ipcMain.handle('status:retry', async () => {
+  await refreshCache();
+  return {
+    text: buildStatusText(),
+    maintenanceMessage: cachedStatus?.maintenanceMessage || null
+  };
+});
 ipcMain.handle('status:open-log', () => showLogWindow());
 
 app.on('before-quit', () => {

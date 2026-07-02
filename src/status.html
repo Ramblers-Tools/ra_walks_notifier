@@ -62,21 +62,59 @@
       color: white;
       border-color: #1f2933;
     }
+
+    #maintenanceBanner {
+      display: none;
+      width: 100%;
+      box-sizing: border-box;
+      margin-bottom: 12px;
+      padding: 10px 12px;
+      border-radius: 8px;
+      background: #fdecea;
+      border: 1px solid #f5c2c0;
+      color: #b42318;
+      font-size: 13px;
+      font-weight: 600;
+      text-align: center;
+      flex-shrink: 0;
+    }
   </style>
 </head>
 <body>
   <img class="logo" src="../assets/brand-lockup.svg" alt="RA Walks Notifier">
+  <div id="maintenanceBanner"></div>
   <div id="text">Loading…</div>
   <div class="buttons">
     <button id="log">Open log file</button>
+    <button id="retry">Try again</button>
     <button class="primary" id="close">Close</button>
   </div>
   <script>
-    (async () => {
-      document.getElementById('text').textContent = await window.statusApi.load();
-    })();
+    function render(result) {
+      document.getElementById('text').textContent = result.text;
+      const banner = document.getElementById('maintenanceBanner');
+      if (result.maintenanceMessage) {
+        banner.textContent = result.maintenanceMessage;
+        banner.style.display = 'block';
+      } else {
+        banner.style.display = 'none';
+      }
+    }
+
+    window.statusApi.load().then(render);
 
     document.getElementById('log').addEventListener('click', () => window.statusApi.openLogFile());
+    document.getElementById('retry').addEventListener('click', async () => {
+      const button = document.getElementById('retry');
+      button.disabled = true;
+      button.textContent = 'Checking…';
+      try {
+        render(await window.statusApi.retry());
+      } finally {
+        button.disabled = false;
+        button.textContent = 'Try again';
+      }
+    });
     document.getElementById('close').addEventListener('click', () => window.close());
   </script>
 </body>

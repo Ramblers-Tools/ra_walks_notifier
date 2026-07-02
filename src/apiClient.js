@@ -26,6 +26,15 @@ function hasApiKey() {
   return Boolean(getApiKey());
 }
 
+function errorFromResponse(response, body) {
+  if (response.status === 503 && body.error === 'maintenance') {
+    const error = new Error(body.message || 'The server is undergoing maintenance. Please try again shortly.');
+    error.code = 'maintenance';
+    return error;
+  }
+  return new Error(body.error || `Server returned HTTP ${response.status}`);
+}
+
 async function apiFetch(pathName, options = {}) {
   const apiKey = getApiKey();
   if (!apiKey) throw new Error('No server connection configured. Enter your API key first.');
@@ -41,7 +50,7 @@ async function apiFetch(pathName, options = {}) {
 
   const body = await response.json().catch(() => ({}));
   if (!response.ok) {
-    throw new Error(body.error || `Server returned HTTP ${response.status}`);
+    throw errorFromResponse(response, body);
   }
   return body;
 }
@@ -101,7 +110,10 @@ async function testConnection(apiKey) {
     headers: { Authorization: `Bearer ${apiKey}` }
   });
   if (response.status === 401) throw new Error('That API key was not accepted.');
-  if (!response.ok) throw new Error(`Server returned HTTP ${response.status}`);
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({}));
+    throw errorFromResponse(response, body);
+  }
   return true;
 }
 
