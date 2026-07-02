@@ -1,7 +1,7 @@
-# Walks Manager Watch - Desktop Tray App
+# RA Walks Notifier - Desktop Tray App
 
 Electron menu bar app for macOS and Linux that lets a Ramblers group's
-volunteers manage their Walks Manager Watch settings and see check status,
+volunteers manage their RA Walks Notifier settings and see check status,
 without needing a machine running 24/7.
 
 All actual checking, browsing, and email sending happens server-side (see
@@ -42,7 +42,7 @@ Local client state (API key, cached settings) is stored outside the app
 bundle:
 
 ```text
-~/Library/Application Support/Walks Manager Watch/
+~/Library/Application Support/RA Walks Notifier/
 ```
 
 On Linux, Electron stores app data under the current user's standard

@@ -23,9 +23,9 @@ ssh "$REMOTE" "
 
 scp \
   "$REMOTE:$LINUX_BUILD_REPO/dist/latest-linux.yml" \
-  "$REMOTE:$LINUX_BUILD_REPO/dist/Walks-Manager-Watch-$VERSION-x86_64.AppImage" \
-  "$REMOTE:$LINUX_BUILD_REPO/dist/Walks-Manager-Watch-$VERSION-amd64.deb" \
-  "$REMOTE:$LINUX_BUILD_REPO/dist/Walks-Manager-Watch-$VERSION-x86_64.rpm" \
+  "$REMOTE:$LINUX_BUILD_REPO/dist/RA-Walks-Notifier-$VERSION-x86_64.AppImage" \
+  "$REMOTE:$LINUX_BUILD_REPO/dist/RA-Walks-Notifier-$VERSION-amd64.deb" \
+  "$REMOTE:$LINUX_BUILD_REPO/dist/RA-Walks-Notifier-$VERSION-x86_64.rpm" \
   "$ROOT_DIR/dist/"
 
 echo "Linux release artifacts copied to $ROOT_DIR/dist for $VERSION"

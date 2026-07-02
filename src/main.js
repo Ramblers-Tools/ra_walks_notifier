@@ -3,6 +3,10 @@ const { autoUpdater } = require('electron-updater');
 const path = require('path');
 const fs = require('fs');
 const { formatUkDateTime } = require('./time');
+const { migrateLegacyConfig, parseRecipients } = require('./config');
+
+migrateLegacyConfig();
+
 const apiClient = require('./apiClient');
 
 let tray;
@@ -13,6 +17,8 @@ let scheduleWindow;
 let leaderEmailWindow;
 let loginWindow;
 let logWindow;
+let aboutWindow;
+let statusWindow;
 let lastStatus = 'Starting...';
 let updateStatus = 'Not checked';
 let manualUpdateCheck = false;
@@ -29,7 +35,7 @@ let cachedGroups = [];
 let cachedSessionPresent = false;
 
 const root = path.join(__dirname, '..');
-const websiteUrl = 'https://walks-manager-watcher.eastcheshireramblers.org.uk/';
+const websiteUrl = 'https://rawalksnotifier.ramblers.tools/';
 const walksPartition = 'persist:walks-manager-watch-browser';
 const updateCheckIntervalMs = 6 * 60 * 60 * 1000;
 const statusPollIntervalMs = 30 * 1000;
@@ -73,13 +79,16 @@ async function toggleBetaUpdates() {
   try {
     cachedConfig = await apiClient.putConfig({ updates: Object.assign({}, cachedConfig?.updates, { includeBeta: nextValue }) });
   } catch (error) {
-    dialog.showMessageBox({ type: 'error', title: 'Walks Manager Watch', message: error.message });
+    dialog.showMessageBox({ type: 'error', title: 'RA Walks Notifier', message: error.message });
   }
   buildMenu();
 }
 
 function ramblersLogoPath() {
   return path.join(root, 'assets', 'ramblers-logo.png');
+}
+function brandLockupPath() {
+  return path.join(root, 'assets', 'brand-lockup.png');
 }
 function appIconPath() {
   const eastCheshire = path.join(root, 'assets', 'east-cheshire-logo.png');
@@ -93,7 +102,7 @@ function logWindowOptions(options) {
   return Object.assign({ icon: ramblersLogoPath() }, options);
 }
 function visibleAppWindows() {
-  return [connectWindow, recipientsWindow, scheduleWindow, leaderEmailWindow, loginWindow, logWindow].filter(window => window && !window.isDestroyed());
+  return [connectWindow, recipientsWindow, scheduleWindow, leaderEmailWindow, loginWindow, logWindow, aboutWindow, statusWindow].filter(window => window && !window.isDestroyed());
 }
 function showDockIcon(iconPath = appIconPath()) {
   if (!app.dock) return;
@@ -137,28 +146,25 @@ function isConfigured() {
 function buildStatusText() {
   const s = cachedStatus || {};
   const groupNames = cachedGroups.map(group => group.name || `Group ${group.gid}`);
-  const recipients = cachedConfig?.notificationRecipients || [];
+  const recipients = parseRecipients(cachedConfig?.notificationRecipients || []);
   const schedule = { checkIntervalMinutes: cachedConfig?.checkIntervalMinutes || 5, activeHours: cachedConfig?.activeHours || { start: 7, end: 22 } };
   const pending = Number(s.pendingWalks || 0);
   return [
-    'Walks Manager Watch',
-    '',
-    `Version: ${displayVersion()}`,
-    `Release channel: ${releaseChannelLabel()}`,
     `Status: ${apiClient.hasApiKey() ? 'Connected' : 'Not connected'}`,
+    `Last error: ${s.lastError || 'None'}`,
+    `Session: ${cachedSessionPresent ? 'Present' : 'Missing'}`,
     `Pending walks: ${pending}`,
+    '',
     statusList(cachedGroups.length === 1 ? 'Group' : 'Groups', groupNames, 'Not selected'),
+    '',
     `Schedule: Every ${schedule.checkIntervalMinutes} minutes`,
     `Active hours: ${String(schedule.activeHours.start).padStart(2, '0')}:00 to ${String(schedule.activeHours.end).padStart(2, '0')}:00`,
-    '',
     `Last check: ${formatUkDateTime(s.lastCheckCompletedAt)}`,
     `Last result: ${s.lastResult || 'None yet'}`,
     `Last email: ${formatUkDateTime(s.lastEmailAt)}`,
-    statusList('Recipients', recipients),
-    `Last error: ${s.lastError || 'None'}`,
     '',
-    `Session: ${cachedSessionPresent ? 'Present' : 'Missing'}`
-  ].filter(Boolean).join('\n');
+    statusList('Recipients', recipients)
+  ].join('\n');
 }
 
 function selectedGroup() {
@@ -171,20 +177,34 @@ function reviewUrlForGroup(group = selectedGroup()) {
 }
 
 function showStatus() {
-  const iconPath = ramblersLogoPath();
-  const icon = iconPath ? nativeImage.createFromPath(iconPath) : undefined;
-  dialog.showMessageBox({
-    type: 'info',
-    title: 'Walks Manager Watch Status',
-    message: buildStatusText(),
-    icon: icon && !icon.isEmpty() ? icon : undefined,
-    buttons: ['OK', 'Open log file'],
-    defaultId: 0
-  }).then(result => {
-    if (result.response === 1) {
-      showLogWindow();
+  if (statusWindow) {
+    statusWindow.focus();
+    return;
+  }
+
+  statusWindow = trackVisibleWindow(new BrowserWindow(appWindowOptions({
+    width: 480,
+    height: 640,
+    title: 'RA Walks Notifier Status',
+    resizable: false,
+    minimizable: false,
+    fullscreenable: false,
+    show: false,
+    backgroundColor: '#f7f8fa',
+    webPreferences: {
+      preload: path.join(__dirname, 'statusPreload.js')
     }
+  })));
+
+  statusWindow.once('ready-to-show', () => {
+    statusWindow.show();
   });
+
+  statusWindow.on('closed', () => {
+    statusWindow = null;
+  });
+
+  statusWindow.loadFile(path.join(__dirname, 'status.html'));
 }
 
 function showLogWindow() {
@@ -196,7 +216,7 @@ function showLogWindow() {
   logWindow = trackVisibleWindow(new BrowserWindow(logWindowOptions({
     width: 900,
     height: 620,
-    title: 'Walks Manager Watch Logs',
+    title: 'RA Walks Notifier Logs',
     webPreferences: {
       preload: path.join(__dirname, 'logPreload.js'),
       contextIsolation: true,
@@ -267,7 +287,7 @@ async function checkNow(force = false) {
   try {
     await apiClient.postCheckNow(force);
   } catch (error) {
-    new Notification({ title: 'Walks Manager Watch', body: error.message }).show();
+    new Notification({ title: 'RA Walks Notifier', body: error.message }).show();
   }
   // The check runs asynchronously on the server; poll shortly after to
   // pick up progress, then again once it should have finished.
@@ -288,36 +308,50 @@ async function chooseBrandLogo() {
   try {
     const data = fs.readFileSync(filePath).toString('base64');
     await apiClient.putLogo(data, ext);
-    dialog.showMessageBox({ type: 'info', title: 'Walks Manager Watch', message: 'Logo updated.' });
+    dialog.showMessageBox({ type: 'info', title: 'RA Walks Notifier', message: 'Logo updated.' });
   } catch (error) {
-    dialog.showMessageBox({ type: 'error', title: 'Walks Manager Watch', message: error.message });
+    dialog.showMessageBox({ type: 'error', title: 'RA Walks Notifier', message: error.message });
   }
 }
 
 async function resetBrandLogo() {
   try {
     await apiClient.deleteLogo();
-    dialog.showMessageBox({ type: 'info', title: 'Walks Manager Watch', message: 'Logo reset to the built-in Ramblers logo.' });
+    dialog.showMessageBox({ type: 'info', title: 'RA Walks Notifier', message: 'Logo reset to the built-in Ramblers logo.' });
   } catch (error) {
-    dialog.showMessageBox({ type: 'error', title: 'Walks Manager Watch', message: error.message });
+    dialog.showMessageBox({ type: 'error', title: 'RA Walks Notifier', message: error.message });
   }
 }
 
 function showAbout() {
-  dialog.showMessageBox({
-    type: 'info',
-    title: 'About Walks Manager Watch',
-    message: 'Walks Manager Watch',
-    detail: [
-      `Version: ${displayVersion()}`,
-      `Release channel: ${releaseChannelLabel()}`,
-      'Desktop tray app for monitoring Ramblers Walks Manager review queues.'
-    ].join('\n'),
-    buttons: ['OK', 'Open Website'],
-    defaultId: 0
-  }).then(result => {
-    if (result.response === 1) shell.openExternal(websiteUrl);
+  if (aboutWindow) {
+    aboutWindow.focus();
+    return;
+  }
+
+  aboutWindow = trackVisibleWindow(new BrowserWindow(appWindowOptions({
+    width: 360,
+    height: 390,
+    title: 'About RA Walks Notifier',
+    resizable: false,
+    minimizable: false,
+    fullscreenable: false,
+    show: false,
+    backgroundColor: '#f7f8fa',
+    webPreferences: {
+      preload: path.join(__dirname, 'aboutPreload.js')
+    }
+  })));
+
+  aboutWindow.once('ready-to-show', () => {
+    aboutWindow.show();
   });
+
+  aboutWindow.on('closed', () => {
+    aboutWindow = null;
+  });
+
+  aboutWindow.loadFile(path.join(__dirname, 'about.html'));
 }
 
 function supportsLoginItemSettings() {
@@ -337,7 +371,7 @@ function linuxAutostartEntry() {
   return [
     '[Desktop Entry]',
     'Type=Application',
-    'Name=Walks Manager Watch',
+    'Name=RA Walks Notifier',
     'Comment=Monitor Ramblers Walks Manager review queues',
     `Exec=${quoteDesktopExec(process.execPath)}`,
     'Terminal=false',
@@ -436,8 +470,8 @@ function configureUpdates() {
     if (manualUpdateCheck) {
       dialog.showMessageBox({
         type: 'info',
-        title: 'Walks Manager Watch',
-        message: 'Walks Manager Watch is up to date.'
+        title: 'RA Walks Notifier',
+        message: 'RA Walks Notifier is up to date.'
       });
     }
     manualUpdateCheck = false;
@@ -449,7 +483,7 @@ function configureUpdates() {
     buildMenu();
     dialog.showMessageBox({
       type: 'info',
-      title: 'Walks Manager Watch Update',
+      title: 'RA Walks Notifier Update',
       message: `Version ${info.version} is available.`,
       detail: 'Download it now and install when ready?',
       buttons: ['Download', 'Later'],
@@ -470,7 +504,7 @@ function configureUpdates() {
     buildMenu();
     dialog.showMessageBox({
       type: 'info',
-      title: 'Walks Manager Watch Update',
+      title: 'RA Walks Notifier Update',
       message: `Version ${info.version} has been downloaded.`,
       detail: 'Install it now? The app will restart.',
       buttons: ['Install and Restart', 'Later'],
@@ -489,7 +523,7 @@ function configureUpdates() {
     if (manualUpdateCheck) {
       dialog.showMessageBox({
         type: 'error',
-        title: 'Walks Manager Watch Update',
+        title: 'RA Walks Notifier Update',
         message: 'Update check failed.',
         detail: lowSpace
           ? `${detail}\n\nYour Mac needs more free disk space to unpack the update. Free at least 1-2 GB, then try Check for Updates again.`
@@ -509,7 +543,7 @@ function checkForUpdates(manual = true) {
     if (manual) {
       dialog.showMessageBox({
         type: 'info',
-        title: 'Walks Manager Watch Update',
+        title: 'RA Walks Notifier Update',
         message: 'Update checks are available in the installed app.'
       });
     }
@@ -921,7 +955,7 @@ app.whenReady().then(async () => {
   configureUpdates();
 
   tray = new Tray(trayIcon());
-  tray.setToolTip('Walks Manager Watch');
+  tray.setToolTip('RA Walks Notifier');
   buildMenu();
   // Wait for the first cache fill before deciding whether setup is
   // needed - otherwise isConfigured() runs against the empty initial
@@ -987,7 +1021,6 @@ ipcMain.handle('recipients:load', async () => {
   return cachedConfig.notificationRecipients || [];
 });
 ipcMain.handle('recipients:save', async (_event, text) => {
-  const { parseRecipients } = require('./config');
   const recipients = parseRecipients(text);
   cachedConfig = await apiClient.putConfig({ notificationRecipients: recipients });
   buildMenu();
@@ -1025,6 +1058,15 @@ ipcMain.handle('logs:load', async () => {
     return [`Could not load logs: ${error.message}`];
   }
 });
+
+ipcMain.handle('about:load', () => ({
+  version: displayVersion(),
+  channel: releaseChannelLabel()
+}));
+ipcMain.handle('about:open-website', () => shell.openExternal(websiteUrl));
+
+ipcMain.handle('status:load', () => buildStatusText());
+ipcMain.handle('status:open-log', () => showLogWindow());
 
 app.on('before-quit', () => {
   if (statusPollTimer) clearInterval(statusPollTimer);

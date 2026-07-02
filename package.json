@@ -1,6 +1,6 @@
 {
-  "name": "walks-manager-watch",
-  "version": "1.1.0-beta.6",
+  "name": "ra-walks-notifier",
+  "version": "1.1.0-beta.7",
   "description": "Menu bar app for monitoring Ramblers Walks Manager review queues",
   "main": "src/main.js",
   "author": "Richard Higham <me@richyhigham.uk>",
@@ -32,7 +32,7 @@
   },
   "build": {
     "appId": "uk.richardhigham.walksmanagerwatch",
-    "productName": "Walks Manager Watch",
+    "productName": "RA Walks Notifier",
     "directories": {
       "output": "dist"
     },
@@ -62,7 +62,7 @@
     "linux": {
       "category": "Utility",
       "icon": "assets/ramblers-logo.png",
-      "artifactName": "Walks-Manager-Watch-${version}-${arch}.${ext}",
+      "artifactName": "RA-Walks-Notifier-${version}-${arch}.${ext}",
       "target": [
         {
           "target": "AppImage",
@@ -86,7 +86,7 @@
     },
     "dmg": {
       "sign": true,
-      "title": "Walks Manager Watch ${version}",
+      "title": "RA Walks Notifier ${version}",
       "iconSize": 96,
       "window": {
         "width": 520,
