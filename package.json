@@ -13,9 +13,12 @@
     "build:mac:signed": "npm run clean:mac:xattrs && CSC_NAME=\"Richard Higham (9PG75A2TYV)\" electron-builder --mac dmg zip",
     "build:linux": "electron-builder --linux AppImage deb rpm --x64 --publish never",
     "build:linux:release": "electron-builder --linux AppImage deb rpm --x64",
+    "build:win": "electron-builder --win nsis --x64 --publish never",
+    "build:win:release": "electron-builder --win nsis --x64",
     "release:mac": "npm run build:mac:signed && npm run notary:submit",
     "release:mac:clean": "bash scripts/build-mac-release-clean.sh",
     "release:linux": "bash scripts/build-linux-release.sh",
+    "release:win": "bash scripts/build-windows-release.sh",
     "release:validate": "bash scripts/validate-release-assets.sh",
     "release:publish": "bash scripts/publish-release.sh",
     "clean:mac:xattrs": "xattr -cr node_modules/electron/dist node_modules build assets src package.json 2>/dev/null || true",
@@ -58,6 +61,23 @@
       "entitlements": "build/entitlements.mac.plist",
       "entitlementsInherit": "build/entitlements.mac.plist",
       "identity": "Richard Higham (9PG75A2TYV)"
+    },
+    "win": {
+      "icon": "assets/ramblers-logo.png",
+      "artifactName": "RA-Walks-Notifier-${version}-${arch}-setup.${ext}",
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "artifactName": "RA-Walks-Notifier-${version}-${arch}-setup.${ext}"
     },
     "linux": {
       "category": "Utility",

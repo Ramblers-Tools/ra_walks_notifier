@@ -17,7 +17,7 @@
   <line x1="540" y1="305" x2="800" y2="305" stroke="#e0e6ed"/>
   <text x="544" y="340" fill="#1f2933" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif" font-size="16" font-weight="700">Settings &amp; Configuration</text>
   <text x="544" y="376" fill="#1f2933" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif" font-size="16">Manage Recipients</text>
-  <text x="544" y="411" fill="#1f2933" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif" font-size="16">Refresh Walks Manager Login</text>
+  <text x="544" y="411" fill="#1f2933" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif" font-size="16">Server Connection &amp; Login</text>
   <line x1="540" y1="434" x2="800" y2="434" stroke="#e0e6ed"/>
   <text x="544" y="463" fill="#1f2933" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif" font-size="16">Check for Updates</text>
   <path d="M92 410c84-102 149-140 235-118 61 16 98 64 156 44" fill="none" stroke="#78be20" stroke-width="26" stroke-linecap="round" opacity=".75"/>

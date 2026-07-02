@@ -27,6 +27,8 @@ assets=(
   "dist/RA-Walks-Notifier-$VERSION-x86_64.AppImage"
   "dist/RA-Walks-Notifier-$VERSION-amd64.deb"
   "dist/RA-Walks-Notifier-$VERSION-x86_64.rpm"
+  "dist/latest.yml"
+  "dist/RA-Walks-Notifier-$VERSION-x64-setup.exe"
 )
 
 if gh release view "$TAG" --repo "$REPO" >/dev/null 2>&1; then

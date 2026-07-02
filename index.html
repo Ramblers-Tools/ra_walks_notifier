@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="RA Walks Notifier is a macOS menu bar app for monitoring Ramblers Walks Manager review queues.">
+  <meta name="description" content="RA Walks Notifier is a desktop tray app for macOS, Windows, and Linux that monitors Ramblers Walks Manager review queues.">
   <title>RA Walks Notifier</title>
   <style>
     :root {
@@ -262,7 +262,9 @@
     .shot img {
       display: block;
       width: 100%;
-      height: auto;
+      height: 340px;
+      object-fit: contain;
+      object-position: top;
       background: #e8edf2;
     }
 
@@ -357,9 +359,9 @@
     <section class="hero">
       <div class="hero-inner">
         <div>
-          <p class="eyebrow">macOS menu bar app for Walks Manager</p>
+          <p class="eyebrow">Desktop tray app for Walks Manager</p>
           <h1>RA Walks Notifier</h1>
-          <p class="lead">Monitor Ramblers Walks Manager review queues, receive email notifications, and keep pending walks visible from the macOS menu bar.</p>
+          <p class="lead">Monitor Ramblers Walks Manager review queues, receive email notifications, and keep pending walks visible from your desktop tray on macOS, Windows, or Linux.</p>
           <div class="actions">
             <a id="primary-download" class="button primary" href="https://github.com/East-Cheshire-Ramblers/ra_walks_notifier/releases/latest">Download latest release</a>
             <a class="button secondary" href="#setup">Setup guide</a>
@@ -382,8 +384,8 @@
       </div>
       <div class="download-panel">
         <div>
-          <h3 id="download-title">Latest macOS release</h3>
-          <p id="download-copy">RA Walks Notifier is currently packaged for Apple silicon Macs. Windows and Linux builds are not published yet.</p>
+          <h3 id="download-title">Latest release</h3>
+          <p id="download-copy">RA Walks Notifier is packaged for Apple silicon Macs, 64-bit Windows, and 64-bit Linux.</p>
           <div class="actions">
             <a id="download-link" class="button primary" href="https://github.com/East-Cheshire-Ramblers/ra_walks_notifier/releases/latest">Open latest release</a>
             <a class="button secondary" href="https://github.com/East-Cheshire-Ramblers/ra_walks_notifier/releases">All releases</a>
@@ -392,9 +394,9 @@
         <div>
           <h3 id="instructions-title">Install instructions</h3>
           <ol id="os-instructions" class="instructions">
-            <li>Download the latest DMG from GitHub.</li>
-            <li>Open the DMG and drag RA Walks Notifier into Applications.</li>
-            <li>Launch the app from Applications and complete setup.</li>
+            <li>Download the installer for your operating system from GitHub.</li>
+            <li>Run the installer and complete setup.</li>
+            <li>Launch RA Walks Notifier and complete setup.</li>
           </ol>
         </div>
       </div>
@@ -417,8 +419,8 @@
           <p>Notifies configured recipients when new or changed walks need attention, with HTML email summaries and direct links.</p>
         </article>
         <article class="card">
-          <h3>Handles setup locally</h3>
-          <p>Stores SMTP settings, recipients, branding, group selection, and the Walks Manager browser session on the Mac.</p>
+          <h3>Runs from your desktop tray</h3>
+          <p>Connects to your group's server account, stores your connection details locally, and stays out of the way in the menu bar or system tray.</p>
         </article>
       </div>
     </section>
@@ -454,21 +456,21 @@
       <div class="section-heading">
         <div>
           <h2>Screenshots</h2>
-          <p>Setup, menu status, and email notifications.</p>
+          <p>Connect once, then check status or app details from the tray at any time.</p>
         </div>
       </div>
       <div class="screenshots">
         <figure class="shot">
-          <img src="assets/screenshot-setup.svg" alt="Setup screen">
-          <figcaption>First-run setup</figcaption>
+          <img src="assets/screenshot-connect.png" alt="Server connection and login screen">
+          <figcaption>Connect &amp; login</figcaption>
         </figure>
         <figure class="shot">
-          <img src="assets/screenshot-menu.svg" alt="Menu bar menu">
-          <figcaption>Menu bar status</figcaption>
+          <img src="assets/screenshot-status.png" alt="Status window showing pending walks, schedule, and recipients">
+          <figcaption>Status</figcaption>
         </figure>
         <figure class="shot">
-          <img src="assets/screenshot-email.svg" alt="Email notification">
-          <figcaption>Email notification</figcaption>
+          <img src="assets/screenshot-about.png" alt="About window showing the RA Walks Notifier logo and version">
+          <figcaption>About</figcaption>
         </figure>
       </div>
     </section>
@@ -517,6 +519,8 @@
       const linuxInstaller = deb || rpm || appImage;
       const linuxInstallerUrl = linuxInstaller ? linuxInstaller.browser_download_url : latestReleaseUrl;
       const appImageUrl = appImage ? appImage.browser_download_url : latestReleaseUrl;
+      const winSetup = assets.find(asset => /-setup\.exe$/i.test(asset.name));
+      const winSetupUrl = winSetup ? winSetup.browser_download_url : latestReleaseUrl;
 
       if (os === 'mac') {
         detected.textContent = 'macOS detected';
@@ -538,33 +542,48 @@
 
       if (os === 'windows') {
         detected.textContent = 'Windows detected';
-        title.textContent = 'Windows build not published yet';
-        copy.textContent = 'RA Walks Notifier is currently distributed for macOS. Windows support is planned for a later packaging pass.';
-        download.href = latestReleaseUrl;
-        download.textContent = 'View macOS release';
-        primary.href = latestReleaseUrl;
-        primary.textContent = 'View latest release';
-        instructionsTitle.textContent = 'Windows status';
-        instructions.innerHTML = `
-          <li>A Windows installer is not available yet.</li>
-          <li>The app core is Electron-based, so Windows packaging can be added later.</li>
-          <li>For now, use the app on a supported Mac.</li>
-        `;
+        if (winSetup) {
+          title.textContent = `Download ${version} for Windows`;
+          copy.textContent = 'Use the installer for 64-bit Windows. The app can check for future updates from GitHub.';
+          download.href = winSetupUrl;
+          download.textContent = 'Download Windows installer';
+          primary.href = winSetupUrl;
+          primary.textContent = 'Download for Windows';
+          instructionsTitle.textContent = 'Windows install instructions';
+          instructions.innerHTML = `
+            <li>Download the installer (.exe).</li>
+            <li>Run it and choose an install location if prompted.</li>
+            <li>Windows SmartScreen may warn that the app is unsigned &mdash; choose "More info" then "Run anyway".</li>
+            <li>Launch RA Walks Notifier and complete setup.</li>
+          `;
+        } else {
+          title.textContent = 'Windows build not published yet';
+          copy.textContent = 'A Windows installer is not available in the latest release yet.';
+          download.href = latestReleaseUrl;
+          download.textContent = 'View latest release';
+          primary.href = latestReleaseUrl;
+          primary.textContent = 'View latest release';
+          instructionsTitle.textContent = 'Windows status';
+          instructions.innerHTML = `
+            <li>A Windows installer is not available in the latest release yet.</li>
+            <li>For now, use the latest published package for a supported platform.</li>
+          `;
+        }
         return;
       }
 
       if (os === 'ios') {
         detected.textContent = 'iPhone or iPad detected';
-        title.textContent = 'Mac required';
-        copy.textContent = 'RA Walks Notifier is a macOS menu bar app. It cannot be installed on iPhone or iPad.';
+        title.textContent = 'Desktop required';
+        copy.textContent = 'RA Walks Notifier is a desktop tray app. It cannot be installed on iPhone or iPad.';
         download.href = latestReleaseUrl;
         download.textContent = 'View latest release';
         primary.href = latestReleaseUrl;
         primary.textContent = 'View latest release';
         instructionsTitle.textContent = 'iPhone and iPad status';
         instructions.innerHTML = `
-          <li>This app needs macOS and the Mac menu bar.</li>
-          <li>Use a supported Mac to download and install RA Walks Notifier.</li>
+          <li>This app needs a desktop menu bar or system tray (macOS, Windows, or Linux).</li>
+          <li>Use a supported desktop computer to download and install RA Walks Notifier.</li>
           <li>You can still view the latest release details from this device.</li>
         `;
         return;
@@ -572,16 +591,16 @@
 
       if (os === 'android') {
         detected.textContent = 'Android detected';
-        title.textContent = 'Mac required';
-        copy.textContent = 'RA Walks Notifier is a macOS menu bar app. It cannot be installed on Android.';
+        title.textContent = 'Desktop required';
+        copy.textContent = 'RA Walks Notifier is a desktop tray app. It cannot be installed on Android.';
         download.href = latestReleaseUrl;
         download.textContent = 'View latest release';
         primary.href = latestReleaseUrl;
         primary.textContent = 'View latest release';
         instructionsTitle.textContent = 'Android status';
         instructions.innerHTML = `
-          <li>This app needs macOS and the Mac menu bar.</li>
-          <li>Use a supported Mac to download and install RA Walks Notifier.</li>
+          <li>This app needs a desktop menu bar or system tray (macOS, Windows, or Linux).</li>
+          <li>Use a supported desktop computer to download and install RA Walks Notifier.</li>
           <li>You can still view the latest release details from this device.</li>
         `;
         return;
@@ -608,7 +627,7 @@
           `;
         } else {
           title.textContent = 'Linux build not published yet';
-          copy.textContent = 'RA Walks Notifier is currently distributed for macOS. Linux AppImage support is being prepared.';
+          copy.textContent = 'A Linux installer is not available in the latest release yet.';
           download.href = latestReleaseUrl;
           download.textContent = 'View latest release';
           primary.href = latestReleaseUrl;
@@ -625,8 +644,8 @@
 
       detected.textContent = 'OS not detected';
       title.textContent = `Latest release ${version}`;
-      copy.textContent = 'RA Walks Notifier is currently packaged for macOS.';
-      download.href = dmgUrl;
+      copy.textContent = 'RA Walks Notifier is packaged for macOS, Windows, and Linux.';
+      download.href = latestReleaseUrl;
       download.textContent = 'Open latest release';
     }
 
