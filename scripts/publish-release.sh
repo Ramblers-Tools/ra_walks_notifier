@@ -7,19 +7,28 @@ cd "$ROOT_DIR"
 VERSION=$(node -p "require('./package.json').version")
 TAG="v$VERSION"
 REPO="East-Cheshire-Ramblers/ra_walks_notifier"
-NOTES=${1:-"Walks Manager Watch $TAG release."}
+NOTES=${1:-"RA Walks Notifier $TAG release."}
+
+PRERELEASE_FLAGS=()
+TARGET_BRANCH="main"
+if [[ "$VERSION" == *-beta.* ]]; then
+  PRERELEASE_FLAGS+=(--prerelease)
+  TARGET_BRANCH="beta"
+fi
 
 bash scripts/validate-release-assets.sh
 
 assets=(
   "dist/latest-mac.yml"
-  "dist/Walks-Manager-Watch-$VERSION-arm64.dmg"
-  "dist/Walks-Manager-Watch-$VERSION-arm64-mac.zip"
-  "dist/Walks-Manager-Watch-$VERSION-arm64-mac.zip.blockmap"
+  "dist/RA-Walks-Notifier-$VERSION-arm64.dmg"
+  "dist/RA-Walks-Notifier-$VERSION-arm64-mac.zip"
+  "dist/RA-Walks-Notifier-$VERSION-arm64-mac.zip.blockmap"
   "dist/latest-linux.yml"
-  "dist/Walks-Manager-Watch-$VERSION-x86_64.AppImage"
-  "dist/Walks-Manager-Watch-$VERSION-amd64.deb"
-  "dist/Walks-Manager-Watch-$VERSION-x86_64.rpm"
+  "dist/RA-Walks-Notifier-$VERSION-x86_64.AppImage"
+  "dist/RA-Walks-Notifier-$VERSION-amd64.deb"
+  "dist/RA-Walks-Notifier-$VERSION-x86_64.rpm"
+  "dist/latest.yml"
+  "dist/RA-Walks-Notifier-$VERSION-x64-setup.exe"
 )
 
 if gh release view "$TAG" --repo "$REPO" >/dev/null 2>&1; then
@@ -27,9 +36,10 @@ if gh release view "$TAG" --repo "$REPO" >/dev/null 2>&1; then
 else
   gh release create "$TAG" \
     --repo "$REPO" \
-    --target main \
-    --title "Walks Manager Watch $TAG" \
+    --target "$TARGET_BRANCH" \
+    --title "RA Walks Notifier $TAG" \
     --notes "$NOTES" \
+    "${PRERELEASE_FLAGS[@]}" \
     "${assets[@]}"
 fi
 

@@ -1,6 +1,6 @@
 {
-  "name": "walks-manager-watch",
-  "version": "1.0.0",
+  "name": "ra-walks-notifier",
+  "version": "1.1.0",
   "description": "Menu bar app for monitoring Ramblers Walks Manager review queues",
   "main": "src/main.js",
   "author": "Richard Higham <me@richyhigham.uk>",
@@ -8,19 +8,17 @@
   "scripts": {
     "app": "electron .",
     "test": "node --test",
-    "login": "node src/login.js",
-    "check": "node src/check.js",
-    "check:force": "node src/check.js --force-email",
-    "status": "node src/status.js",
-    "test-email": "node src/testEmail.js",
     "build:mac:unsigned": "npm run clean:mac:xattrs && CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --mac dmg zip --publish never",
     "build:mac": "npm run clean:mac:xattrs && electron-builder --mac dmg zip",
     "build:mac:signed": "npm run clean:mac:xattrs && CSC_NAME=\"Richard Higham (9PG75A2TYV)\" electron-builder --mac dmg zip",
     "build:linux": "electron-builder --linux AppImage deb rpm --x64 --publish never",
     "build:linux:release": "electron-builder --linux AppImage deb rpm --x64",
+    "build:win": "electron-builder --win nsis --x64 --publish never",
+    "build:win:release": "electron-builder --win nsis --x64",
     "release:mac": "npm run build:mac:signed && npm run notary:submit",
     "release:mac:clean": "bash scripts/build-mac-release-clean.sh",
     "release:linux": "bash scripts/build-linux-release.sh",
+    "release:win": "bash scripts/build-windows-release.sh",
     "release:validate": "bash scripts/validate-release-assets.sh",
     "release:publish": "bash scripts/publish-release.sh",
     "clean:mac:xattrs": "xattr -cr node_modules/electron/dist node_modules build assets src package.json 2>/dev/null || true",
@@ -28,11 +26,8 @@
     "notary:submit": "bash scripts/notarize-latest.sh"
   },
   "dependencies": {
-    "dotenv": "^16.4.7",
     "electron-store": "^8.2.0",
-    "electron-updater": "^6.8.9",
-    "nodemailer": "^6.9.16",
-    "playwright": "^1.49.1"
+    "electron-updater": "^6.8.9"
   },
   "devDependencies": {
     "electron": "^33.3.1",
@@ -40,15 +35,13 @@
   },
   "build": {
     "appId": "uk.richardhigham.walksmanagerwatch",
-    "productName": "Walks Manager Watch",
+    "productName": "RA Walks Notifier",
     "directories": {
       "output": "dist"
     },
     "files": [
       "src/**/*",
       "assets/**/*",
-      "groups.json",
-      ".env.example",
       "package.json",
       "!node_modules/fsevents/**/*"
     ],
@@ -69,10 +62,27 @@
       "entitlementsInherit": "build/entitlements.mac.plist",
       "identity": "Richard Higham (9PG75A2TYV)"
     },
+    "win": {
+      "icon": "assets/ramblers-logo.png",
+      "artifactName": "RA-Walks-Notifier-${version}-${arch}-setup.${ext}",
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "artifactName": "RA-Walks-Notifier-${version}-${arch}-setup.${ext}"
+    },
     "linux": {
       "category": "Utility",
       "icon": "assets/ramblers-logo.png",
-      "artifactName": "Walks-Manager-Watch-${version}-${arch}.${ext}",
+      "artifactName": "RA-Walks-Notifier-${version}-${arch}.${ext}",
       "target": [
         {
           "target": "AppImage",
@@ -96,7 +106,7 @@
     },
     "dmg": {
       "sign": true,
-      "title": "Walks Manager Watch ${version}",
+      "title": "RA Walks Notifier ${version}",
       "iconSize": 96,
       "window": {
         "width": 520,

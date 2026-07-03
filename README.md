@@ -1,33 +1,31 @@
-# Walks Manager Watch - Desktop Tray App
+# RA Walks Notifier - Desktop Tray App
 
-This repository is based on the working v4.1 Electron app attachment and is the stable desktop baseline for the v4.3 background-agent refactor.
+Electron menu bar app for macOS and Linux that lets a Ramblers group's
+volunteers manage their RA Walks Notifier settings and see check status,
+without needing a machine running 24/7.
 
-It is an Electron desktop application for macOS, with Linux AppImage packaging being added for testing. It does not use PHP, Joomla, Laravel, Symfony, or any web framework.
+All actual checking, browsing, and email sending happens server-side (see
+`ra_walks_notifier_server`, a separate private repository). This app is a
+thin client: it talks to that server over its HTTP API using a per-tenant
+API key, and it's the one thing that genuinely needs a screen - the
+interactive Ramblers single sign-on login, which uploads the resulting
+session to the server.
 
-The app reuses the working checker/parser and adds a menu bar/tray icon with:
+From the tray menu you can:
 
 - Check Now
-- Force Test Email
-- Login to Walks Manager
-- Open Review List
-- Show Status
-- automatic checks using the interval in `config.json`
-
-The current notification implementation uses the existing SMTP/nodemailer path from v4.1. Microsoft Graph OAuth email delivery is the intended v4.3 notification refactor.
+- Connect / Login to Walks Manager (server connection, SSO login, group selection)
+- Manage notification recipients
+- Manage walk leader email settings
+- Change the email logo
+- View schedule/active hours
+- View logs (pulled live from the server)
 
 ## Install for local testing
 
 ```bash
 npm install
-npx playwright install chromium
 npm test
-```
-
-Copy these from your working v3.1 folder:
-
-```text
-.env
-sessions/auth.json
 ```
 
 Then run:
@@ -36,21 +34,19 @@ Then run:
 npm run app
 ```
 
-On first launch, the app opens **Setup** if required settings are missing. Setup collects notification recipients, SMTP email settings, and the saved Walks Manager login session needed for background checks. You can reopen it from the menu bar via **Setup**.
+On first launch, the app opens **Connect** if it isn't configured yet
+(server API key, Walks Manager login, group selection). Reopen it from the
+tray menu at any time.
 
-Runtime settings are stored outside the app bundle:
-
-```text
-~/Library/Application Support/Walks Manager Watch/
-```
-
-On Linux, Electron stores app data under the current user's standard application config/data folders.
-
-Logs are stored in:
+Local client state (API key, cached settings) is stored outside the app
+bundle:
 
 ```text
-~/Library/Logs/Walks Manager Watch/
+~/Library/Application Support/RA Walks Notifier/
 ```
+
+On Linux, Electron stores app data under the current user's standard
+application config/data folders.
 
 ## Build signed app
 
@@ -138,6 +134,8 @@ spctl -a -vv dist/*.dmg
 
 ## Notes
 
-This package intentionally does not include your `.env` or saved Ramblers login session.
+This package intentionally does not include any saved Walks Manager
+session or server credentials - those live server-side, per tenant.
 
-If Playwright login expires, choose **Login to Walks Manager** from the menu bar and sign in again.
+If the saved server-side Walks Manager session expires, choose **Connect**
+from the tray menu and sign in again.

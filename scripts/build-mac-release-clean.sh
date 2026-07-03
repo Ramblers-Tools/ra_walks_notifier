@@ -28,8 +28,8 @@ cp -R "$BUILD_DIR/dist/"* "$SOURCE_DIR/dist/"
 
 VERSION=$(node -p "require('./package.json').version")
 cd "$SOURCE_DIR"
-cp -f "dist/Walks Manager Watch-$VERSION-arm64.dmg" "dist/Walks-Manager-Watch-$VERSION-arm64.dmg"
-cp -f "dist/Walks Manager Watch-$VERSION-arm64-mac.zip" "dist/Walks-Manager-Watch-$VERSION-arm64-mac.zip"
-cp -f "dist/Walks Manager Watch-$VERSION-arm64-mac.zip.blockmap" "dist/Walks-Manager-Watch-$VERSION-arm64-mac.zip.blockmap"
+cp -f "dist/RA Walks Notifier-$VERSION-arm64.dmg" "dist/RA-Walks-Notifier-$VERSION-arm64.dmg"
+cp -f "dist/RA Walks Notifier-$VERSION-arm64-mac.zip" "dist/RA-Walks-Notifier-$VERSION-arm64-mac.zip"
+cp -f "dist/RA Walks Notifier-$VERSION-arm64-mac.zip.blockmap" "dist/RA-Walks-Notifier-$VERSION-arm64-mac.zip.blockmap"
 
 echo "Mac release artifacts copied to $SOURCE_DIR/dist"

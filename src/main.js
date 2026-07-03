@@ -1,70 +1,60 @@
 const { app, Tray, Menu, shell, dialog, Notification, BrowserWindow, ipcMain, nativeImage, session: electronSession } = require('electron');
 const { autoUpdater } = require('electron-updater');
-const { spawn } = require('child_process');
 const path = require('path');
 const fs = require('fs');
-const { currentUkHour, formatUkDateTime, nowUkDateTime } = require('./time');
-const { parseRecipients, resolveRecipients, resolveSmtp, resolveGroups } = require('./config');
-const { isWithinActiveHours, normalizeSchedule } = require('./schedule');
-const { parseWalkEntries } = require('./parser');
-const { buildEmail } = require('./emailSummary');
-const { sendEmail } = require('./email');
-const { leaderDetailsScript, managerEditHrefScript } = require('./leaderDetails');
-const { normalizeLeaderEmailSettings, sendLeaderEmails, testLeaderEmailApi } = require('./leaderEmail');
-const { log, ensureDirs } = require('./logger');
-const { copyLogo, logoDataUrl, logoPath } = require('./branding');
-const { isLoginPage, sendSessionExpiredEmail } = require('./sessionExpiry');
+const { formatUkDateTime } = require('./time');
+const { migrateLegacyConfig, parseRecipients } = require('./config');
+
+if (!app.requestSingleInstanceLock()) {
+  app.quit();
+  process.exit(0);
+}
+
+app.on('second-instance', () => {
+  if (isConfigured()) {
+    showStatus();
+  } else {
+    showConnectWindow();
+  }
+});
+
+migrateLegacyConfig();
+
+const apiClient = require('./apiClient');
 
 let tray;
-let timer;
-let updateTimer;
-let initialUpdateTimer;
+let statusPollTimer;
+let connectWindow;
 let recipientsWindow;
-let smtpWindow;
 let scheduleWindow;
 let leaderEmailWindow;
-let setupWindow;
 let loginWindow;
 let logWindow;
+let aboutWindow;
+let statusWindow;
 let lastStatus = 'Starting...';
 let updateStatus = 'Not checked';
 let manualUpdateCheck = false;
 let updateHandlersConfigured = false;
 let quittingForUpdate = false;
 let lastLoginAutoAdvanceAt = 0;
+
+// In-memory cache of the last successful API responses. The tray/menu/status
+// text are all built from this cache rather than fetching live on every
+// render, since Electron menu/tray updates need to be synchronous.
+let cachedConfig = null;
+let cachedStatus = null;
+let cachedGroups = [];
+let cachedSessionPresent = false;
+
 const root = path.join(__dirname, '..');
-const repoUrl = 'https://github.com/East-Cheshire-Ramblers/ra_walks_notifier';
-const websiteUrl = 'https://walks-manager-watcher.eastcheshireramblers.org.uk/';
+const websiteUrl = 'https://rawalksnotifier.ramblers.tools/';
 const walksPartition = 'persist:walks-manager-watch-browser';
 const updateCheckIntervalMs = 6 * 60 * 60 * 1000;
-
-function readJson(file, fallback = {}) {
-  try {
-    return fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, 'utf8')) : fallback;
-  } catch {
-    return fallback;
-  }
-}
-
-function appConfig() {
-  const { paths } = require('./config');
-  return readJson(paths.configFile, readJson(paths.rootConfigFile, { checkIntervalMinutes: 5, activeHours: { start: 7, end: 22 } }));
-}
-
-function writeAppConfig(config) {
-  const { paths } = require('./config');
-  fs.mkdirSync(path.dirname(paths.configFile), { recursive: true });
-  fs.writeFileSync(paths.configFile, `${JSON.stringify(config, null, 2)}\n`);
-}
-
-function includeBetaUpdates() {
-  const configured = appConfig().updates?.includeBeta;
-  if (typeof configured === 'boolean') return configured;
-  return isBetaBuild();
-}
+const statusPollIntervalMs = 30 * 1000;
 
 function isBetaBuild() {
-  return /^4\.3\./.test(app.getVersion());
+  return /-beta(?:\.|$)/.test(app.getVersion());
 }
 
 function releaseChannelLabel() {
@@ -74,6 +64,12 @@ function releaseChannelLabel() {
 function displayVersion() {
   const version = app.getVersion();
   return isBetaBuild() ? `${version} Beta` : version;
+}
+
+function includeBetaUpdates() {
+  const configured = cachedConfig?.updates?.includeBeta;
+  if (typeof configured === 'boolean') return configured;
+  return isBetaBuild();
 }
 
 async function toggleBetaUpdates() {
@@ -93,64 +89,18 @@ async function toggleBetaUpdates() {
       return;
     }
   }
-  const cfg = appConfig();
-  cfg.updates = Object.assign({}, cfg.updates, { includeBeta: nextValue });
-  writeAppConfig(cfg);
+  try {
+    cachedConfig = await apiClient.putConfig({ updates: Object.assign({}, cachedConfig?.updates, { includeBeta: nextValue }) });
+  } catch (error) {
+    dialog.showMessageBox({ type: 'error', title: 'RA Walks Notifier', message: error.message });
+  }
   buildMenu();
 }
 
-function currentRecipients() {
-  return resolveRecipients(appConfig(), process.env);
-}
-
-function currentSmtp() {
-  const settings = resolveSmtp(appConfig(), process.env);
-  return {
-    host: settings.host || '',
-    port: settings.port || 587,
-    secure: Boolean(settings.secure),
-    user: settings.user || '',
-    pass: settings.pass || '',
-    fromName: settings.fromName || '',
-    from: settings.from || ''
-  };
-}
-
-function setupState() {
-  const recipients = currentRecipients();
-  const smtp = currentSmtp();
-  const cfg = appConfig();
-  const groups = resolveGroups(cfg, []);
-  const schedule = normalizeSchedule(cfg);
-  const sessionPresent = fs.existsSync(sessionFile());
-  return {
-    recipients,
-    smtp,
-    groups: sessionPresent ? groups : [],
-    schedule,
-    branding: {
-      logoPath: logoPath(cfg),
-      logoDataUrl: logoDataUrl(cfg)
-    },
-    sessionPresent,
-    complete: Boolean(recipients.length && smtp.host && smtp.user && smtp.pass && smtp.from && groups.length && sessionPresent)
-  };
-}
-
-function groupsConfig() {
-  return resolveGroups(appConfig(), []);
-}
-
-function statusFile() { const { paths } = require('./config'); return paths.statusFile; }
-function stateFile() { const { paths } = require('./config'); return paths.stateFile; }
-function sessionFile() { const { paths } = require('./config'); return paths.sessionFile; }
-function logFile() { const { paths } = require('./config'); return paths.logFile; }
 function ramblersLogoPath() {
   return path.join(root, 'assets', 'ramblers-logo.png');
 }
 function appIconPath() {
-  const eastCheshire = path.join(root, 'assets', 'east-cheshire-logo.png');
-  if (fs.existsSync(eastCheshire)) return eastCheshire;
   return ramblersLogoPath();
 }
 function appWindowOptions(options) {
@@ -160,7 +110,7 @@ function logWindowOptions(options) {
   return Object.assign({ icon: ramblersLogoPath() }, options);
 }
 function visibleAppWindows() {
-  return [recipientsWindow, smtpWindow, scheduleWindow, leaderEmailWindow, setupWindow, loginWindow, logWindow].filter(window => window && !window.isDestroyed());
+  return [connectWindow, recipientsWindow, scheduleWindow, leaderEmailWindow, loginWindow, logWindow, aboutWindow, statusWindow].filter(window => window && !window.isDestroyed());
 }
 function showDockIcon(iconPath = appIconPath()) {
   if (!app.dock) return;
@@ -182,76 +132,6 @@ function trackVisibleWindow(window, iconPath = appIconPath()) {
   });
   return window;
 }
-function readStatus() { return readJson(statusFile(), {}); }
-function writeJson(file, data) {
-  fs.mkdirSync(path.dirname(file), { recursive: true });
-  fs.writeFileSync(file, `${JSON.stringify(data, null, 2)}\n`);
-}
-
-function sameWalk(a, b) {
-  return JSON.stringify({ title: a.title, date: a.date, leader: a.leader, status: a.status, href: a.href }) === JSON.stringify({ title: b.title, date: b.date, leader: b.leader, status: b.status, href: b.href });
-}
-
-function asMap(walks) {
-  return Object.fromEntries((walks || []).map(walk => [walk.id, walk]));
-}
-
-function cookieUrl(cookie) {
-  const domain = String(cookie.domain || 'walks-manager.ramblers.org.uk').replace(/^\./, '');
-  return `${cookie.secure === false ? 'http' : 'https'}://${domain}${cookie.path || '/'}`;
-}
-
-async function loadSavedSessionIntoElectron() {
-  const browserSession = electronSession.fromPartition(walksPartition);
-  await browserSession.clearStorageData({
-    storages: ['cookies', 'localstorage', 'sessionstorage', 'indexdb']
-  });
-
-  const saved = readJson(sessionFile(), { cookies: [], origins: [] });
-  for (const cookie of saved.cookies || []) {
-    await browserSession.cookies.set({
-      url: cookieUrl(cookie),
-      name: cookie.name,
-      value: cookie.value,
-      domain: cookie.domain,
-      path: cookie.path || '/',
-      secure: Boolean(cookie.secure),
-      httpOnly: Boolean(cookie.httpOnly),
-      expirationDate: cookie.expires && cookie.expires > 0 ? cookie.expires : undefined
-    }).catch(() => {});
-  }
-}
-
-function nodeExecutable() {
-  return process.env.WMW_NODE_PATH || process.env.npm_node_execpath || process.execPath;
-}
-
-function runNode(args, showDialog = false) {
-  return new Promise((resolve) => {
-    const executable = nodeExecutable();
-    const isElectron = executable === process.execPath;
-    const env = Object.assign({}, process.env, isElectron ? { ELECTRON_RUN_AS_NODE: '1' } : {});
-    const child = spawn(executable, args, { cwd: root, env });
-    let out = '';
-    child.stdout.on('data', d => { out += d.toString(); });
-    child.stderr.on('data', d => { out += d.toString(); });
-    child.on('error', err => {
-      out += err.stack || err.message;
-      if (showDialog) dialog.showMessageBox({ type: 'error', title: 'Walks Manager Watch', message: out });
-      resolve({ code: 1, out });
-    });
-    child.on('close', code => {
-      if (showDialog) {
-        dialog.showMessageBox({
-          type: code === 0 ? 'info' : 'error',
-          title: 'Walks Manager Watch',
-          message: out || `Finished with code ${code}`
-        });
-      }
-      resolve({ code, out });
-    });
-  });
-}
 
 function statusLine(label, value) {
   return `${label}: ${value}`;
@@ -262,40 +142,41 @@ function statusList(label, values, empty = 'None configured') {
   return `${label}:\n${values.map(value => `  ${value}`).join('\n')}`;
 }
 
+function isConfigured() {
+  return Boolean(
+    apiClient.hasApiKey() &&
+    cachedSessionPresent &&
+    cachedGroups.length &&
+    (cachedConfig?.notificationRecipients || []).length
+  );
+}
+
 function buildStatusText() {
-  const s = readStatus();
-  const state = readJson(stateFile(), { walks: [] });
-  const cfg = appConfig();
-  const schedule = normalizeSchedule(cfg);
-  const groups = groupsConfig();
-  const groupNames = groups.map(group => group.name || `Group ${group.gid}`);
-  const recipients = currentRecipients();
-  const pending = Number(s.pendingWalks ?? (state.walks ? state.walks.length : 0) ?? 0);
-  const running = timer ? 'Running' : 'Stopped';
+  const s = cachedStatus || {};
+  const groupNames = cachedGroups.map(group => group.name || `Group ${group.gid}`);
+  const recipients = parseRecipients(cachedConfig?.notificationRecipients || []);
+  const schedule = { checkIntervalMinutes: cachedConfig?.checkIntervalMinutes || 5, activeHours: cachedConfig?.activeHours || { start: 7, end: 22 } };
+  const pending = Number(s.pendingWalks || 0);
   return [
-    'Walks Manager Watch',
-    '',
-    `Version: ${displayVersion()}`,
-    `Release channel: ${releaseChannelLabel()}`,
-    `Status: ${running}`,
+    `Status: ${s.maintenanceMessage ? 'Server offline (maintenance)' : apiClient.hasApiKey() ? 'Connected' : 'Not connected'}`,
+    `Last error: ${s.lastError || 'None'}`,
+    `Session: ${cachedSessionPresent ? 'Present' : 'Missing'}`,
     `Pending walks: ${pending}`,
-    statusList(groups.length === 1 ? 'Group' : 'Groups', groupNames, 'Not selected'),
+    '',
+    statusList(cachedGroups.length === 1 ? 'Group' : 'Groups', groupNames, 'Not selected'),
+    '',
     `Schedule: Every ${schedule.checkIntervalMinutes} minutes`,
     `Active hours: ${String(schedule.activeHours.start).padStart(2, '0')}:00 to ${String(schedule.activeHours.end).padStart(2, '0')}:00`,
-    '',
     `Last check: ${formatUkDateTime(s.lastCheckCompletedAt)}`,
     `Last result: ${s.lastResult || 'None yet'}`,
     `Last email: ${formatUkDateTime(s.lastEmailAt)}`,
-    statusList('Recipients', recipients),
-    `SMTP: ${currentSmtp().host || 'Not configured'}`,
-    `Last error: ${s.lastError || 'None'}`,
     '',
-    `Session: ${fs.existsSync(sessionFile()) ? 'Present' : 'Missing'}`
-  ].filter(Boolean).join('\n');
+    statusList('Recipients', recipients)
+  ].join('\n');
 }
 
 function selectedGroup() {
-  return groupsConfig()[0] || null;
+  return cachedGroups[0] || null;
 }
 
 function reviewUrlForGroup(group = selectedGroup()) {
@@ -304,27 +185,34 @@ function reviewUrlForGroup(group = selectedGroup()) {
 }
 
 function showStatus() {
-  const iconPath = ramblersLogoPath();
-  const icon = iconPath ? nativeImage.createFromPath(iconPath) : undefined;
-  dialog.showMessageBox({
-    type: 'info',
-    title: 'Walks Manager Watch Status',
-    message: buildStatusText(),
-    icon: icon && !icon.isEmpty() ? icon : undefined,
-    buttons: ['OK', 'Open log file'],
-    defaultId: 0
-  }).then(result => {
-    if (result.response === 1) {
-      showLogWindow();
-    }
-  });
-}
+  if (statusWindow) {
+    statusWindow.focus();
+    return;
+  }
 
-function readLogLines(limit = 1000) {
-  ensureDirs();
-  if (!fs.existsSync(logFile())) fs.writeFileSync(logFile(), '');
-  const lines = fs.readFileSync(logFile(), 'utf8').split(/\r?\n/).filter(Boolean);
-  return lines.slice(-limit).reverse();
+  statusWindow = trackVisibleWindow(new BrowserWindow(appWindowOptions({
+    width: 480,
+    height: 640,
+    title: 'RA Walks Notifier Status',
+    resizable: false,
+    minimizable: false,
+    fullscreenable: false,
+    show: false,
+    backgroundColor: '#f7f8fa',
+    webPreferences: {
+      preload: path.join(__dirname, 'statusPreload.js')
+    }
+  })));
+
+  statusWindow.once('ready-to-show', () => {
+    statusWindow.show();
+  });
+
+  statusWindow.on('closed', () => {
+    statusWindow = null;
+  });
+
+  statusWindow.loadFile(path.join(__dirname, 'status.html'));
 }
 
 function showLogWindow() {
@@ -336,7 +224,7 @@ function showLogWindow() {
   logWindow = trackVisibleWindow(new BrowserWindow(logWindowOptions({
     width: 900,
     height: 620,
-    title: 'Walks Manager Watch Logs',
+    title: 'RA Walks Notifier Logs',
     webPreferences: {
       preload: path.join(__dirname, 'logPreload.js'),
       contextIsolation: true,
@@ -351,11 +239,61 @@ function showLogWindow() {
   logWindow.loadFile(path.join(__dirname, 'log.html'));
 }
 
+function handleRevokedApiKey(message) {
+  apiClient.clearApiKey();
+  cachedConfig = null;
+  cachedGroups = [];
+  cachedSessionPresent = false;
+  cachedStatus = null;
+  buildMenu();
+  dialog.showMessageBox({
+    type: 'error',
+    title: 'RA Walks Notifier',
+    message: 'Reconnect required',
+    detail: message
+  });
+  showConnectWindow();
+}
+
+async function refreshCache() {
+  if (!apiClient.hasApiKey()) return;
+  try {
+    const [config, status, sessionStatus] = await Promise.all([
+      apiClient.getConfig(),
+      apiClient.getStatus(),
+      apiClient.getSessionStatus()
+    ]);
+    cachedConfig = config;
+    cachedStatus = status;
+    cachedGroups = config.groups || [];
+    cachedSessionPresent = sessionStatus.present;
+  } catch (error) {
+    if (error.code === 'unauthorized') {
+      handleRevokedApiKey(error.message);
+      return;
+    }
+    if (error.code === 'maintenance') {
+      cachedStatus = { ...(cachedStatus || {}), maintenanceMessage: error.message };
+    } else {
+      cachedStatus = { ...(cachedStatus || {}), maintenanceMessage: null, lastError: `Could not reach server: ${error.message}` };
+    }
+  }
+  updateTrayLabel();
+}
+
+async function startStatusPolling() {
+  if (statusPollTimer) clearInterval(statusPollTimer);
+  await refreshCache();
+  statusPollTimer = setInterval(refreshCache, statusPollIntervalMs);
+}
+
 function updateTrayLabel() {
-  const s = readStatus();
+  const s = cachedStatus || {};
   const count = Number(s.pendingWalks || 0);
   const err = s.lastError;
-  lastStatus = err ? `Error: ${err}` : `${count} pending walk${count === 1 ? '' : 's'}`;
+  lastStatus = s.maintenanceMessage
+    ? '⚠ Server offline (maintenance)'
+    : s.checking ? 'Checking...' : err ? `Error: ${err}` : `${count} pending walk${count === 1 ? '' : 's'}`;
   if (tray) tray.setTitle(` ${count}`);
   buildMenu();
 }
@@ -370,120 +308,88 @@ function trayIcon() {
   return resized;
 }
 
-function smtpErrorMessage(error) {
-  const code = String(error?.code || '');
-  const response = String(error?.response || '');
-  const message = String(error?.message || '');
-  const combined = `${code} ${response} ${message}`;
-
-  if (/EAUTH|535|authentication|auth/i.test(combined)) {
-    return {
-      message: 'SMTP login failed.',
-      detail: 'Check the SMTP username and password, then try sending the test email again.'
-    };
+async function checkNow(force = false) {
+  if (!isConfigured()) {
+    lastStatus = 'Setup required';
+    buildMenu();
+    showConnectWindow();
+    return;
   }
 
-  if (/ECONNECTION|ENOTFOUND|ECONNREFUSED|ETIMEDOUT|timeout|connect/i.test(combined)) {
-    return {
-      message: 'Could not connect to the SMTP server.',
-      detail: 'Check the SMTP host, port, SSL/TLS setting, and internet connection.'
-    };
-  }
-
-  if (/certificate|TLS|SSL|self.signed/i.test(combined)) {
-    return {
-      message: 'SMTP security check failed.',
-      detail: 'Check whether the SMTP server needs SSL/TLS enabled or disabled for the selected port.'
-    };
-  }
-
-  return {
-    message: 'SMTP test email failed.',
-    detail: message || 'Check the SMTP settings and try again.'
-  };
-}
-
-async function sendSmtpTestEmail(showDialog = true) {
+  lastStatus = 'Checking...';
+  buildMenu();
   try {
-    await sendEmail(
-      'Walks Manager Watch test email',
-      'This is a test email from Walks Manager Watch.',
-      '<p>This is a test email from <strong>Walks Manager Watch</strong>.</p>'
-    );
-    if (showDialog) {
-      dialog.showMessageBox({
-        type: 'info',
-        title: 'Walks Manager Watch',
-        message: 'SMTP test email sent.'
-      });
-    }
-    return { code: 0 };
+    await apiClient.postCheckNow(force);
   } catch (error) {
-    if (showDialog) {
-      const formatted = smtpErrorMessage(error);
-      dialog.showMessageBox({
-        type: 'error',
-        title: 'Walks Manager Watch',
-        message: formatted.message,
-        detail: formatted.detail
-      });
+    if (error.code === 'unauthorized') {
+      handleRevokedApiKey(error.message);
+      return;
     }
-    return { code: 1, error };
+    new Notification({ title: 'RA Walks Notifier', body: error.message }).show();
   }
+  // The check runs asynchronously on the server; poll shortly after to
+  // pick up progress, then again once it should have finished.
+  setTimeout(refreshCache, 5000);
+  setTimeout(refreshCache, 90000);
 }
 
-async function chooseBrandLogo(showConfirmation = true) {
+async function chooseBrandLogo() {
   const result = await dialog.showOpenDialog({
     title: 'Choose Ramblers Logo',
     properties: ['openFile'],
     filters: [{ name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg'] }]
   });
-  if (result.canceled || !result.filePaths.length) return setupState();
+  if (result.canceled || !result.filePaths.length) return;
 
-  const storedLogo = copyLogo(result.filePaths[0]);
-  const cfg = appConfig();
-  cfg.branding = Object.assign({}, cfg.branding, { logoPath: storedLogo });
-  writeAppConfig(cfg);
-  buildMenu();
-  if (showConfirmation) {
-    dialog.showMessageBox({
-      type: 'info',
-      title: 'Walks Manager Watch',
-      message: 'Logo updated.',
-      detail: storedLogo
-    });
+  const filePath = result.filePaths[0];
+  const ext = path.extname(filePath).slice(1);
+  try {
+    const data = fs.readFileSync(filePath).toString('base64');
+    await apiClient.putLogo(data, ext);
+    dialog.showMessageBox({ type: 'info', title: 'RA Walks Notifier', message: 'Logo updated.' });
+  } catch (error) {
+    dialog.showMessageBox({ type: 'error', title: 'RA Walks Notifier', message: error.message });
   }
-  return setupState();
 }
 
 async function resetBrandLogo() {
-  const cfg = appConfig();
-  delete cfg.branding;
-  writeAppConfig(cfg);
-  buildMenu();
-  dialog.showMessageBox({
-    type: 'info',
-    title: 'Walks Manager Watch',
-    message: 'Logo reset to the built-in Ramblers logo.'
-  });
-  return setupState();
+  try {
+    await apiClient.deleteLogo();
+    dialog.showMessageBox({ type: 'info', title: 'RA Walks Notifier', message: 'Logo reset to the built-in Ramblers logo.' });
+  } catch (error) {
+    dialog.showMessageBox({ type: 'error', title: 'RA Walks Notifier', message: error.message });
+  }
 }
 
 function showAbout() {
-  dialog.showMessageBox({
-    type: 'info',
-    title: 'About Walks Manager Watch',
-    message: 'Walks Manager Watch',
-    detail: [
-      `Version: ${displayVersion()}`,
-      `Release channel: ${releaseChannelLabel()}`,
-      'Desktop tray app for monitoring Ramblers Walks Manager review queues.'
-    ].join('\n'),
-    buttons: ['OK', 'Open Website'],
-    defaultId: 0
-  }).then(result => {
-    if (result.response === 1) shell.openExternal(websiteUrl);
+  if (aboutWindow) {
+    aboutWindow.focus();
+    return;
+  }
+
+  aboutWindow = trackVisibleWindow(new BrowserWindow(appWindowOptions({
+    width: 360,
+    height: 390,
+    title: 'About RA Walks Notifier',
+    resizable: false,
+    minimizable: false,
+    fullscreenable: false,
+    show: false,
+    backgroundColor: '#f7f8fa',
+    webPreferences: {
+      preload: path.join(__dirname, 'aboutPreload.js')
+    }
+  })));
+
+  aboutWindow.once('ready-to-show', () => {
+    aboutWindow.show();
   });
+
+  aboutWindow.on('closed', () => {
+    aboutWindow = null;
+  });
+
+  aboutWindow.loadFile(path.join(__dirname, 'about.html'));
 }
 
 function supportsLoginItemSettings() {
@@ -503,7 +409,7 @@ function linuxAutostartEntry() {
   return [
     '[Desktop Entry]',
     'Type=Application',
-    'Name=Walks Manager Watch',
+    'Name=RA Walks Notifier',
     'Comment=Monitor Ramblers Walks Manager review queues',
     `Exec=${quoteDesktopExec(process.execPath)}`,
     'Terminal=false',
@@ -543,8 +449,8 @@ function toggleStartAtBoot() {
 
 function prepareForUpdateInstall() {
   quittingForUpdate = true;
-  if (timer) clearInterval(timer);
-  timer = null;
+  if (statusPollTimer) clearInterval(statusPollTimer);
+  statusPollTimer = null;
   stopUpdateChecks();
   cleanupShipItUpdateCache();
 }
@@ -558,7 +464,7 @@ function removePathIfPresent(target) {
   try {
     if (fs.existsSync(target)) fs.rmSync(target, { recursive: true, force: true });
   } catch (error) {
-    log(`Could not remove update cache path ${target}: ${error.message}`);
+    console.error(`Could not remove update cache path ${target}: ${error.message}`);
   }
 }
 
@@ -571,7 +477,7 @@ function cleanupShipItUpdateCache() {
         if (entry.startsWith('update.')) removePathIfPresent(path.join(dir, entry));
       }
     } catch (error) {
-      log(`Could not clean ShipIt update cache ${dir}: ${error.message}`);
+      console.error(`Could not clean ShipIt update cache ${dir}: ${error.message}`);
     }
   }
 }
@@ -602,8 +508,8 @@ function configureUpdates() {
     if (manualUpdateCheck) {
       dialog.showMessageBox({
         type: 'info',
-        title: 'Walks Manager Watch',
-        message: 'Walks Manager Watch is up to date.'
+        title: 'RA Walks Notifier',
+        message: 'RA Walks Notifier is up to date.'
       });
     }
     manualUpdateCheck = false;
@@ -615,7 +521,7 @@ function configureUpdates() {
     buildMenu();
     dialog.showMessageBox({
       type: 'info',
-      title: 'Walks Manager Watch Update',
+      title: 'RA Walks Notifier Update',
       message: `Version ${info.version} is available.`,
       detail: 'Download it now and install when ready?',
       buttons: ['Download', 'Later'],
@@ -636,7 +542,7 @@ function configureUpdates() {
     buildMenu();
     dialog.showMessageBox({
       type: 'info',
-      title: 'Walks Manager Watch Update',
+      title: 'RA Walks Notifier Update',
       message: `Version ${info.version} has been downloaded.`,
       detail: 'Install it now? The app will restart.',
       buttons: ['Install and Restart', 'Later'],
@@ -655,7 +561,7 @@ function configureUpdates() {
     if (manualUpdateCheck) {
       dialog.showMessageBox({
         type: 'error',
-        title: 'Walks Manager Watch Update',
+        title: 'RA Walks Notifier Update',
         message: 'Update check failed.',
         detail: lowSpace
           ? `${detail}\n\nYour Mac needs more free disk space to unpack the update. Free at least 1-2 GB, then try Check for Updates again.`
@@ -663,7 +569,7 @@ function configureUpdates() {
       });
     }
     manualUpdateCheck = false;
-    log(`Update error: ${error.stack || error.message}`);
+    console.error(`Update error: ${error.stack || error.message}`);
   });
 }
 
@@ -675,7 +581,7 @@ function checkForUpdates(manual = true) {
     if (manual) {
       dialog.showMessageBox({
         type: 'info',
-        title: 'Walks Manager Watch Update',
+        title: 'RA Walks Notifier Update',
         message: 'Update checks are available in the installed app.'
       });
     }
@@ -694,12 +600,40 @@ function stopUpdateChecks() {
   updateTimer = null;
 }
 
+let updateTimer;
+let initialUpdateTimer;
+
 function startUpdateChecks() {
   stopUpdateChecks();
-  if (!setupState().complete) return;
+  if (!isConfigured()) return;
 
   initialUpdateTimer = setTimeout(() => checkForUpdates(false), 10000);
   updateTimer = setInterval(() => checkForUpdates(false), updateCheckIntervalMs);
+}
+
+function showConnectWindow() {
+  if (connectWindow) {
+    connectWindow.focus();
+    return;
+  }
+
+  connectWindow = trackVisibleWindow(new BrowserWindow(appWindowOptions({
+    width: 560,
+    height: 860,
+    title: 'Server Connection & Login',
+    resizable: false,
+    minimizable: false,
+    fullscreenable: false,
+    webPreferences: {
+      preload: path.join(__dirname, 'connectPreload.js')
+    }
+  })));
+
+  connectWindow.on('closed', () => {
+    connectWindow = null;
+  });
+
+  connectWindow.loadFile(path.join(root, 'src', 'connect.html'));
 }
 
 function showRecipientsWindow() {
@@ -725,46 +659,6 @@ function showRecipientsWindow() {
   });
 
   recipientsWindow.loadFile(path.join(root, 'src', 'recipients.html'));
-}
-
-function showSmtpWindow() {
-  if (smtpWindow) {
-    smtpWindow.focus();
-    return;
-  }
-
-  smtpWindow = trackVisibleWindow(new BrowserWindow(appWindowOptions({
-    width: 520,
-    height: 520,
-    title: 'SMTP Settings',
-    resizable: false,
-    minimizable: false,
-    fullscreenable: false,
-    webPreferences: {
-      preload: path.join(__dirname, 'smtpPreload.js')
-    }
-  })));
-
-  smtpWindow.on('closed', () => {
-    smtpWindow = null;
-  });
-
-  smtpWindow.loadFile(path.join(root, 'src', 'smtp.html'));
-}
-
-function currentSchedule() {
-  return normalizeSchedule(appConfig());
-}
-
-function currentLeaderEmailSettings() {
-  const settings = normalizeLeaderEmailSettings(appConfig());
-  return {
-    enabled: settings.enabled,
-    sendOnSubmit: settings.sendOnSubmit,
-    sendOnPublish: settings.sendOnPublish,
-    apiBaseUrl: settings.apiBaseUrl,
-    apiToken: settings.apiToken
-  };
 }
 
 function showScheduleWindow() {
@@ -817,31 +711,6 @@ function showLeaderEmailWindow() {
   leaderEmailWindow.loadFile(path.join(root, 'src', 'leaderEmail.html'));
 }
 
-function showSetupWindow() {
-  if (setupWindow) {
-    setupWindow.focus();
-    return;
-  }
-
-  setupWindow = trackVisibleWindow(new BrowserWindow(appWindowOptions({
-    width: 640,
-    height: 900,
-    title: 'Walks Manager Watch Setup',
-    resizable: false,
-    minimizable: false,
-    fullscreenable: false,
-    webPreferences: {
-      preload: path.join(__dirname, 'setupPreload.js')
-    }
-  })));
-
-  setupWindow.on('closed', () => {
-    setupWindow = null;
-  });
-
-  setupWindow.loadFile(path.join(root, 'src', 'setup.html'));
-}
-
 function sameSiteForStorageState(value) {
   if (value === 'strict') return 'Strict';
   if (value === 'no_restriction') return 'None';
@@ -849,10 +718,6 @@ function sameSiteForStorageState(value) {
 }
 
 async function saveElectronLoginSession(window) {
-  const { paths } = require('./config');
-  const { ensureDirs, log } = require('./logger');
-  ensureDirs();
-
   const cookies = await window.webContents.session.cookies.get({ url: 'https://walks-manager.ramblers.org.uk' });
   const localStorageItems = await window.webContents.executeJavaScript(`
     JSON.stringify(Object.fromEntries(Object.keys(localStorage).map(key => [key, localStorage.getItem(key)])))
@@ -875,18 +740,23 @@ async function saveElectronLoginSession(window) {
     }]
   };
 
-  fs.mkdirSync(path.dirname(paths.sessionFile), { recursive: true });
-  fs.writeFileSync(paths.sessionFile, `${JSON.stringify(storageState, null, 2)}\n`);
-  const status = readJson(paths.statusFile, {});
-  status.sessionExpiredEmailSent = false;
-  status.lastError = null;
-  writeJson(paths.statusFile, status);
-  log(`Saved Walks Manager session to ${paths.sessionFile}`);
+  await apiClient.postSession(storageState);
+  cachedSessionPresent = true;
 }
 
 function isWalksManagerReviewPage(text, url) {
   return /walks-manager\.ramblers\.org\.uk\/walks-manager\//.test(url)
     && /Walks Manager|Submitted for checking|Awaiting publishing|Ready to publish/i.test(text || '');
+}
+
+function withTimeout(promise, timeoutMs, fallback) {
+  let timeout;
+  return Promise.race([
+    promise,
+    new Promise(resolve => {
+      timeout = setTimeout(() => resolve(fallback), timeoutMs);
+    })
+  ]).finally(() => clearTimeout(timeout));
 }
 
 async function acceptCookieBanner(window) {
@@ -962,6 +832,35 @@ async function advanceLoginWindowToReviewList(window) {
   return { text, url };
 }
 
+async function extractWalksManagerGroups(window) {
+  const groups = await withTimeout(window.webContents.executeJavaScript(`
+    (() => {
+      const select = document.querySelector('select[name="gid"], #edit-gid, [data-drupal-selector="edit-gid"]');
+      if (!select) return [];
+      return Array.from(select.options || [])
+        .filter(option => option.value && /^\\d+$/.test(option.value))
+        .map(option => ({ gid: Number(option.value), name: (option.textContent || '').trim() }))
+        .filter(group => group.gid && group.name);
+    })()
+  `, true).catch(() => []), 5000, []);
+  const seen = new Set();
+  return groups.filter(group => {
+    if (seen.has(group.gid)) return false;
+    seen.add(group.gid);
+    return true;
+  });
+}
+
+async function saveSelectedGroups(groups) {
+  const normalized = (groups || [])
+    .map(group => ({ name: String(group.name || '').trim(), gid: Number(group.gid) }))
+    .filter(group => group.name && Number.isFinite(group.gid));
+  if (!normalized.length) return;
+  cachedConfig = await apiClient.putConfig({ groups: normalized });
+  cachedGroups = cachedConfig.groups || [];
+  buildMenu();
+}
+
 function openWalksManagerLoginWindow() {
   if (loginWindow) {
     loginWindow.focus();
@@ -1014,7 +913,7 @@ function openWalksManagerLoginWindow() {
         loginWindow.close();
 
         if (groups.length === 1) {
-          saveSelectedGroups(groups);
+          await saveSelectedGroups(groups);
           resolve({ code: 0, message: `Walks Manager login saved. Group set to ${groups[0].name}.`, groups, sessionPresent: true });
           return;
         }
@@ -1033,285 +932,10 @@ function openWalksManagerLoginWindow() {
   });
 }
 
-function withTimeout(promise, timeoutMs, fallback) {
-  let timeout;
-  return Promise.race([
-    promise,
-    new Promise(resolve => {
-      timeout = setTimeout(() => resolve(fallback), timeoutMs);
-    })
-  ]).finally(() => clearTimeout(timeout));
-}
-
-async function extractWalksManagerGroups(window) {
-  const groups = await withTimeout(window.webContents.executeJavaScript(`
-    (() => {
-      const select = document.querySelector('select[name="gid"], #edit-gid, [data-drupal-selector="edit-gid"]');
-      if (!select) return [];
-      return Array.from(select.options || [])
-        .filter(option => option.value && /^\\d+$/.test(option.value))
-        .map(option => ({ gid: Number(option.value), name: (option.textContent || '').trim() }))
-        .filter(group => group.gid && group.name);
-    })()
-  `, true).catch(() => []), 5000, []);
-  const seen = new Set();
-  return groups.filter(group => {
-    if (seen.has(group.gid)) return false;
-    seen.add(group.gid);
-    return true;
-  });
-}
-
-function saveSelectedGroups(groups) {
-  const normalized = (groups || [])
-    .map(group => ({ name: String(group.name || '').trim(), gid: Number(group.gid) }))
-    .filter(group => group.name && Number.isFinite(group.gid));
-  if (!normalized.length) return setupState();
-  const cfg = appConfig();
-  cfg.groups = normalized;
-  writeAppConfig(cfg);
-  buildMenu();
-  return setupState();
-}
-
-async function checkNow(force = false, scheduled = false) {
-  if (!setupState().complete) {
-    lastStatus = 'Setup required';
-    buildMenu();
-    showSetupWindow();
-    return;
-  }
-
-  const schedule = normalizeSchedule(appConfig());
-  if (scheduled && !isWithinActiveHours(schedule.activeHours, currentUkHour())) {
-    const status = readJson(statusFile(), {});
-    status.lastResult = `Skipped outside active hours (${String(schedule.activeHours.start).padStart(2, '0')}:00 to ${String(schedule.activeHours.end).padStart(2, '0')}:00)`;
-    status.lastCheckCompletedAt = nowUkDateTime();
-    writeJson(statusFile(), status);
-    updateTrayLabel();
-    return;
-  }
-
-  lastStatus = 'Checking...';
-  buildMenu();
-  const res = await runElectronCheck(force);
-  updateTrayLabel();
-  if (!res.ok) {
-    new Notification({ title: 'Walks Manager Watch failed', body: 'Open status for details.' }).show();
-  }
-}
-
-function waitForWindowEvent(window, event, timeoutMs = 45000) {
-  return new Promise((resolve, reject) => {
-    const timeout = setTimeout(() => {
-      cleanup();
-      reject(new Error(`Timed out waiting for ${event}`));
-    }, timeoutMs);
-    const onSuccess = () => {
-      cleanup();
-      resolve();
-    };
-    const onFail = (_event, code, description) => {
-      cleanup();
-      reject(new Error(description || `Page load failed with code ${code}`));
-    };
-    const cleanup = () => {
-      clearTimeout(timeout);
-      window.webContents.off(event, onSuccess);
-      window.webContents.off('did-fail-load', onFail);
-    };
-    window.webContents.once(event, onSuccess);
-    window.webContents.once('did-fail-load', onFail);
-  });
-}
-
-async function extractWalkEntries(window) {
-  return window.webContents.executeJavaScript(`
-    Array.from(document.querySelectorAll('a[href*="/go-walking/group-walks/"]')).map(link => {
-      const findManagerHref = (start) => {
-        let node = start;
-        while (node && node !== document.body) {
-          const managerLink = node.querySelector('a[href*="/walks-manager/walk/"]');
-          if (managerLink && managerLink.href) return managerLink.href;
-          node = node.parentElement;
-        }
-        return '';
-      };
-      let node = link;
-      let card = null;
-      while (node && node !== document.body) {
-        const text = node.innerText || '';
-        if (/Submitted for checking|Awaiting publishing|Ready to publish/i.test(text)) {
-          card = node;
-          break;
-        }
-        node = node.parentElement;
-      }
-      return {
-        href: link.getAttribute('href') || '',
-        managerHref: findManagerHref(card || link),
-        title: link.innerText || '',
-        text: card ? card.innerText : ''
-      };
-    })
-  `, true);
-}
-
-async function enrichWalkLeaderDetails(window, walks) {
-  for (const walk of walks) {
-    const detailHref = walk.managerHref || walk.href;
-    if (!detailHref || walk.leaderFullName) continue;
-    try {
-      const loaded = waitForWindowEvent(window, 'did-finish-load', 45000);
-      window.loadURL(detailHref);
-      await loaded;
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      let details = await window.webContents.executeJavaScript(leaderDetailsScript, true);
-      if (!details || !details.leaderFullName) {
-        const managerHref = await window.webContents.executeJavaScript(managerEditHrefScript, true).catch(() => '');
-        if (managerHref && managerHref !== window.webContents.getURL()) {
-          walk.managerHref = managerHref;
-          log(`Following manager detail link for ${walk.title}: ${managerHref}`);
-          const managerLoaded = waitForWindowEvent(window, 'did-finish-load', 45000);
-          window.loadURL(managerHref);
-          await managerLoaded;
-          await new Promise(resolve => setTimeout(resolve, 1500));
-          details = await window.webContents.executeJavaScript(leaderDetailsScript, true);
-        }
-      }
-      if (details && details.leaderFullName) walk.leaderFullName = details.leaderFullName;
-      if (details && details.leaderVolunteerId) walk.leaderVolunteerId = details.leaderVolunteerId;
-      log(details && details.leaderFullName
-        ? `Leader details found for ${walk.title}: ${details.leaderFullName}.`
-        : `Leader details not found for ${walk.title} at ${window.webContents.getURL()}.`);
-    } catch (error) {
-      log(`Could not read leader details for ${walk.title}: ${error.message}`);
-    }
-  }
-}
-
-async function runElectronCheck(force = false) {
-  const { nowUkDateTime } = require('./time');
-  const groups = groupsConfig();
-  ensureDirs();
-  log('Starting Walks Manager check.');
-
-  const startedAt = nowUkDateTime();
-  const status = readJson(statusFile(), {});
-  status.lastCheckStartedAt = startedAt;
-  status.lastError = null;
-  writeJson(statusFile(), status);
-
-  const prev = readJson(stateFile(), { walks: [] });
-  const currentWalks = [];
-  let checkWindow;
-
-  try {
-    checkWindow = new BrowserWindow(appWindowOptions({
-      width: 1200,
-      height: 900,
-      show: false,
-      webPreferences: {
-        partition: walksPartition,
-        nodeIntegration: false,
-        contextIsolation: true
-      }
-    }));
-
-    await loadSavedSessionIntoElectron();
-
-    for (const group of groups) {
-      const url = `https://walks-manager.ramblers.org.uk/walks-manager/list?gid=${group.gid}&review=1`;
-      log(`Checking ${group.name}: ${url}`);
-      const loaded = waitForWindowEvent(checkWindow, 'did-finish-load', 45000);
-      checkWindow.loadURL(url);
-      await loaded;
-      await new Promise(resolve => setTimeout(resolve, 5000));
-      const pageText = await checkWindow.webContents.executeJavaScript('document.body ? document.body.innerText : ""', true);
-      if (isLoginPage(checkWindow.webContents.getURL(), pageText)) {
-        const message = 'Walks Manager login required. The saved Ramblers single sign-on session may have expired.';
-        log(message);
-        status.lastError = message;
-        status.lastCheckCompletedAt = nowUkDateTime();
-        status.lastResult = 'Login required';
-        if (!status.sessionExpiredEmailSent) {
-          await sendSessionExpiredEmail();
-          status.sessionExpiredEmailSent = true;
-          status.lastEmailAt = nowUkDateTime();
-          log('Session expiry email sent.');
-        }
-        writeJson(statusFile(), status);
-        checkWindow.close();
-        checkWindow = null;
-        return { ok: false, error: new Error(message) };
-      }
-      const entries = await extractWalkEntries(checkWindow);
-      const walks = parseWalkEntries(entries, group.name);
-      await enrichWalkLeaderDetails(checkWindow, walks);
-      log(`Found ${walks.length} pending walk(s) for ${group.name}.`);
-      currentWalks.push(...walks);
-    }
-
-    checkWindow.close();
-    checkWindow = null;
-
-    const prevMap = asMap(prev.walks);
-    const currentMap = asMap(currentWalks);
-    const newWalks = currentWalks.filter(walk => !prevMap[walk.id]);
-    const changedWalks = currentWalks.filter(walk => prevMap[walk.id] && !sameWalk(walk, prevMap[walk.id]));
-    const clearedWalks = (prev.walks || []).filter(walk => !currentMap[walk.id]);
-    log(`Summary: ${currentWalks.length} current, ${newWalks.length} new, ${changedWalks.length} changed, ${clearedWalks.length} cleared.`);
-    if (newWalks.length) log(`New walks: ${newWalks.map(walk => walk.title).join('; ')}`);
-    if (changedWalks.length) log(`Changed walks: ${changedWalks.map(walk => walk.title).join('; ')}`);
-    if (clearedWalks.length) log(`Cleared walks: ${clearedWalks.map(walk => walk.title).join('; ')}`);
-
-    const cfg = appConfig();
-    const shouldEmail = force || (cfg.notifyOnNew !== false && newWalks.length) || (cfg.notifyOnChanged !== false && changedWalks.length);
-    if (shouldEmail) {
-      const total = newWalks.length + changedWalks.length;
-      const subject = total === 1 ? 'Walks Manager Watch: 1 change' : `Walks Manager Watch: ${total} changes`;
-      const { text, html } = buildEmail(newWalks, changedWalks, clearedWalks, currentWalks);
-      await sendEmail(subject, text, html);
-      new Notification({ title: 'Walks Manager Watch', body: `${total} change(s) detected.` }).show();
-      log('Email sent.');
-      status.lastEmailAt = nowUkDateTime();
-    } else {
-      log('No notification needed.');
-    }
-
-    const leaderEmailResult = await sendLeaderEmails({
-      newWalks,
-      clearedWalks,
-      state: prev,
-      config: cfg
-    });
-    if (leaderEmailResult.sent || leaderEmailResult.skipped) {
-      log(`Leader emails: ${leaderEmailResult.sent} sent, ${leaderEmailResult.skipped} skipped.`);
-      if (leaderEmailResult.sent) status.lastEmailAt = nowUkDateTime();
-    }
-
-    writeJson(stateFile(), { updatedAt: nowUkDateTime(), walks: currentWalks, leaderEmails: prev.leaderEmails || { submitted: {}, published: {} } });
-    status.lastCheckCompletedAt = nowUkDateTime();
-    status.pendingWalks = currentWalks.length;
-    status.lastResult = `${currentWalks.length} pending; ${newWalks.length} new; ${changedWalks.length} changed; ${clearedWalks.length} cleared`;
-    status.sessionExpiredEmailSent = false;
-    writeJson(statusFile(), status);
-    return { ok: true };
-  } catch (error) {
-    if (checkWindow) checkWindow.close();
-    log(`ERROR: ${error.stack || error.message}`);
-    status.lastError = error.message;
-    status.lastCheckCompletedAt = nowUkDateTime();
-    writeJson(statusFile(), status);
-    return { ok: false, error };
-  }
-}
-
 function buildMenu() {
-  const s = readStatus();
+  const s = cachedStatus || {};
   const lastCheck = formatUkDateTime(s.lastCheckCompletedAt);
-  const setup = setupState();
-  const configured = setup.complete;
+  const configured = isConfigured();
   const statusLabel = configured ? lastStatus : 'Setup required';
   const canStartOnLogin = supportsLoginItemSettings();
   const bootEnabled = startAtBootEnabled();
@@ -1320,7 +944,7 @@ function buildMenu() {
     {
       label: `Status: ${statusLabel}`,
       enabled: !configured,
-      click: () => showSetupWindow()
+      click: () => showConnectWindow()
     },
     { label: `Last check: ${lastCheck}`, enabled: false },
     { label: `Update: ${updateStatus}`, enabled: false },
@@ -1330,21 +954,12 @@ function buildMenu() {
     { label: 'Send Walks Report Email', enabled: configured, click: () => checkNow(true) },
     { label: 'Open Review List', enabled: configured, click: () => shell.openExternal(reviewUrlForGroup()) },
     {
-      enabled: configured,
       label: 'Settings && Configuration',
       submenu: [
-        { label: 'Configured', enabled: false },
-        { type: 'separator' },
-        { label: 'Manage Recipients', click: () => showRecipientsWindow() },
-        { label: 'SMTP Settings', click: () => showSmtpWindow() },
-        { label: 'Check Schedule and Active Hours', click: () => showScheduleWindow() },
-        { label: 'Refresh Walks Manager Login', click: () => openWalksManagerLoginWindow().then(result => {
-          dialog.showMessageBox({
-            type: result.code === 0 ? 'info' : 'error',
-            title: 'Walks Manager Login',
-            message: result.message
-          });
-        }) },
+        { label: 'Server Connection && Login', click: () => showConnectWindow() },
+        { label: 'Manage Recipients', enabled: configured, click: () => showRecipientsWindow() },
+        { label: 'Leader Email Settings', enabled: configured, click: () => showLeaderEmailWindow() },
+        { label: 'Check Schedule and Active Hours', enabled: configured, click: () => showScheduleWindow() },
         {
           label: 'Start App on Login',
           type: 'checkbox',
@@ -1359,12 +974,11 @@ function buildMenu() {
           click: () => toggleBetaUpdates()
         },
         { type: 'separator' },
-        { label: 'Change Logo', click: () => chooseBrandLogo() },
-        { label: 'Reset Logo', click: () => resetBrandLogo() }
+        { label: 'Change Logo', enabled: configured, click: () => chooseBrandLogo() },
+        { label: 'Reset Logo', enabled: configured, click: () => resetBrandLogo() }
       ]
     },
     { type: 'separator' },
-    { label: 'Send SMTP Test Email', enabled: configured, click: () => sendSmtpTestEmail(true) },
     { label: 'Check for Updates', click: () => checkForUpdates(true) },
     { label: 'About', click: () => showAbout() },
     { type: 'separator' },
@@ -1373,139 +987,138 @@ function buildMenu() {
   tray.setContextMenu(menu);
 }
 
-function startScheduler() {
-  const schedule = normalizeSchedule(appConfig());
-  timer = setInterval(() => checkNow(false, true), schedule.checkIntervalMinutes * 60 * 1000);
-  checkNow(false, true);
-}
-
-function refreshScheduler() {
-  if (timer) clearInterval(timer);
-  timer = null;
-  startScheduler();
-}
-
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
+  Menu.setApplicationMenu(null);
   if (app.dock) app.dock.setIcon(appIconPath());
   if (app.dock) app.dock.hide();
   configureUpdates();
 
   tray = new Tray(trayIcon());
-  tray.setToolTip('Walks Manager Watch');
+  tray.setToolTip('RA Walks Notifier');
   buildMenu();
-  startScheduler();
-  if (!setupState().complete) {
-    showSetupWindow();
+  // Wait for the first cache fill before deciding whether setup is
+  // needed - otherwise isConfigured() runs against the empty initial
+  // cache on every launch and shows the connect window unnecessarily.
+  await startStatusPolling();
+  if (!isConfigured()) {
+    showConnectWindow();
   } else {
     startUpdateChecks();
   }
 });
-ipcMain.handle('recipients:load', () => currentRecipients());
-ipcMain.handle('recipients:save', (_event, text) => {
-  const recipients = parseRecipients(text);
-  const cfg = appConfig();
-  cfg.notificationRecipients = recipients;
-  writeAppConfig(cfg);
-  buildMenu();
-  return recipients;
-});
-ipcMain.handle('smtp:load', () => currentSmtp());
-ipcMain.handle('smtp:save', (_event, settings) => {
-  const cfg = appConfig();
-  cfg.smtp = {
-    host: String(settings.host || '').trim(),
-    port: Number(settings.port || 587),
-    secure: Boolean(settings.secure),
-    user: String(settings.user || '').trim(),
-    pass: String(settings.pass || ''),
-    fromName: String(settings.fromName || '').trim(),
-    from: String(settings.from || '').trim()
-  };
-  writeAppConfig(cfg);
-  buildMenu();
-  return currentSmtp();
-});
-ipcMain.handle('schedule:load', () => currentSchedule());
-ipcMain.handle('schedule:save', (_event, settings) => {
-  const schedule = normalizeSchedule(settings || {});
-  const cfg = appConfig();
-  cfg.checkIntervalMinutes = schedule.checkIntervalMinutes;
-  cfg.activeHours = schedule.activeHours;
-  writeAppConfig(cfg);
-  buildMenu();
-  refreshScheduler();
-  return currentSchedule();
-});
-ipcMain.handle('leader-email:load', () => currentLeaderEmailSettings());
-ipcMain.handle('leader-email:save', (_event, settings) => {
-  const cfg = appConfig();
-  cfg.leaderEmails = {
-    enabled: Boolean(settings.enabled),
-    sendOnSubmit: Boolean(settings.sendOnSubmit),
-    sendOnPublish: Boolean(settings.sendOnPublish),
-    apiBaseUrl: String(settings.apiBaseUrl || '').trim().replace(/\/$/, ''),
-    apiToken: String(settings.apiToken || '').trim()
-  };
-  writeAppConfig(cfg);
-  buildMenu();
-  return currentLeaderEmailSettings();
-});
-ipcMain.handle('leader-email:test-api', (_event, settings) => testLeaderEmailApi(settings, 'Richard Higham'));
-ipcMain.handle('logs:load', () => readLogLines());
-ipcMain.handle('setup:load', () => setupState());
-ipcMain.handle('setup:choose-logo', () => chooseBrandLogo(false));
-ipcMain.handle('setup:save', (_event, settings) => {
-  const selectedGroups = resolveGroups({ groups: settings.groups }, []);
-  if (fs.existsSync(sessionFile()) && !selectedGroups.length) {
-    return {
-      ...setupState(),
-      error: 'Select a Walks Manager group before saving setup.'
-    };
-  }
 
-  const cfg = appConfig();
-  const schedule = normalizeSchedule(settings.schedule || {});
-  cfg.checkIntervalMinutes = schedule.checkIntervalMinutes;
-  cfg.activeHours = schedule.activeHours;
-  cfg.notificationRecipients = parseRecipients(settings.recipients);
-  cfg.smtp = {
-    host: String(settings.smtp?.host || '').trim(),
-    port: Number(settings.smtp?.port || 587),
-    secure: Boolean(settings.smtp?.secure),
-    user: String(settings.smtp?.user || '').trim(),
-    pass: String(settings.smtp?.pass || ''),
-    fromName: String(settings.smtp?.fromName || '').trim(),
-    from: String(settings.smtp?.from || '').trim()
-  };
-  cfg.groups = selectedGroups;
-  writeAppConfig(cfg);
-  const state = setupState();
-  buildMenu();
-  if (state.complete) {
-    if (setupWindow) setupWindow.close();
-    refreshScheduler();
-    startUpdateChecks();
+ipcMain.handle('connect:status', async () => {
+  const apiKeySet = apiClient.hasApiKey();
+  if (!apiKeySet) return { apiKeySet: false, groups: [], sessionPresent: false };
+  try {
+    const [config, sessionStatus] = await Promise.all([apiClient.getConfig(), apiClient.getSessionStatus()]);
+    cachedConfig = config;
+    cachedGroups = config.groups || [];
+    cachedSessionPresent = sessionStatus.present;
+  } catch (_) {
+    // Key saved but server unreachable right now - report what we know locally.
   }
-  return state;
+  return { apiKeySet, groups: cachedGroups, sessionPresent: cachedSessionPresent };
 });
-ipcMain.handle('setup:login', async () => {
+
+ipcMain.handle('connect:save-api-key', async (_event, apiKey) => {
+  const trimmed = String(apiKey || '').trim();
+  if (!trimmed) throw new Error('Enter an API key first.');
+  await apiClient.testConnection(trimmed);
+  apiClient.setApiKey(trimmed);
+  await refreshCache();
+  buildMenu();
+  return { ok: true };
+});
+
+ipcMain.handle('connect:login', async () => {
   await dialog.showMessageBox({
     type: 'info',
     title: 'Walks Manager Login',
-    message: 'A browser window will open. Sign in to Walks Manager and wait until the review list loads. The app will save the session automatically.'
+    message: 'A browser window will open. Sign in to Walks Manager and wait until the review list loads. The session will be uploaded to the server automatically.'
   });
   const result = await openWalksManagerLoginWindow();
-  if (result.code === 0) buildMenu();
+  if (result.code === 0) {
+    await refreshCache();
+    buildMenu();
+  }
   return {
     code: result.code,
     message: result.message,
-    groups: result.groups || [],
-    sessionPresent: fs.existsSync(sessionFile())
+    groups: result.groups || cachedGroups,
+    sessionPresent: cachedSessionPresent
   };
 });
-ipcMain.handle('setup:test-email', () => sendSmtpTestEmail(true));
+
+ipcMain.handle('connect:save-groups', async (_event, groups) => {
+  await saveSelectedGroups(groups);
+  return { groups: cachedGroups };
+});
+
+ipcMain.handle('recipients:load', async () => {
+  cachedConfig = await apiClient.getConfig();
+  return cachedConfig.notificationRecipients || [];
+});
+ipcMain.handle('recipients:save', async (_event, text) => {
+  const recipients = parseRecipients(text);
+  cachedConfig = await apiClient.putConfig({ notificationRecipients: recipients });
+  buildMenu();
+  return cachedConfig.notificationRecipients || [];
+});
+
+ipcMain.handle('schedule:load', async () => {
+  cachedConfig = await apiClient.getConfig();
+  return { checkIntervalMinutes: cachedConfig.checkIntervalMinutes || 5, activeHours: cachedConfig.activeHours || { start: 7, end: 22 } };
+});
+ipcMain.handle('schedule:save', async (_event, settings) => {
+  const { normalizeSchedule } = require('./schedule');
+  const schedule = normalizeSchedule(settings || {});
+  cachedConfig = await apiClient.putConfig({ checkIntervalMinutes: schedule.checkIntervalMinutes, activeHours: schedule.activeHours });
+  buildMenu();
+  return { checkIntervalMinutes: cachedConfig.checkIntervalMinutes, activeHours: cachedConfig.activeHours };
+});
+
+ipcMain.handle('leader-email:load', async () => {
+  cachedConfig = await apiClient.getConfig();
+  return cachedConfig.leaderEmails || {};
+});
+ipcMain.handle('leader-email:save', async (_event, settings) => {
+  cachedConfig = await apiClient.putConfig({ leaderEmails: settings });
+  buildMenu();
+  return cachedConfig.leaderEmails || {};
+});
+ipcMain.handle('leader-email:test-api', (_event, settings) => apiClient.testLeaderApi({ ...settings, name: 'Richard Higham' }));
+
+ipcMain.handle('logs:load', async () => {
+  try {
+    const result = await apiClient.getLogs();
+    return (result.lines || []).slice().reverse();
+  } catch (error) {
+    return [`Could not load logs: ${error.message}`];
+  }
+});
+
+ipcMain.handle('about:load', () => ({
+  version: displayVersion(),
+  channel: releaseChannelLabel()
+}));
+ipcMain.handle('about:open-website', () => shell.openExternal(websiteUrl));
+
+ipcMain.handle('status:load', () => ({
+  text: buildStatusText(),
+  maintenanceMessage: cachedStatus?.maintenanceMessage || null
+}));
+ipcMain.handle('status:retry', async () => {
+  await refreshCache();
+  return {
+    text: buildStatusText(),
+    maintenanceMessage: cachedStatus?.maintenanceMessage || null
+  };
+});
+ipcMain.handle('status:open-log', () => showLogWindow());
+
 app.on('before-quit', () => {
-  if (timer) clearInterval(timer);
+  if (statusPollTimer) clearInterval(statusPollTimer);
   stopUpdateChecks();
 });
 app.on('window-all-closed', (e) => {

@@ -15,9 +15,9 @@ if ! grep -q "^version: $VERSION$" dist/latest-linux.yml; then
 fi
 
 for file in \
-  "dist/Walks-Manager-Watch-$VERSION-x86_64.AppImage" \
-  "dist/Walks-Manager-Watch-$VERSION-amd64.deb" \
-  "dist/Walks-Manager-Watch-$VERSION-x86_64.rpm"; do
+  "dist/RA-Walks-Notifier-$VERSION-x86_64.AppImage" \
+  "dist/RA-Walks-Notifier-$VERSION-amd64.deb" \
+  "dist/RA-Walks-Notifier-$VERSION-x86_64.rpm"; do
   if [ ! -s "$file" ]; then
     echo "Missing release artifact: $file"
     exit 1
