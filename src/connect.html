@@ -244,6 +244,9 @@
         if (result.groups && result.groups.length) {
           knownGroups = result.groups;
           renderGroups(result.groups, result.groups.length === 1 ? [result.groups[0].gid] : []);
+          if (result.groups.length === 1) {
+            setMessage(groupsMessage, 'Saved automatically.', 'ok');
+          }
         }
       } catch (error) {
         setMessage(loginMessage, error.message, 'error');
