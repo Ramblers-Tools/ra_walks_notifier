@@ -17,9 +17,14 @@ function getApiKey() {
   return String(readJson(paths.clientConfigFile, {}).apiKey || '').trim();
 }
 
-function setApiKey(apiKey) {
+function writeClientConfig(patch) {
+  const current = readJson(paths.clientConfigFile, {});
   fs.mkdirSync(path.dirname(paths.clientConfigFile), { recursive: true });
-  fs.writeFileSync(paths.clientConfigFile, `${JSON.stringify({ apiKey: String(apiKey || '').trim() }, null, 2)}\n`, { mode: 0o600 });
+  fs.writeFileSync(paths.clientConfigFile, `${JSON.stringify({ ...current, ...patch }, null, 2)}\n`, { mode: 0o600 });
+}
+
+function setApiKey(apiKey) {
+  writeClientConfig({ apiKey: String(apiKey || '').trim() });
 }
 
 function hasApiKey() {
@@ -28,6 +33,19 @@ function hasApiKey() {
 
 function clearApiKey() {
   setApiKey('');
+}
+
+// The beta-updates opt-in is a per-device preference, not tenant config, so
+// it is stored locally rather than round-tripped through the server (the
+// server's /api/config merge logic does not recognise this field and would
+// silently drop it).
+function getIncludeBetaUpdates() {
+  const value = readJson(paths.clientConfigFile, {}).includeBetaUpdates;
+  return typeof value === 'boolean' ? value : null;
+}
+
+function setIncludeBetaUpdates(value) {
+  writeClientConfig({ includeBetaUpdates: Boolean(value) });
 }
 
 function errorFromResponse(response, body) {
@@ -132,6 +150,8 @@ module.exports = {
   setApiKey,
   clearApiKey,
   hasApiKey,
+  getIncludeBetaUpdates,
+  setIncludeBetaUpdates,
   getConfig,
   putConfig,
   getStatus,

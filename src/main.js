@@ -67,7 +67,7 @@ function displayVersion() {
 }
 
 function includeBetaUpdates() {
-  const configured = cachedConfig?.updates?.includeBeta;
+  const configured = apiClient.getIncludeBetaUpdates();
   if (typeof configured === 'boolean') return configured;
   return isBetaBuild();
 }
@@ -89,11 +89,7 @@ async function toggleBetaUpdates() {
       return;
     }
   }
-  try {
-    cachedConfig = await apiClient.putConfig({ updates: Object.assign({}, cachedConfig?.updates, { includeBeta: nextValue }) });
-  } catch (error) {
-    dialog.showMessageBox({ type: 'error', title: 'RA Walks Notifier', message: error.message });
-  }
+  apiClient.setIncludeBetaUpdates(nextValue);
   buildMenu();
 }
 
