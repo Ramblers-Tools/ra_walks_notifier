@@ -48,18 +48,23 @@ function setIncludeBetaUpdates(value) {
   writeClientConfig({ includeBetaUpdates: Boolean(value) });
 }
 
-function errorFromResponse(response, body) {
+function errorFromResponse(response, body, pathName) {
+  const diagnostic = `${pathName} -> HTTP ${response.status} ${JSON.stringify(body).slice(0, 200)} at ${new Date().toISOString()}`;
   if (response.status === 503 && body.error === 'maintenance') {
     const error = new Error(body.message || 'The server is undergoing maintenance. Please try again shortly.');
     error.code = 'maintenance';
+    error.diagnostic = diagnostic;
     return error;
   }
   if (response.status === 401) {
     const error = new Error('That API key is no longer valid. Enter a new one to reconnect.');
     error.code = 'unauthorized';
+    error.diagnostic = diagnostic;
     return error;
   }
-  return new Error(body.error || `Server returned HTTP ${response.status}`);
+  const error = new Error(body.error || `Server returned HTTP ${response.status}`);
+  error.diagnostic = diagnostic;
+  return error;
 }
 
 async function apiFetch(pathName, options = {}) {
@@ -83,7 +88,7 @@ async function apiFetch(pathName, options = {}) {
 
   const body = await response.json().catch(() => ({}));
   if (!response.ok) {
-    throw errorFromResponse(response, body);
+    throw errorFromResponse(response, body, pathName);
   }
   return body;
 }

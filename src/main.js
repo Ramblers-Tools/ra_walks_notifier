@@ -269,7 +269,7 @@ async function refreshCache() {
       return;
     }
     if (error.code === 'maintenance') {
-      cachedStatus = { ...(cachedStatus || {}), maintenanceMessage: error.message };
+      cachedStatus = { ...(cachedStatus || {}), maintenanceMessage: `${error.message} [${error.diagnostic || 'no diagnostic'}]` };
     } else {
       cachedStatus = { ...(cachedStatus || {}), maintenanceMessage: null, lastError: `Could not reach server: ${error.message}` };
     }
