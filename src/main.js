@@ -829,32 +829,73 @@ async function advanceLoginWindowToReviewList(window) {
 }
 
 async function extractWalksManagerGroups(window) {
-  const groups = await withTimeout(window.webContents.executeJavaScript(`
+  const result = await withTimeout(window.webContents.executeJavaScript(`
     (() => {
       const select = document.querySelector('select[name="gid"], #edit-gid, [data-drupal-selector="edit-gid"]');
       if (select) {
-        return Array.from(select.options || [])
+        const groups = Array.from(select.options || [])
           .filter(option => option.value && /^\\d+$/.test(option.value))
           .map(option => ({ gid: Number(option.value), name: (option.textContent || '').trim() }))
           .filter(group => group.gid && group.name);
+        return { groups, diagnostic: 'select found with ' + groups.length + ' option(s)' };
       }
 
       // Walks Manager omits the group selector entirely for accounts that
       // only belong to one group, since there is nothing to choose between.
       // Fall back to the gid embedded in the current review-list URL.
       const gid = Number(new URLSearchParams(window.location.search).get('gid'));
-      if (!gid) return [];
+      if (!gid) {
+        return { groups: [], diagnostic: 'no select and no gid in URL (' + window.location.href + ')' };
+      }
       const heading = document.querySelector('h1, h2, .page-title, [data-drupal-selector="page-title"]');
       const name = (heading && heading.textContent || '').trim();
-      return [{ gid, name: name || ('Group ' + gid) }];
+      return {
+        groups: [{ gid, name: name || ('Group ' + gid) }],
+        diagnostic: 'no select; used gid=' + gid + ' from URL, heading=' + JSON.stringify(name)
+      };
     })()
-  `, true).catch(() => []), 5000, []);
+  `, true).catch((error) => ({ groups: [], diagnostic: 'executeJavaScript failed: ' + (error && error.message) })), 5000, { groups: [], diagnostic: 'timed out' });
+
   const seen = new Set();
-  return groups.filter(group => {
+  const groups = (result.groups || []).filter(group => {
     if (seen.has(group.gid)) return false;
     seen.add(group.gid);
     return true;
   });
+  return { groups, diagnostic: result.diagnostic };
+}
+
+// For single-group accounts, Walks Manager renders neither a group-picker
+// <select> nor a gid in the review-list URL. The "My Groups" page lists the
+// account's group(s) as links containing gid, so use it as a fallback.
+async function extractGroupsFromMyGroupsPage(window) {
+  try {
+    await window.webContents.loadURL('https://walks-manager.ramblers.org.uk/walks-manager/my-groups');
+  } catch (error) {
+    return { groups: [], diagnostic: `failed to load my-groups page: ${error.message}` };
+  }
+
+  await withTimeout(new Promise((resolve) => {
+    if (!window.webContents.isLoading()) {
+      resolve();
+      return;
+    }
+    window.webContents.once('did-finish-load', resolve);
+  }), 8000, null);
+
+  return withTimeout(window.webContents.executeJavaScript(`
+    (() => {
+      const links = Array.from(document.querySelectorAll('a[href*="gid="]'));
+      const groups = links
+        .map(a => {
+          const match = (a.getAttribute('href') || '').match(/gid=(\\d+)/);
+          if (!match) return null;
+          return { gid: Number(match[1]), name: (a.textContent || '').trim() };
+        })
+        .filter(group => group && group.gid && group.name);
+      return { groups, diagnostic: 'my-groups page: found ' + groups.length + ' link(s) with gid at ' + window.location.href };
+    })()
+  `, true).catch((error) => ({ groups: [], diagnostic: `my-groups executeJavaScript failed: ${error && error.message}` })), 5000, { groups: [], diagnostic: 'my-groups page timed out' });
 }
 
 async function saveSelectedGroups(groups) {
@@ -913,8 +954,19 @@ function openWalksManagerLoginWindow() {
         const { text, url } = await advanceLoginWindowToReviewList(loginWindow);
         if (!isWalksManagerReviewPage(text, url)) return;
 
-        const groups = await extractWalksManagerGroups(loginWindow);
+        let { groups, diagnostic } = await extractWalksManagerGroups(loginWindow);
         await saveElectronLoginSession(loginWindow);
+
+        if (!groups.length) {
+          const fallback = await extractGroupsFromMyGroupsPage(loginWindow);
+          if (fallback.groups.length) {
+            groups = fallback.groups;
+            diagnostic = fallback.diagnostic;
+          } else {
+            diagnostic = `${diagnostic}; ${fallback.diagnostic}`;
+          }
+        }
+
         clearInterval(interval);
         loginWindow.close();
 
@@ -929,7 +981,7 @@ function openWalksManagerLoginWindow() {
           return;
         }
 
-        resolve({ code: 0, message: 'Walks Manager login session saved. No group selector was found.', groups: [], sessionPresent: true });
+        resolve({ code: 0, message: `Walks Manager login session saved. No group selector was found. (${diagnostic})`, groups: [], sessionPresent: true });
       } catch (error) {
         clearInterval(interval);
         resolve({ code: 1, message: error.message });
