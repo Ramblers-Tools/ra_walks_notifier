@@ -68,6 +68,12 @@ async function apiFetch(pathName, options = {}) {
 
   const response = await fetch(`${API_BASE_URL}${pathName}`, {
     ...options,
+    // Electron's main-process fetch is backed by Chromium's network stack,
+    // which maintains its own on-disk HTTP cache independent of the server
+    // and any CDN in front of it. A transient response (e.g. a maintenance
+    // 503) could otherwise get served from that cache indefinitely, surviving
+    // both app restarts and upstream cache purges.
+    cache: 'no-store',
     headers: {
       Authorization: `Bearer ${apiKey}`,
       'Content-Type': 'application/json',
@@ -134,6 +140,7 @@ function getLogs(lines = 500) {
 // above, so the "Connect" window can confirm a key works before saving it.
 async function testConnection(apiKey) {
   const response = await fetch(`${API_BASE_URL}/api/status`, {
+    cache: 'no-store',
     headers: { Authorization: `Bearer ${apiKey}` }
   });
   if (response.status === 401) throw new Error('That API key was not accepted.');
