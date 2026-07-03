@@ -1218,11 +1218,18 @@ ipcMain.handle('status:load', () => ({
   maintenanceMessage: cachedStatus?.maintenanceMessage || null
 }));
 ipcMain.handle('status:retry', async () => {
-  await refreshCache();
-  return {
-    text: buildStatusText(),
-    maintenanceMessage: cachedStatus?.maintenanceMessage || null
-  };
+  try {
+    await refreshCache();
+    return {
+      text: buildStatusText(),
+      maintenanceMessage: cachedStatus?.maintenanceMessage || null
+    };
+  } catch (error) {
+    return {
+      text: `Check failed unexpectedly: ${error.message}`,
+      maintenanceMessage: null
+    };
+  }
 });
 ipcMain.handle('status:open-log', () => showLogWindow());
 

@@ -110,6 +110,8 @@
       button.textContent = 'Checking…';
       try {
         render(await window.statusApi.retry());
+      } catch (error) {
+        document.getElementById('text').textContent = `Check failed: ${error.message}`;
       } finally {
         button.disabled = false;
         button.textContent = 'Try again';
