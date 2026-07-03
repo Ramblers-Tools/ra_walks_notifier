@@ -898,6 +898,49 @@ async function extractGroupsFromMyGroupsPage(window) {
   `, true).catch((error) => ({ groups: [], diagnostic: `my-groups executeJavaScript failed: ${error && error.message}` })), 5000, { groups: [], diagnostic: 'my-groups page timed out' });
 }
 
+function showConfiguringWindow() {
+  const win = trackVisibleWindow(new BrowserWindow(appWindowOptions({
+    width: 420,
+    height: 180,
+    resizable: false,
+    minimizable: false,
+    fullscreenable: false,
+    show: false,
+    title: 'RA Walks Notifier',
+    backgroundColor: '#f7f8fa'
+  })));
+  win.loadURL(`data:text/html,${encodeURIComponent(`
+    <!doctype html>
+    <html>
+      <head>
+        <style>
+          body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            background: #f7f8fa;
+            color: #1f2933;
+          }
+          p {
+            font-size: 14px;
+            line-height: 1.5;
+            text-align: center;
+            padding: 0 24px;
+          }
+        </style>
+      </head>
+      <body>
+        <p>Please wait&hellip;<br>Configuring Walks Manager settings.</p>
+      </body>
+    </html>
+  `)}`);
+  win.once('ready-to-show', () => win.show());
+  return win;
+}
+
 async function saveSelectedGroups(groups) {
   const normalized = (groups || [])
     .map(group => ({ name: String(group.name || '').trim(), gid: Number(group.gid) }))
@@ -937,6 +980,7 @@ function openWalksManagerLoginWindow() {
   return new Promise((resolve) => {
     const startedAt = Date.now();
     const timeoutMs = 5 * 60 * 1000;
+    let configuringWindow = null;
     const interval = setInterval(async () => {
       if (!loginWindow) {
         clearInterval(interval);
@@ -954,6 +998,10 @@ function openWalksManagerLoginWindow() {
         const { text, url } = await advanceLoginWindowToReviewList(loginWindow);
         if (!isWalksManagerReviewPage(text, url)) return;
 
+        clearInterval(interval);
+        configuringWindow = showConfiguringWindow();
+        loginWindow.hide();
+
         let { groups, diagnostic } = await extractWalksManagerGroups(loginWindow);
         await saveElectronLoginSession(loginWindow);
 
@@ -967,7 +1015,8 @@ function openWalksManagerLoginWindow() {
           }
         }
 
-        clearInterval(interval);
+        configuringWindow.close();
+        configuringWindow = null;
         loginWindow.close();
 
         if (groups.length === 1) {
@@ -984,6 +1033,8 @@ function openWalksManagerLoginWindow() {
         resolve({ code: 0, message: `Walks Manager login session saved. No group selector was found. (${diagnostic})`, groups: [], sessionPresent: true });
       } catch (error) {
         clearInterval(interval);
+        if (configuringWindow && !configuringWindow.isDestroyed()) configuringWindow.close();
+        if (loginWindow) loginWindow.show();
         resolve({ code: 1, message: error.message });
       }
     }, 1500);
