@@ -39,7 +39,7 @@ else
     --target "$TARGET_BRANCH" \
     --title "RA Walks Notifier $TAG" \
     --notes "$NOTES" \
-    "${PRERELEASE_FLAGS[@]}" \
+    "${PRERELEASE_FLAGS[@]+"${PRERELEASE_FLAGS[@]}"}" \
     "${assets[@]}"
 fi
 
