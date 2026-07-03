@@ -26,10 +26,19 @@ function hasApiKey() {
   return Boolean(getApiKey());
 }
 
+function clearApiKey() {
+  setApiKey('');
+}
+
 function errorFromResponse(response, body) {
   if (response.status === 503 && body.error === 'maintenance') {
     const error = new Error(body.message || 'The server is undergoing maintenance. Please try again shortly.');
     error.code = 'maintenance';
+    return error;
+  }
+  if (response.status === 401) {
+    const error = new Error('That API key is no longer valid. Enter a new one to reconnect.');
+    error.code = 'unauthorized';
     return error;
   }
   return new Error(body.error || `Server returned HTTP ${response.status}`);
@@ -121,6 +130,7 @@ module.exports = {
   API_BASE_URL,
   getApiKey,
   setApiKey,
+  clearApiKey,
   hasApiKey,
   getConfig,
   putConfig,

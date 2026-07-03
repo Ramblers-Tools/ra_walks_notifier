@@ -58,9 +58,23 @@ test('apiFetch sends the Bearer header and returns the parsed JSON body', async 
 test('apiFetch surfaces the server error message on a non-2xx response', async () => {
   apiClient.setApiKey('test-key');
   const originalFetch = global.fetch;
-  global.fetch = async () => ({ ok: false, status: 401, json: async () => ({ error: 'unauthorized' }) });
+  global.fetch = async () => ({ ok: false, status: 400, json: async () => ({ error: 'bad request' }) });
   try {
-    await assert.rejects(() => apiClient.getStatus(), /unauthorized/);
+    await assert.rejects(() => apiClient.getStatus(), /bad request/);
+  } finally {
+    global.fetch = originalFetch;
+  }
+});
+
+test('apiFetch flags a revoked/invalid API key distinctly from other errors', async () => {
+  apiClient.setApiKey('test-key');
+  const originalFetch = global.fetch;
+  global.fetch = async () => ({ ok: false, status: 401, json: async () => ({}) });
+  try {
+    await assert.rejects(() => apiClient.getStatus(), (error) => {
+      assert.equal(error.code, 'unauthorized');
+      return true;
+    });
   } finally {
     global.fetch = originalFetch;
   }

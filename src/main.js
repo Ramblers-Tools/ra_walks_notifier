@@ -239,6 +239,22 @@ function showLogWindow() {
   logWindow.loadFile(path.join(__dirname, 'log.html'));
 }
 
+function handleRevokedApiKey(message) {
+  apiClient.clearApiKey();
+  cachedConfig = null;
+  cachedGroups = [];
+  cachedSessionPresent = false;
+  cachedStatus = null;
+  buildMenu();
+  dialog.showMessageBox({
+    type: 'error',
+    title: 'RA Walks Notifier',
+    message: 'Reconnect required',
+    detail: message
+  });
+  showConnectWindow();
+}
+
 async function refreshCache() {
   if (!apiClient.hasApiKey()) return;
   try {
@@ -252,6 +268,10 @@ async function refreshCache() {
     cachedGroups = config.groups || [];
     cachedSessionPresent = sessionStatus.present;
   } catch (error) {
+    if (error.code === 'unauthorized') {
+      handleRevokedApiKey(error.message);
+      return;
+    }
     if (error.code === 'maintenance') {
       cachedStatus = { ...(cachedStatus || {}), maintenanceMessage: error.message };
     } else {
@@ -301,6 +321,10 @@ async function checkNow(force = false) {
   try {
     await apiClient.postCheckNow(force);
   } catch (error) {
+    if (error.code === 'unauthorized') {
+      handleRevokedApiKey(error.message);
+      return;
+    }
     new Notification({ title: 'RA Walks Notifier', body: error.message }).show();
   }
   // The check runs asynchronously on the server; poll shortly after to
