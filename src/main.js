@@ -836,11 +836,21 @@ async function extractWalksManagerGroups(window) {
   const groups = await withTimeout(window.webContents.executeJavaScript(`
     (() => {
       const select = document.querySelector('select[name="gid"], #edit-gid, [data-drupal-selector="edit-gid"]');
-      if (!select) return [];
-      return Array.from(select.options || [])
-        .filter(option => option.value && /^\\d+$/.test(option.value))
-        .map(option => ({ gid: Number(option.value), name: (option.textContent || '').trim() }))
-        .filter(group => group.gid && group.name);
+      if (select) {
+        return Array.from(select.options || [])
+          .filter(option => option.value && /^\\d+$/.test(option.value))
+          .map(option => ({ gid: Number(option.value), name: (option.textContent || '').trim() }))
+          .filter(group => group.gid && group.name);
+      }
+
+      // Walks Manager omits the group selector entirely for accounts that
+      // only belong to one group, since there is nothing to choose between.
+      // Fall back to the gid embedded in the current review-list URL.
+      const gid = Number(new URLSearchParams(window.location.search).get('gid'));
+      if (!gid) return [];
+      const heading = document.querySelector('h1, h2, .page-title, [data-drupal-selector="page-title"]');
+      const name = (heading && heading.textContent || '').trim();
+      return [{ gid, name: name || ('Group ' + gid) }];
     })()
   `, true).catch(() => []), 5000, []);
   const seen = new Set();
