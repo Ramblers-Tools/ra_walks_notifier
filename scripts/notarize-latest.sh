@@ -9,9 +9,13 @@ if [ -z "$TARGET" ]; then
   echo "No built .dmg or .zip for version $VERSION found in dist/. Run npm run build:mac:signed first."
   exit 1
 fi
-NOTARY_ARGS=(--keychain-profile WalksManagerWatchNotary)
-if [ -n "${WMW_NOTARY_KEYCHAIN:-}" ]; then
-  NOTARY_ARGS+=(--keychain "$WMW_NOTARY_KEYCHAIN")
+if [ -n "${APPLE_ID:-}" ] && [ -n "${APPLE_TEAM_ID:-}" ] && [ -n "${APPLE_APP_SPECIFIC_PASSWORD:-}" ]; then
+  NOTARY_ARGS=(--apple-id "$APPLE_ID" --team-id "$APPLE_TEAM_ID" --password "$APPLE_APP_SPECIFIC_PASSWORD")
+else
+  NOTARY_ARGS=(--keychain-profile WalksManagerWatchNotary)
+  if [ -n "${WMW_NOTARY_KEYCHAIN:-}" ]; then
+    NOTARY_ARGS+=(--keychain "$WMW_NOTARY_KEYCHAIN")
+  fi
 fi
 xcrun notarytool submit "$TARGET" "${NOTARY_ARGS[@]}" --wait
 if [[ "$TARGET" == *.dmg ]]; then
