@@ -837,7 +837,12 @@ async function extractWalksManagerGroups(window) {
           .filter(option => option.value && /^\\d+$/.test(option.value))
           .map(option => ({ gid: Number(option.value), name: (option.textContent || '').trim() }))
           .filter(group => group.gid && group.name);
-        return { groups, diagnostic: 'select found with ' + groups.length + ' option(s)' };
+        if (groups.length) {
+          return { groups, diagnostic: 'select found with ' + groups.length + ' option(s)' };
+        }
+        // A select element exists but has no usable options - treat this
+        // the same as no select at all and fall through to the URL/my-groups
+        // fallbacks, rather than reporting zero groups.
       }
 
       // Walks Manager omits the group selector entirely for accounts that
@@ -845,7 +850,7 @@ async function extractWalksManagerGroups(window) {
       // Fall back to the gid embedded in the current review-list URL.
       const gid = Number(new URLSearchParams(window.location.search).get('gid'));
       if (!gid) {
-        return { groups: [], diagnostic: 'no select and no gid in URL (' + window.location.href + ')' };
+        return { groups: [], diagnostic: (select ? 'select found with 0 usable options' : 'no select') + ' and no gid in URL (' + window.location.href + ')' };
       }
       const heading = document.querySelector('h1, h2, .page-title, [data-drupal-selector="page-title"]');
       const name = (heading && heading.textContent || '').trim();
@@ -885,15 +890,43 @@ async function extractGroupsFromMyGroupsPage(window) {
 
   return withTimeout(window.webContents.executeJavaScript(`
     (() => {
-      const links = Array.from(document.querySelectorAll('a[href*="gid="]'));
+      const extractGid = (href) => {
+        const queryMatch = href.match(/[?&]gid=(\\d+)/);
+        if (queryMatch) return Number(queryMatch[1]);
+        // Action links (e.g. "View walk leaders") carry the gid as a bare
+        // path segment instead, with no "gid=" text anywhere on the page:
+        // /walks-manager/my-groups/229/contact-preferences-walk-leaders
+        const pathMatch = href.match(/\\/my-groups\\/(\\d+)(?:[/?]|$)/);
+        return pathMatch ? Number(pathMatch[1]) : null;
+      };
+
+      // Groups are listed as table rows: the group name is the row's first
+      // cell, and the gid comes from any action link within that same row.
+      const rows = Array.from(document.querySelectorAll('table tr'));
+      const fromRows = [];
+      for (const row of rows) {
+        const hrefs = Array.from(row.querySelectorAll('a[href]')).map(a => a.getAttribute('href') || '');
+        const gid = hrefs.map(extractGid).find(value => value);
+        if (!gid) continue;
+        const nameCell = row.querySelector('td');
+        const name = (nameCell && nameCell.textContent || '').trim();
+        if (name) fromRows.push({ gid, name });
+      }
+      if (fromRows.length) {
+        return { groups: fromRows, diagnostic: 'my-groups page: found ' + fromRows.length + ' table row(s) with a group link at ' + window.location.href };
+      }
+
+      // Fall back to any bare link with a recognizable gid, in case an
+      // account's page isn't rendered as a table.
+      const links = Array.from(document.querySelectorAll('a[href]'));
       const groups = links
         .map(a => {
-          const match = (a.getAttribute('href') || '').match(/gid=(\\d+)/);
-          if (!match) return null;
-          return { gid: Number(match[1]), name: (a.textContent || '').trim() };
+          const gid = extractGid(a.getAttribute('href') || '');
+          if (!gid) return null;
+          return { gid, name: (a.textContent || '').trim() };
         })
         .filter(group => group && group.gid && group.name);
-      return { groups, diagnostic: 'my-groups page: found ' + groups.length + ' link(s) with gid at ' + window.location.href };
+      return { groups, diagnostic: 'my-groups page: found ' + groups.length + ' link(s) with a group gid at ' + window.location.href };
     })()
   `, true).catch((error) => ({ groups: [], diagnostic: `my-groups executeJavaScript failed: ${error && error.message}` })), 5000, { groups: [], diagnostic: 'my-groups page timed out' });
 }
