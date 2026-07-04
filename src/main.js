@@ -453,7 +453,10 @@ function prepareForUpdateInstall() {
 
 function installDownloadedUpdate() {
   prepareForUpdateInstall();
-  setImmediate(() => autoUpdater.quitAndInstall(false, true));
+  // isSilent=true: on Windows this suppresses the NSIS installer wizard so
+  // the update just replaces files and relaunches, matching the mac/Linux
+  // experience where there's no equivalent visible install step to skip.
+  setImmediate(() => autoUpdater.quitAndInstall(true, true));
 }
 
 function removePathIfPresent(target) {
