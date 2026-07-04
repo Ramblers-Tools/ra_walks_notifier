@@ -489,7 +489,7 @@ function cleanupDownloadedUpdateCache() {
 function configureUpdates() {
   if (updateHandlersConfigured) return;
   updateHandlersConfigured = true;
-  autoUpdater.autoDownload = false;
+  autoUpdater.autoDownload = true;
   autoUpdater.autoInstallOnAppQuit = true;
 
   autoUpdater.on('before-quit-for-update', () => {
@@ -516,24 +516,11 @@ function configureUpdates() {
 
   autoUpdater.on('update-available', (info) => {
     manualUpdateCheck = false;
-    updateStatus = `Version ${info.version} available`;
+    updateStatus = `Downloading version ${info.version}...`;
     buildMenu();
-    dialog.showMessageBox({
-      type: 'info',
-      title: 'RA Walks Notifier Update',
-      message: `Version ${info.version} is available.`,
-      detail: 'Download it now and install when ready?',
-      buttons: ['Download', 'Later'],
-      defaultId: 0,
-      cancelId: 1
-    }).then(result => {
-      if (result.response === 0) {
-        updateStatus = 'Downloading...';
-        buildMenu();
-        cleanupDownloadedUpdateCache();
-        autoUpdater.downloadUpdate();
-      }
-    });
+    // Runs synchronously before autoUpdater's own auto-download kicks in
+    // (it starts downloading right after this event finishes emitting).
+    cleanupDownloadedUpdateCache();
   });
 
   autoUpdater.on('update-downloaded', (info) => {
