@@ -124,7 +124,11 @@
 
   <section id="loginSection" class="disabled">
     <h2>2. Walks Manager Login</h2>
-    <div class="hint">A browser window will open. Sign in to Walks Manager and wait until the review list loads. The session is uploaded to the server automatically.</div>
+    <label for="wmUsername">Walks Manager username</label>
+    <input id="wmUsername" type="text" autocomplete="off">
+    <label for="wmPassword" style="margin-top: 10px;">Walks Manager password</label>
+    <input id="wmPassword" type="password" autocomplete="off">
+    <div class="hint">We'll sign in for you automatically. If a security check (e.g. a verification code) is needed, a browser window will open so you can finish signing in yourself. Your password isn't stored by this app.</div>
     <div class="actions">
       <button id="login" class="primary">Login to Walks Manager</button>
     </div>
@@ -160,6 +164,8 @@
     const apiKeyMessage = document.getElementById('apiKeyMessage');
     const loginSection = document.getElementById('loginSection');
     const loginMessage = document.getElementById('loginMessage');
+    const wmUsernameInput = document.getElementById('wmUsername');
+    const wmPasswordInput = document.getElementById('wmPassword');
     const groupsSection = document.getElementById('groupsSection');
     const groupList = document.getElementById('groupList');
     const groupsMessage = document.getElementById('groupsMessage');
@@ -236,10 +242,17 @@
 
     document.getElementById('login').addEventListener('click', async () => {
       const button = document.getElementById('login');
+      const username = wmUsernameInput.value.trim();
+      const password = wmPasswordInput.value;
+      if (!username || !password) {
+        setMessage(loginMessage, 'Enter your Walks Manager username and password.', 'error');
+        return;
+      }
       button.disabled = true;
-      setMessage(loginMessage, 'Waiting for login...', '');
+      setMessage(loginMessage, 'Signing in...', '');
       try {
-        const result = await window.connect.login();
+        const result = await window.connect.login({ username, password });
+        wmPasswordInput.value = '';
         setMessage(loginMessage, result.message, result.code === 0 ? 'ok' : 'error');
         if (result.groups && result.groups.length) {
           knownGroups = result.groups;
