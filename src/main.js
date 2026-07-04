@@ -996,7 +996,27 @@ function fillAndSubmit(window, fields) {
   `, true).catch(() => false), 4000, false);
 }
 
-function watchForAutofillOpportunity(window, credentials) {
+// Auth0's default error copy for a bad login on Ramblers' tenant. Kept
+// narrow on purpose: only phrases we're confident mean "wrong credentials"
+// should skip the browser handoff, since anything else masked as this could
+// leave the user stuck retyping a password that was never the problem.
+const CREDENTIAL_ERROR_PATTERN = /wrong (?:email|username) or password|incorrect (?:email|username) or password|invalid (?:email|username) or password/i;
+
+async function detectCredentialError(window) {
+  const text = await withTimeout(
+    window.webContents.executeJavaScript('document.body ? document.body.innerText : ""', true).catch(() => ''),
+    3000,
+    ''
+  );
+  return CREDENTIAL_ERROR_PATTERN.test(text || '');
+}
+
+// onNeedsHuman is called at most once, with 'credentials' when Auth0 reports
+// a plain wrong-username-or-password error (safe to let the user just retry
+// in our own form, no browser needed) or 'unknown' for anything else we
+// can't interpret (MFA, CAPTCHA, an Auth0 UI change) - those need a human in
+// the actual browser window.
+function watchForAutofillOpportunity(window, credentials, onNeedsHuman) {
   let settled = false;
   let identifierSubmitted = false;
   let passwordSubmitted = false;
@@ -1006,6 +1026,12 @@ function watchForAutofillOpportunity(window, credentials) {
   const stop = () => {
     settled = true;
     clearInterval(poll);
+  };
+
+  const needsHuman = (reason) => {
+    if (settled) return;
+    stop();
+    onNeedsHuman(reason);
   };
 
   const poll = setInterval(async () => {
@@ -1018,8 +1044,7 @@ function watchForAutofillOpportunity(window, credentials) {
       // Absolute ceiling in case an identifier screen keeps re-rendering
       // without ever reaching a password field - don't leave the window
       // hidden indefinitely.
-      if (!window.isDestroyed() && !window.isVisible()) window.show();
-      stop();
+      needsHuman('unknown');
       return;
     }
 
@@ -1033,10 +1058,11 @@ function watchForAutofillOpportunity(window, credentials) {
         // Manager, something unrecognized is blocking progress (CAPTCHA,
         // an unfamiliar Auth0 screen) - a human needs to see it.
         const url = window.webContents.getURL();
-        if (!/walks-manager\.ramblers\.org\.uk/i.test(url) && !window.isDestroyed() && !window.isVisible()) {
-          window.show();
+        if (!/walks-manager\.ramblers\.org\.uk/i.test(url)) {
+          needsHuman('unknown');
+        } else {
+          stop();
         }
-        stop();
       }
       return;
     }
@@ -1050,7 +1076,7 @@ function watchForAutofillOpportunity(window, credentials) {
       if (passwordSubmitted) {
         // We already submitted and Auth0 is showing both fields again -
         // wrong credentials, MFA, or something we can't handle.
-        if (!window.isDestroyed() && !window.isVisible()) window.show();
+        needsHuman((await detectCredentialError(window)) ? 'credentials' : 'unknown');
         return;
       }
       passwordSubmitted = true;
@@ -1064,7 +1090,7 @@ function watchForAutofillOpportunity(window, credentials) {
     if (form.hasPassword) {
       // Two-step flow, second screen (password only).
       if (passwordSubmitted) {
-        if (!window.isDestroyed() && !window.isVisible()) window.show();
+        needsHuman((await detectCredentialError(window)) ? 'credentials' : 'unknown');
         return;
       }
       passwordSubmitted = true;
@@ -1111,28 +1137,57 @@ function openWalksManagerLoginWindow(credentials) {
     });
 
     loginWindow.loadURL(reviewUrlForGroup());
-
-    if (attemptingAutofill) {
-      autofillWatcher = watchForAutofillOpportunity(loginWindow, credentials);
-    }
   }
 
   return new Promise((resolve) => {
+    let settled = false;
+    const finish = (result) => {
+      if (settled) return;
+      settled = true;
+      if (autofillWatcher) autofillWatcher.stop();
+      resolve(result);
+    };
+
+    if (attemptingAutofill && !autofillWatcher && loginWindow) {
+      autofillWatcher = watchForAutofillOpportunity(loginWindow, credentials, (reason) => {
+        if (reason === 'credentials') {
+          // A plain wrong-username-or-password error - no need to drag the
+          // user into a browser for this, they can just retry in the app.
+          if (loginWindow) loginWindow.close();
+          finish({ code: 2, message: 'Incorrect Walks Manager username or password. Please try again.' });
+          return;
+        }
+        // Anything we can't interpret (MFA, CAPTCHA, an Auth0 UI change)
+        // needs a human in the actual browser window.
+        if (loginWindow && !loginWindow.isDestroyed() && !loginWindow.isVisible()) {
+          loginWindow.show();
+        }
+        dialog.showMessageBox({
+          type: 'info',
+          title: 'Walks Manager Login',
+          message: "We couldn't sign you in automatically. Please finish signing in using the window that just opened - once you're logged in, the rest happens automatically."
+        });
+      });
+    }
+
     const startedAt = Date.now();
     const timeoutMs = 5 * 60 * 1000;
     let configuringWindow = null;
     const interval = setInterval(async () => {
+      if (settled) {
+        clearInterval(interval);
+        return;
+      }
+
       if (!loginWindow) {
         clearInterval(interval);
-        if (autofillWatcher) autofillWatcher.stop();
-        resolve({ code: 1, message: 'Login window was closed before the session was saved.' });
+        finish({ code: 1, message: 'Login window was closed before the session was saved.' });
         return;
       }
 
       if (Date.now() - startedAt > timeoutMs) {
         clearInterval(interval);
-        if (autofillWatcher) autofillWatcher.stop();
-        resolve({ code: 1, message: 'Timed out waiting for Walks Manager login.' });
+        finish({ code: 1, message: 'Timed out waiting for Walks Manager login.' });
         return;
       }
 
@@ -1164,22 +1219,21 @@ function openWalksManagerLoginWindow(credentials) {
 
         if (groups.length === 1) {
           await saveSelectedGroups(groups);
-          resolve({ code: 0, message: `Walks Manager login saved. Group set to ${groups[0].name}.`, groups, sessionPresent: true });
+          finish({ code: 0, message: `Walks Manager login saved. Group set to ${groups[0].name}.`, groups, sessionPresent: true });
           return;
         }
 
         if (groups.length > 1) {
-          resolve({ code: 0, message: 'Walks Manager login saved. Select the group for this app.', groups, sessionPresent: true });
+          finish({ code: 0, message: 'Walks Manager login saved. Select the group for this app.', groups, sessionPresent: true });
           return;
         }
 
-        resolve({ code: 0, message: `Walks Manager login session saved. No group selector was found. (${diagnostic})`, groups: [], sessionPresent: true });
+        finish({ code: 0, message: `Walks Manager login session saved. No group selector was found. (${diagnostic})`, groups: [], sessionPresent: true });
       } catch (error) {
         clearInterval(interval);
-        if (autofillWatcher) autofillWatcher.stop();
         if (configuringWindow && !configuringWindow.isDestroyed()) configuringWindow.close();
         if (loginWindow) loginWindow.show();
-        resolve({ code: 1, message: error.message });
+        finish({ code: 1, message: error.message });
       }
     }, 1500);
   });
