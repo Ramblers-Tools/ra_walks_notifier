@@ -29,17 +29,13 @@ not just one beta release per cycle.
 1. Bump the version in `package.json` / `package-lock.json`:
    - First beta of a cycle: `x.y.0-beta.1`
    - Subsequent beta builds in the same cycle: `x.y.0-beta.2`, `.3`, etc.
-2. Build and validate:
-   ```bash
-   scripts/build-mac-release-clean.sh
-   scripts/notarize-latest.sh
-   scripts/build-linux-on-vm.sh   # builds from current branch, not main
-   scripts/validate-release-assets.sh
-   ```
-3. Publish via `scripts/publish-release.sh`, marked as a GitHub
-   **prerelease**, built from `beta`.
-4. Add release notes (see Changelog below).
-5. Beta-channel installs auto-update to this build; it's also
+2. Push the version bump to `beta`, then run the **Build and Publish
+   Release** GitHub Actions workflow (`workflow_dispatch`) against
+   `beta`. This builds mac (signed + notarized), Windows, and Linux in
+   parallel on GitHub-hosted runners, validates the assets, and
+   publishes the GitHub **prerelease** automatically.
+3. Add release notes (see Changelog below).
+4. Beta-channel installs auto-update to this build; it's also
    downloadable from GitHub under the prerelease tag.
 
 ## Promoting beta to stable
@@ -56,8 +52,9 @@ persistence across an upgrade, and the leader-email flow), promote it:
    leader email flow must still hold.
 3. Bump the version in `main` to the next stable release, e.g. `1.0.1`,
    `1.1.0` (drop the `-beta.N` suffix).
-4. Build, notarise, and publish as the new **latest** stable GitHub
-   release (mac + Linux).
+4. Run the **Build and Publish Release** GitHub Actions workflow
+   against `main` to build, notarise, and publish as the new **latest**
+   stable GitHub release.
 5. Merge `main` back into `beta` (so beta has everything main just
    received), then bump `beta`'s version to the next cycle's
    `x.(y+1).0-beta.1`. Keep using the same `beta` branch — it's
