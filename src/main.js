@@ -1098,10 +1098,7 @@ function openWalksManagerLoginWindow(credentials) {
       resizable: true,
       minimizable: true,
       fullscreenable: true,
-      // TODO: hide this again (show: !attemptingAutofill) once autofill is
-      // confirmed reliable against the real Auth0 login flow - left visible
-      // for now so we can watch what it's doing during testing.
-      show: true,
+      show: !attemptingAutofill,
       webPreferences: {
         partition: walksPartition,
         nodeIntegration: false,
