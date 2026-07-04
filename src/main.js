@@ -951,7 +951,88 @@ async function saveSelectedGroups(groups) {
   buildMenu();
 }
 
-function openWalksManagerLoginWindow() {
+// Ramblers Walks Manager delegates sign-in to an Auth0-hosted login page
+// (a third party we don't control), so its form fields aren't fixed HTML we
+// can rely on long-term. This best-effort autofill targets Auth0's common
+// field names and always falls back to revealing the window for manual
+// completion (MFA prompts, CAPTCHA, or an Auth0 UI change all look the same
+// from here: autofill silently doesn't get past the login page).
+async function attemptAutofillLogin(window, username, password) {
+  return withTimeout(window.webContents.executeJavaScript(`
+    (() => {
+      const usernameInput = document.querySelector('input[name="username"], input[name="email"], input[type="email"]');
+      const passwordInput = document.querySelector('input[name="password"], input[type="password"]');
+      if (!usernameInput || !passwordInput) return false;
+      const setValue = (el, value) => {
+        const setter = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(el), 'value').set;
+        setter.call(el, value);
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+        el.dispatchEvent(new Event('change', { bubbles: true }));
+      };
+      setValue(usernameInput, ${JSON.stringify(username)});
+      setValue(passwordInput, ${JSON.stringify(password)});
+      const form = passwordInput.closest('form') || usernameInput.closest('form');
+      const submitButton = (form || document).querySelector('button[type="submit"], input[type="submit"]');
+      if (submitButton) {
+        submitButton.click();
+      } else if (form) {
+        form.submit();
+      } else {
+        return false;
+      }
+      return true;
+    })()
+  `, true).catch(() => false), 4000, false);
+}
+
+function watchForAutofillOpportunity(window, credentials) {
+  let attempted = false;
+  let settled = false;
+
+  const revealDeadline = setTimeout(() => {
+    if (!settled && !window.isDestroyed() && !window.isVisible()) window.show();
+  }, 12000);
+
+  const tryFill = async () => {
+    if (attempted || settled || window.isDestroyed()) return;
+    const hasPasswordField = await withTimeout(
+      window.webContents.executeJavaScript('!!document.querySelector(\'input[type="password"]\')', true).catch(() => false),
+      3000,
+      false
+    );
+    if (!hasPasswordField) return;
+    attempted = true;
+    const filled = await attemptAutofillLogin(window, credentials.username, credentials.password);
+    // A submitted form still on a password field (wrong credentials, MFA,
+    // CAPTCHA) or a failed fill both need a human, so show the window.
+    setTimeout(async () => {
+      if (settled || window.isDestroyed()) return;
+      const stillNeedsInput = !filled || await withTimeout(
+        window.webContents.executeJavaScript('!!document.querySelector(\'input[type="password"]\')', true).catch(() => true),
+        3000,
+        true
+      );
+      if (stillNeedsInput && !window.isVisible()) window.show();
+    }, 2500);
+  };
+
+  window.webContents.on('did-finish-load', tryFill);
+  window.webContents.on('did-navigate', tryFill);
+  window.webContents.on('did-navigate-in-page', tryFill);
+  tryFill();
+
+  return {
+    stop: () => {
+      settled = true;
+      clearTimeout(revealDeadline);
+    }
+  };
+}
+
+function openWalksManagerLoginWindow(credentials) {
+  const attemptingAutofill = !!(credentials && credentials.username && credentials.password);
+  let autofillWatcher = null;
+
   if (loginWindow) {
     loginWindow.focus();
   } else {
@@ -963,6 +1044,7 @@ function openWalksManagerLoginWindow() {
       resizable: true,
       minimizable: true,
       fullscreenable: true,
+      show: !attemptingAutofill,
       webPreferences: {
         partition: walksPartition,
         nodeIntegration: false,
@@ -975,6 +1057,10 @@ function openWalksManagerLoginWindow() {
     });
 
     loginWindow.loadURL(reviewUrlForGroup());
+
+    if (attemptingAutofill) {
+      autofillWatcher = watchForAutofillOpportunity(loginWindow, credentials);
+    }
   }
 
   return new Promise((resolve) => {
@@ -984,12 +1070,14 @@ function openWalksManagerLoginWindow() {
     const interval = setInterval(async () => {
       if (!loginWindow) {
         clearInterval(interval);
+        if (autofillWatcher) autofillWatcher.stop();
         resolve({ code: 1, message: 'Login window was closed before the session was saved.' });
         return;
       }
 
       if (Date.now() - startedAt > timeoutMs) {
         clearInterval(interval);
+        if (autofillWatcher) autofillWatcher.stop();
         resolve({ code: 1, message: 'Timed out waiting for Walks Manager login.' });
         return;
       }
@@ -999,6 +1087,7 @@ function openWalksManagerLoginWindow() {
         if (!isWalksManagerReviewPage(text, url)) return;
 
         clearInterval(interval);
+        if (autofillWatcher) autofillWatcher.stop();
         configuringWindow = showConfiguringWindow();
         loginWindow.hide();
 
@@ -1033,6 +1122,7 @@ function openWalksManagerLoginWindow() {
         resolve({ code: 0, message: `Walks Manager login session saved. No group selector was found. (${diagnostic})`, groups: [], sessionPresent: true });
       } catch (error) {
         clearInterval(interval);
+        if (autofillWatcher) autofillWatcher.stop();
         if (configuringWindow && !configuringWindow.isDestroyed()) configuringWindow.close();
         if (loginWindow) loginWindow.show();
         resolve({ code: 1, message: error.message });
@@ -1140,13 +1230,8 @@ ipcMain.handle('connect:save-api-key', async (_event, apiKey) => {
   return { ok: true };
 });
 
-ipcMain.handle('connect:login', async () => {
-  await dialog.showMessageBox({
-    type: 'info',
-    title: 'Walks Manager Login',
-    message: 'A browser window will open. Sign in to Walks Manager and wait until the review list loads. The session will be uploaded to the server automatically.'
-  });
-  const result = await openWalksManagerLoginWindow();
+ipcMain.handle('connect:login', async (_event, credentials) => {
+  const result = await openWalksManagerLoginWindow(credentials);
   if (result.code === 0) {
     await refreshCache();
     buildMenu();
