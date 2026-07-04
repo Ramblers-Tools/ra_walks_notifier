@@ -1,0 +1,127 @@
+name: Build and Publish Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      notes:
+        description: Release notes for the GitHub release
+        required: false
+        default: ""
+
+permissions:
+  contents: write
+
+env:
+  NODE_VERSION: "20"
+
+jobs:
+  build-mac:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - run: npm ci
+
+      - name: Import signing certificate
+        env:
+          MAC_CERTIFICATE_P12: ${{ secrets.MAC_CERTIFICATE_P12 }}
+          MAC_CERTIFICATE_PASSWORD: ${{ secrets.MAC_CERTIFICATE_PASSWORD }}
+          CI_KEYCHAIN_PASSWORD: ${{ secrets.CI_KEYCHAIN_PASSWORD }}
+        run: |
+          set -euo pipefail
+          CERT_PATH="$RUNNER_TEMP/cert.p12"
+          KEYCHAIN_PATH="$RUNNER_TEMP/app-signing.keychain-db"
+          echo -n "$MAC_CERTIFICATE_P12" | base64 --decode -o "$CERT_PATH"
+          security create-keychain -p "$CI_KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$CI_KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security import "$CERT_PATH" -P "$MAC_CERTIFICATE_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
+          security list-keychain -d user -s "$KEYCHAIN_PATH" login.keychain
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$CI_KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          rm -f "$CERT_PATH"
+
+      - run: npm run build:mac:signed
+
+      - name: Notarize
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+        run: npm run notary:submit
+
+      - name: Rename artifacts
+        run: |
+          set -euo pipefail
+          VERSION=$(node -p "require('./package.json').version")
+          cp -f "dist/RA Walks Notifier-$VERSION-arm64.dmg" "dist/RA-Walks-Notifier-$VERSION-arm64.dmg"
+          cp -f "dist/RA Walks Notifier-$VERSION-arm64-mac.zip" "dist/RA-Walks-Notifier-$VERSION-arm64-mac.zip"
+          cp -f "dist/RA Walks Notifier-$VERSION-arm64-mac.zip.blockmap" "dist/RA-Walks-Notifier-$VERSION-arm64-mac.zip.blockmap"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-mac
+          path: |
+            dist/latest-mac.yml
+            dist/RA-Walks-Notifier-*-arm64.dmg
+            dist/RA-Walks-Notifier-*-arm64-mac.zip
+            dist/RA-Walks-Notifier-*-arm64-mac.zip.blockmap
+          if-no-files-found: error
+
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - shell: bash
+        run: bash scripts/build-windows-release.sh
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-windows
+          path: |
+            dist/latest.yml
+            dist/RA-Walks-Notifier-*-x64-setup.exe
+          if-no-files-found: error
+
+  build-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - run: sudo apt-get update && sudo apt-get install -y rpm
+      - run: bash scripts/build-linux-release.sh
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-linux
+          path: |
+            dist/latest-linux.yml
+            dist/RA-Walks-Notifier-*-x86_64.AppImage
+            dist/RA-Walks-Notifier-*-amd64.deb
+            dist/RA-Walks-Notifier-*-x86_64.rpm
+          if-no-files-found: error
+
+  publish:
+    needs: [build-mac, build-windows, build-linux]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: release-*
+          path: dist
+          merge-multiple: true
+
+      - run: bash scripts/validate-release-assets.sh
+      - env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: bash scripts/publish-release.sh "${{ github.event.inputs.notes }}"
