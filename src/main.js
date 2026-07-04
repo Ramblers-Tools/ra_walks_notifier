@@ -953,25 +953,31 @@ async function saveSelectedGroups(groups) {
 
 // Ramblers Walks Manager delegates sign-in to an Auth0-hosted login page
 // (a third party we don't control), so its form fields aren't fixed HTML we
-// can rely on long-term. This best-effort autofill targets Auth0's common
-// field names and always falls back to revealing the window for manual
-// completion (MFA prompts, CAPTCHA, or an Auth0 UI change all look the same
-// from here: autofill silently doesn't get past the login page).
-async function attemptAutofillLogin(window, username, password) {
+// can rely on long-term, and it may use an "identifier first" flow (email on
+// one screen, password on a second screen that Auth0 renders client-side
+// without a full page navigation). So this polls the DOM directly on an
+// interval rather than only reacting to Electron navigation events, and
+// handles both a combined username+password form and a two-step one.
+async function inspectLoginForm(window) {
   return withTimeout(window.webContents.executeJavaScript(`
     (() => {
       const usernameInput = document.querySelector('input[name="username"], input[name="email"], input[type="email"]');
-      const passwordInput = document.querySelector('input[name="password"], input[type="password"]');
-      if (!usernameInput || !passwordInput) return false;
-      const setValue = (el, value) => {
-        const setter = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(el), 'value').set;
-        setter.call(el, value);
-        el.dispatchEvent(new Event('input', { bubbles: true }));
-        el.dispatchEvent(new Event('change', { bubbles: true }));
-      };
-      setValue(usernameInput, ${JSON.stringify(username)});
-      setValue(passwordInput, ${JSON.stringify(password)});
-      const form = passwordInput.closest('form') || usernameInput.closest('form');
+      const passwordInput = document.querySelector('input[type="password"]');
+      return { hasUsername: !!usernameInput, hasPassword: !!passwordInput };
+    })()
+  `, true).catch(() => null), 3000, null);
+}
+
+function fillAndSubmit(window, selector, value) {
+  return withTimeout(window.webContents.executeJavaScript(`
+    (() => {
+      const input = document.querySelector(${JSON.stringify(selector)});
+      if (!input) return false;
+      const setter = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(input), 'value').set;
+      setter.call(input, ${JSON.stringify(value)});
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+      const form = input.closest('form');
       const submitButton = (form || document).querySelector('button[type="submit"], input[type="submit"]');
       if (submitButton) {
         submitButton.click();
@@ -986,47 +992,74 @@ async function attemptAutofillLogin(window, username, password) {
 }
 
 function watchForAutofillOpportunity(window, credentials) {
-  let attempted = false;
   let settled = false;
+  let identifierSubmitted = false;
+  let passwordSubmitted = false;
+  let lastFormSeenAt = Date.now();
+  const startedAt = Date.now();
 
-  const revealDeadline = setTimeout(() => {
-    if (!settled && !window.isDestroyed() && !window.isVisible()) window.show();
-  }, 12000);
-
-  const tryFill = async () => {
-    if (attempted || settled || window.isDestroyed()) return;
-    const hasPasswordField = await withTimeout(
-      window.webContents.executeJavaScript('!!document.querySelector(\'input[type="password"]\')', true).catch(() => false),
-      3000,
-      false
-    );
-    if (!hasPasswordField) return;
-    attempted = true;
-    const filled = await attemptAutofillLogin(window, credentials.username, credentials.password);
-    // A submitted form still on a password field (wrong credentials, MFA,
-    // CAPTCHA) or a failed fill both need a human, so show the window.
-    setTimeout(async () => {
-      if (settled || window.isDestroyed()) return;
-      const stillNeedsInput = !filled || await withTimeout(
-        window.webContents.executeJavaScript('!!document.querySelector(\'input[type="password"]\')', true).catch(() => true),
-        3000,
-        true
-      );
-      if (stillNeedsInput && !window.isVisible()) window.show();
-    }, 2500);
+  const stop = () => {
+    settled = true;
+    clearInterval(poll);
   };
 
-  window.webContents.on('did-finish-load', tryFill);
-  window.webContents.on('did-navigate', tryFill);
-  window.webContents.on('did-navigate-in-page', tryFill);
-  tryFill();
-
-  return {
-    stop: () => {
-      settled = true;
-      clearTimeout(revealDeadline);
+  const poll = setInterval(async () => {
+    if (settled || window.isDestroyed()) {
+      stop();
+      return;
     }
-  };
+
+    if (Date.now() - startedAt > 30000) {
+      // Absolute ceiling in case an identifier screen keeps re-rendering
+      // without ever reaching a password field - don't leave the window
+      // hidden indefinitely.
+      if (!window.isDestroyed() && !window.isVisible()) window.show();
+      stop();
+      return;
+    }
+
+    const form = await inspectLoginForm(window);
+    if (!form || (!form.hasUsername && !form.hasPassword)) {
+      // No recognizable login form right now - either mid-navigation
+      // (fine, keep waiting) or past the login page entirely (the main
+      // login poller will pick up success from here).
+      if (Date.now() - lastFormSeenAt > 20000) {
+        // Still stuck after 20s with no form: if we're not back on Walks
+        // Manager, something unrecognized is blocking progress (CAPTCHA,
+        // an unfamiliar Auth0 screen) - a human needs to see it.
+        const url = window.webContents.getURL();
+        if (!/walks-manager\.ramblers\.org\.uk/i.test(url) && !window.isDestroyed() && !window.isVisible()) {
+          window.show();
+        }
+        stop();
+      }
+      return;
+    }
+    lastFormSeenAt = Date.now();
+
+    if (form.hasPassword) {
+      if (passwordSubmitted) {
+        // We already submitted a password and Auth0 is showing a password
+        // field again - wrong credentials, MFA, or something we can't
+        // handle. Let a human take over.
+        if (!window.isDestroyed() && !window.isVisible()) window.show();
+        return;
+      }
+      passwordSubmitted = true;
+      const selector = 'input[type="password"]';
+      await fillAndSubmit(window, selector, credentials.password);
+      return;
+    }
+
+    if (form.hasUsername) {
+      if (identifierSubmitted) return; // waiting for the password screen to render
+      identifierSubmitted = true;
+      const selector = 'input[name="username"], input[name="email"], input[type="email"]';
+      await fillAndSubmit(window, selector, credentials.username);
+    }
+  }, 700);
+
+  return { stop };
 }
 
 function openWalksManagerLoginWindow(credentials) {
@@ -1044,7 +1077,10 @@ function openWalksManagerLoginWindow(credentials) {
       resizable: true,
       minimizable: true,
       fullscreenable: true,
-      show: !attemptingAutofill,
+      // TODO: hide this again (show: !attemptingAutofill) once autofill is
+      // confirmed reliable against the real Auth0 login flow - left visible
+      // for now so we can watch what it's doing during testing.
+      show: true,
       webPreferences: {
         partition: walksPartition,
         nodeIntegration: false,
