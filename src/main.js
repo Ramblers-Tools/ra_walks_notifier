@@ -984,6 +984,58 @@ async function saveSelectedGroups(groups) {
   buildMenu();
 }
 
+// Re-runs group detection against the already-saved Walks Manager session
+// (same persisted cookie partition used at login) instead of requiring the
+// user to sign in again just to retry a failed group lookup.
+async function redetectGroupsFromExistingSession() {
+  const window = new BrowserWindow(appWindowOptions({
+    width: 1180,
+    height: 820,
+    show: false,
+    webPreferences: {
+      partition: walksPartition,
+      nodeIntegration: false,
+      contextIsolation: true
+    }
+  }));
+
+  try {
+    await window.loadURL(reviewUrlForGroup());
+    await withTimeout(new Promise((resolve) => {
+      if (!window.webContents.isLoading()) {
+        resolve();
+        return;
+      }
+      window.webContents.once('did-finish-load', resolve);
+    }), 8000, null);
+
+    const text = await withTimeout(
+      window.webContents.executeJavaScript('document.body ? document.body.innerText : ""', true).catch(() => ''),
+      5000,
+      ''
+    );
+    const url = window.webContents.getURL();
+
+    if (!isWalksManagerReviewPage(text, url)) {
+      return { groups: [], diagnostic: `session is no longer valid or the review page wasn't reached (${url})`, sessionExpired: true };
+    }
+
+    let { groups, diagnostic } = await extractWalksManagerGroups(window);
+    if (!groups.length) {
+      const fallback = await extractGroupsFromMyGroupsPage(window);
+      if (fallback.groups.length) {
+        groups = fallback.groups;
+        diagnostic = fallback.diagnostic;
+      } else {
+        diagnostic = `${diagnostic}; ${fallback.diagnostic}`;
+      }
+    }
+    return { groups, diagnostic };
+  } finally {
+    if (!window.isDestroyed()) window.close();
+  }
+}
+
 // Ramblers Walks Manager delegates sign-in to an Auth0-hosted login page
 // (a third party we don't control), so its form fields aren't fixed HTML we
 // can rely on long-term, and it may use an "identifier first" flow (email on
@@ -1388,6 +1440,43 @@ ipcMain.handle('connect:login', async (_event, credentials) => {
 ipcMain.handle('connect:save-groups', async (_event, groups) => {
   await saveSelectedGroups(groups);
   return { groups: cachedGroups };
+});
+
+ipcMain.handle('connect:redetect-groups', async () => {
+  const result = await redetectGroupsFromExistingSession();
+  if (result.sessionExpired) {
+    cachedSessionPresent = false;
+    buildMenu();
+    return {
+      code: 1,
+      message: "Your Walks Manager session has expired - please log in again.",
+      groups: cachedGroups,
+      sessionPresent: cachedSessionPresent
+    };
+  }
+  if (result.groups.length === 1) {
+    await saveSelectedGroups(result.groups);
+    return {
+      code: 0,
+      message: `Group set to ${result.groups[0].name}.`,
+      groups: result.groups,
+      sessionPresent: cachedSessionPresent
+    };
+  }
+  if (result.groups.length > 1) {
+    return {
+      code: 0,
+      message: 'Select the group for this app.',
+      groups: result.groups,
+      sessionPresent: cachedSessionPresent
+    };
+  }
+  return {
+    code: 1,
+    message: `Still couldn't detect a group. (${result.diagnostic})`,
+    groups: cachedGroups,
+    sessionPresent: cachedSessionPresent
+  };
 });
 
 ipcMain.handle('recipients:load', async () => {
