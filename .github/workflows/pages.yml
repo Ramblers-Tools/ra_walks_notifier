@@ -1,31 +1,40 @@
-name: Deploy GitHub Pages
+name: Publish GitHub Pages
 
+# Only publish on a stable (non-prerelease) GitHub release, not on every
+# push to beta/main - the download page fetches release assets live from
+# the GitHub API client-side, so it only ever needs updating when the
+# static site content itself changes, which happens at the same cadence
+# as stable releases, not every beta build.
 on:
-  push:
-    branches:
-      - beta
-      - main
+  release:
+    types: [published]
   workflow_dispatch:
 
 permissions:
-  contents: read
-  pages: write
-  id-token: write
+  contents: write
 
 concurrency:
   group: pages
   cancel-in-progress: true
 
 jobs:
-  deploy:
+  publish:
+    if: github.event_name == 'workflow_dispatch' || github.event.release.prerelease == false
     runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/checkout@v7
         with:
-          path: .
-      - id: deployment
-        uses: actions/deploy-pages@v4
+          ref: main
+
+      - name: Assemble site
+        run: |
+          set -euo pipefail
+          mkdir -p site
+          cp index.html CNAME .nojekyll site/
+          cp -R assets site/assets
+
+      - uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./site
+          publish_branch: gh-pages
