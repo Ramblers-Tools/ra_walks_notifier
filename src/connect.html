@@ -124,13 +124,14 @@
 
   <section id="loginSection" class="disabled">
     <h2>2. Walks Manager Login</h2>
-    <label for="wmUsername">Walks Manager username</label>
+    <label for="wmUsername">Email address (registered with Ramblers)</label>
     <input id="wmUsername" type="text" autocomplete="off">
-    <label for="wmPassword" style="margin-top: 10px;">Walks Manager password</label>
+    <label for="wmPassword" style="margin-top: 10px;">Password</label>
     <input id="wmPassword" type="password" autocomplete="off">
     <div class="hint">We'll sign in for you automatically. If a security check (e.g. a verification code) is needed, a browser window will open so you can finish signing in yourself. Your password isn't stored by this app.</div>
     <div class="actions">
       <button id="login" class="primary">Login to Walks Manager</button>
+      <button id="loginManual" class="primary" style="display: none;">Open in browser instead</button>
     </div>
     <div id="loginMessage" class="message"></div>
   </section>
@@ -166,6 +167,9 @@
     const loginMessage = document.getElementById('loginMessage');
     const wmUsernameInput = document.getElementById('wmUsername');
     const wmPasswordInput = document.getElementById('wmPassword');
+    const loginButton = document.getElementById('login');
+    const loginManualButton = document.getElementById('loginManual');
+    let failedLoginAttempts = 0;
     const groupsSection = document.getElementById('groupsSection');
     const groupList = document.getElementById('groupList');
     const groupsMessage = document.getElementById('groupsMessage');
@@ -240,31 +244,58 @@
       }
     });
 
-    document.getElementById('login').addEventListener('click', async () => {
-      const button = document.getElementById('login');
+    function applyLoginResult(result) {
+      wmPasswordInput.value = '';
+      setMessage(loginMessage, result.message, result.code === 0 ? 'ok' : 'error');
+      if (result.groups && result.groups.length) {
+        knownGroups = result.groups;
+        renderGroups(result.groups, result.groups.length === 1 ? [result.groups[0].gid] : []);
+        if (result.groups.length === 1) {
+          setMessage(groupsMessage, 'Saved automatically.', 'ok');
+        }
+      }
+      if (result.code === 2) {
+        failedLoginAttempts += 1;
+        if (failedLoginAttempts >= 3) {
+          loginButton.style.display = 'none';
+          loginManualButton.style.display = '';
+        }
+      } else if (result.code === 0) {
+        failedLoginAttempts = 0;
+        loginButton.style.display = '';
+        loginManualButton.style.display = 'none';
+      }
+    }
+
+    loginButton.addEventListener('click', async () => {
       const username = wmUsernameInput.value.trim();
       const password = wmPasswordInput.value;
       if (!username || !password) {
-        setMessage(loginMessage, 'Enter your Walks Manager username and password.', 'error');
+        setMessage(loginMessage, 'Enter your Ramblers email address and password.', 'error');
         return;
       }
-      button.disabled = true;
+      loginButton.disabled = true;
       setMessage(loginMessage, 'Signing in...', '');
       try {
         const result = await window.connect.login({ username, password });
-        wmPasswordInput.value = '';
-        setMessage(loginMessage, result.message, result.code === 0 ? 'ok' : 'error');
-        if (result.groups && result.groups.length) {
-          knownGroups = result.groups;
-          renderGroups(result.groups, result.groups.length === 1 ? [result.groups[0].gid] : []);
-          if (result.groups.length === 1) {
-            setMessage(groupsMessage, 'Saved automatically.', 'ok');
-          }
-        }
+        applyLoginResult(result);
       } catch (error) {
         setMessage(loginMessage, error.message, 'error');
       } finally {
-        button.disabled = false;
+        loginButton.disabled = false;
+      }
+    });
+
+    loginManualButton.addEventListener('click', async () => {
+      loginManualButton.disabled = true;
+      setMessage(loginMessage, 'Waiting for login...', '');
+      try {
+        const result = await window.connect.login();
+        applyLoginResult(result);
+      } catch (error) {
+        setMessage(loginMessage, error.message, 'error');
+      } finally {
+        loginManualButton.disabled = false;
       }
     });
 
