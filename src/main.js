@@ -968,16 +968,21 @@ async function inspectLoginForm(window) {
   `, true).catch(() => null), 3000, null);
 }
 
-function fillAndSubmit(window, selector, value) {
+function fillAndSubmit(window, fields) {
   return withTimeout(window.webContents.executeJavaScript(`
     (() => {
-      const input = document.querySelector(${JSON.stringify(selector)});
-      if (!input) return false;
-      const setter = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(input), 'value').set;
-      setter.call(input, ${JSON.stringify(value)});
-      input.dispatchEvent(new Event('input', { bubbles: true }));
-      input.dispatchEvent(new Event('change', { bubbles: true }));
-      const form = input.closest('form');
+      const fields = ${JSON.stringify(fields)};
+      let anchor = null;
+      for (const { selector, value } of fields) {
+        const input = document.querySelector(selector);
+        if (!input) return false;
+        const setter = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(input), 'value').set;
+        setter.call(input, value);
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+        input.dispatchEvent(new Event('change', { bubbles: true }));
+        anchor = input;
+      }
+      const form = anchor && anchor.closest('form');
       const submitButton = (form || document).querySelector('button[type="submit"], input[type="submit"]');
       if (submitButton) {
         submitButton.click();
@@ -1037,25 +1042,41 @@ function watchForAutofillOpportunity(window, credentials) {
     }
     lastFormSeenAt = Date.now();
 
-    if (form.hasPassword) {
+    const usernameSelector = 'input[name="username"], input[name="email"], input[type="email"]';
+    const passwordSelector = 'input[type="password"]';
+
+    if (form.hasUsername && form.hasPassword) {
+      // Combined single-screen form - fill both before submitting once.
       if (passwordSubmitted) {
-        // We already submitted a password and Auth0 is showing a password
-        // field again - wrong credentials, MFA, or something we can't
-        // handle. Let a human take over.
+        // We already submitted and Auth0 is showing both fields again -
+        // wrong credentials, MFA, or something we can't handle.
         if (!window.isDestroyed() && !window.isVisible()) window.show();
         return;
       }
       passwordSubmitted = true;
-      const selector = 'input[type="password"]';
-      await fillAndSubmit(window, selector, credentials.password);
+      await fillAndSubmit(window, [
+        { selector: usernameSelector, value: credentials.username },
+        { selector: passwordSelector, value: credentials.password }
+      ]);
+      return;
+    }
+
+    if (form.hasPassword) {
+      // Two-step flow, second screen (password only).
+      if (passwordSubmitted) {
+        if (!window.isDestroyed() && !window.isVisible()) window.show();
+        return;
+      }
+      passwordSubmitted = true;
+      await fillAndSubmit(window, [{ selector: passwordSelector, value: credentials.password }]);
       return;
     }
 
     if (form.hasUsername) {
+      // Two-step flow, first screen (identifier only).
       if (identifierSubmitted) return; // waiting for the password screen to render
       identifierSubmitted = true;
-      const selector = 'input[name="username"], input[name="email"], input[type="email"]';
-      await fillAndSubmit(window, selector, credentials.username);
+      await fillAndSubmit(window, [{ selector: usernameSelector, value: credentials.username }]);
     }
   }, 700);
 
