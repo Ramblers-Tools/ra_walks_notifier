@@ -146,6 +146,7 @@
     <h2>3. Group Selection</h2>
     <div id="groupList" class="group-list"><div class="hint">Login first to detect your group(s).</div></div>
     <div class="actions">
+      <button id="redetectGroups" style="display: none;">Retry group detection</button>
       <button id="saveGroups" class="primary">Save Group Selection</button>
     </div>
     <div id="groupsMessage" class="message"></div>
@@ -179,6 +180,7 @@
     const groupsSection = document.getElementById('groupsSection');
     const groupList = document.getElementById('groupList');
     const groupsMessage = document.getElementById('groupsMessage');
+    const redetectGroupsButton = document.getElementById('redetectGroups');
     const recipientsSection = document.getElementById('recipientsSection');
     const recipientsInput = document.getElementById('recipients');
     const recipientsMessage = document.getElementById('recipientsMessage');
@@ -210,6 +212,10 @@
 
     let knownGroups = [];
 
+    function updateRedetectButtonVisibility(sessionPresent) {
+      redetectGroupsButton.style.display = (sessionPresent && !knownGroups.length) ? '' : 'none';
+    }
+
     window.connect.status().then((status) => {
       if (status.apiKeySet) {
         apiKeyInput.placeholder = 'API key saved (hidden)';
@@ -228,6 +234,7 @@
       if (status.sessionPresent) {
         setMessage(loginMessage, 'Walks Manager session is present.', 'ok');
       }
+      updateRedetectButtonVisibility(status.sessionPresent);
     });
 
     document.getElementById('saveApiKey').addEventListener('click', async () => {
@@ -271,6 +278,7 @@
         loginButton.style.display = '';
         loginManualButton.style.display = 'none';
       }
+      updateRedetectButtonVisibility(result.sessionPresent);
     }
 
     loginButton.addEventListener('click', async () => {
@@ -302,6 +310,24 @@
         setMessage(loginMessage, error.message, 'error');
       } finally {
         loginManualButton.disabled = false;
+      }
+    });
+
+    redetectGroupsButton.addEventListener('click', async () => {
+      redetectGroupsButton.disabled = true;
+      setMessage(groupsMessage, 'Checking your Walks Manager session for groups...', 'pending');
+      try {
+        const result = await window.connect.redetectGroups();
+        if (result.groups && result.groups.length) {
+          knownGroups = result.groups;
+          renderGroups(result.groups, result.groups.length === 1 ? [result.groups[0].gid] : []);
+        }
+        setMessage(groupsMessage, result.message, result.code === 0 ? 'ok' : 'error');
+        updateRedetectButtonVisibility(result.sessionPresent);
+      } catch (error) {
+        setMessage(groupsMessage, error.message, 'error');
+      } finally {
+        redetectGroupsButton.disabled = false;
       }
     });
 
