@@ -1,0 +1,670 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="RA Walks Notifier is a desktop tray app for macOS, Windows, and Linux that monitors Ramblers Walks Manager review queues.">
+  <title>RA Walks Notifier</title>
+  <style>
+    :root {
+      --green: #006747;
+      --leaf: #78be20;
+      --orange: #f58220;
+      --blue: #1264a3;
+      --ink: #1f2933;
+      --muted: #52606d;
+      --line: #d7e0ea;
+      --panel: #ffffff;
+      --soft: #f5f8f6;
+      --page: #eef3f1;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+      color: var(--ink);
+      background: var(--page);
+      line-height: 1.5;
+    }
+
+    a {
+      color: var(--blue);
+    }
+
+    .site-header {
+      background: var(--panel);
+      border-bottom: 1px solid var(--line);
+    }
+
+    .nav,
+    .section {
+      width: min(1120px, calc(100% - 40px));
+      margin: 0 auto;
+    }
+
+    .nav {
+      min-height: 82px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 24px;
+    }
+
+    .brand-strip {
+      display: flex;
+      align-items: center;
+      gap: 18px;
+      min-width: 0;
+    }
+
+    .brand-strip img {
+      display: block;
+      object-fit: contain;
+    }
+
+    .ramblers-logo {
+      width: 54px;
+      height: 54px;
+    }
+
+    .east-logo {
+      width: 76px;
+      height: 76px;
+    }
+
+    .repo-link {
+      white-space: nowrap;
+      font-weight: 700;
+      text-decoration: none;
+      color: var(--green);
+    }
+
+    .hero {
+      background: linear-gradient(180deg, #ffffff 0%, #eef6ea 100%);
+      border-bottom: 1px solid var(--line);
+    }
+
+    .hero-inner {
+      width: min(1120px, calc(100% - 40px));
+      margin: 0 auto;
+      min-height: 520px;
+      display: grid;
+      grid-template-columns: 1.05fr .95fr;
+      align-items: center;
+      gap: 54px;
+      padding: 54px 0 42px;
+    }
+
+    .eyebrow {
+      margin: 0 0 14px;
+      color: var(--green);
+      font-weight: 800;
+      letter-spacing: 0;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 58px;
+      line-height: 1.02;
+      letter-spacing: 0;
+    }
+
+    .lead {
+      margin: 22px 0 0;
+      max-width: 620px;
+      font-size: 20px;
+      color: var(--muted);
+    }
+
+    .actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-top: 30px;
+    }
+
+    .button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 46px;
+      padding: 0 18px;
+      border-radius: 8px;
+      border: 1px solid var(--blue);
+      text-decoration: none;
+      font-weight: 800;
+    }
+
+    .button.primary {
+      color: #fff;
+      background: var(--blue);
+    }
+
+    .button.secondary {
+      color: var(--blue);
+      background: #fff;
+    }
+
+    .release-note {
+      margin-top: 12px;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .hero-panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      overflow: hidden;
+      box-shadow: 0 20px 45px rgba(22, 48, 41, .12);
+    }
+
+    .hero-panel img {
+      display: block;
+      width: 100%;
+      height: auto;
+    }
+
+    .section {
+      padding: 58px 0;
+    }
+
+    .section-heading {
+      display: flex;
+      align-items: end;
+      justify-content: space-between;
+      gap: 24px;
+      margin-bottom: 24px;
+    }
+
+    h2 {
+      margin: 0;
+      font-size: 34px;
+      line-height: 1.16;
+      letter-spacing: 0;
+    }
+
+    .section-heading p,
+    .download-panel p,
+    .card p,
+    .step p {
+      color: var(--muted);
+    }
+
+    .download-panel {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 26px;
+      padding: 26px;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+    }
+
+    .detected {
+      display: inline-flex;
+      align-items: center;
+      min-height: 30px;
+      padding: 0 10px;
+      border-radius: 999px;
+      background: #e8f4e2;
+      color: var(--green);
+      font-weight: 800;
+      font-size: 14px;
+    }
+
+    .instructions {
+      margin: 18px 0 0;
+      padding-left: 21px;
+    }
+
+    .instructions li {
+      margin: 8px 0;
+    }
+
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 18px;
+    }
+
+    .card,
+    .step {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 22px;
+    }
+
+    .card h3,
+    .step h3 {
+      margin: 0 0 10px;
+      font-size: 20px;
+    }
+
+    .screenshots {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 18px;
+    }
+
+    .shot {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    .shot img {
+      display: block;
+      width: 100%;
+      height: 340px;
+      object-fit: contain;
+      object-position: top;
+      background: #e8edf2;
+    }
+
+    .shot figcaption {
+      padding: 14px 16px 16px;
+      font-weight: 700;
+    }
+
+    .steps {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 18px;
+      counter-reset: steps;
+    }
+
+    .step::before {
+      counter-increment: steps;
+      content: counter(steps);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 32px;
+      height: 32px;
+      margin-bottom: 14px;
+      border-radius: 50%;
+      background: var(--green);
+      color: #fff;
+      font-weight: 900;
+    }
+
+    .site-footer {
+      padding: 32px 0;
+      border-top: 1px solid var(--line);
+      background: #fff;
+      color: var(--muted);
+    }
+
+    .footer-inner {
+      width: min(1120px, calc(100% - 40px));
+      margin: 0 auto;
+      display: flex;
+      justify-content: space-between;
+      gap: 20px;
+    }
+
+    @media (max-width: 860px) {
+      .nav,
+      .hero-inner,
+      .section,
+      .footer-inner {
+        width: min(100% - 28px, 720px);
+      }
+
+      .nav,
+      .brand-strip,
+      .footer-inner {
+        align-items: flex-start;
+        flex-direction: column;
+      }
+
+      .hero-inner,
+      .download-panel,
+      .cards,
+      .screenshots,
+      .steps {
+        grid-template-columns: 1fr;
+      }
+
+      h1 {
+        font-size: 42px;
+      }
+
+      .east-logo {
+        width: 72px;
+        height: 72px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header class="site-header">
+    <nav class="nav" aria-label="Main navigation">
+      <div class="brand-strip">
+        <img class="ramblers-logo" src="assets/ramblers-logo.svg" alt="Ramblers">
+        <img class="east-logo" src="assets/east-cheshire-logo.png" alt="East Cheshire Ramblers">
+      </div>
+      <a class="repo-link" href="https://github.com/East-Cheshire-Ramblers/ra_walks_notifier">GitHub repository</a>
+    </nav>
+  </header>
+
+  <main>
+    <section class="hero">
+      <div class="hero-inner">
+        <div>
+          <p class="eyebrow">Desktop tray app for Walks Manager</p>
+          <h1>RA Walks Notifier</h1>
+          <p class="lead">Monitor Ramblers Walks Manager review queues, receive email notifications, and keep pending walks visible from your desktop tray on macOS, Windows, or Linux.</p>
+          <div class="actions">
+            <a id="primary-download" class="button primary" href="https://github.com/East-Cheshire-Ramblers/ra_walks_notifier/releases/latest">Download latest release</a>
+            <a class="button secondary" href="#setup">Setup guide</a>
+          </div>
+          <p id="release-note" class="release-note">Checking the latest GitHub release...</p>
+        </div>
+        <div class="hero-panel">
+          <img src="assets/screenshot-menu.svg" alt="RA Walks Notifier menu bar status menu">
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="download">
+      <div class="section-heading">
+        <div>
+          <h2>Download</h2>
+          <p>The page adapts the instructions to your operating system.</p>
+        </div>
+        <span id="detected-os" class="detected">Detecting OS...</span>
+      </div>
+      <div class="download-panel">
+        <div>
+          <h3 id="download-title">Latest release</h3>
+          <p id="download-copy">RA Walks Notifier is packaged for Apple silicon Macs, 64-bit Windows, and 64-bit Linux.</p>
+          <div class="actions">
+            <a id="download-link" class="button primary" href="https://github.com/East-Cheshire-Ramblers/ra_walks_notifier/releases/latest">Open latest release</a>
+            <a class="button secondary" href="https://github.com/East-Cheshire-Ramblers/ra_walks_notifier/releases">All releases</a>
+          </div>
+        </div>
+        <div>
+          <h3 id="instructions-title">Install instructions</h3>
+          <ol id="os-instructions" class="instructions">
+            <li>Download the installer for your operating system from GitHub.</li>
+            <li>Run the installer and complete setup.</li>
+            <li>Launch RA Walks Notifier and complete setup.</li>
+          </ol>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="section-heading">
+        <div>
+          <h2>What it does</h2>
+          <p>A small desktop tool built for group walk approvals.</p>
+        </div>
+      </div>
+      <div class="cards">
+        <article class="card">
+          <h3>Checks Walks Manager</h3>
+          <p>Runs scheduled checks against the configured Walks Manager group and keeps the pending count visible in the menu bar.</p>
+        </article>
+        <article class="card">
+          <h3>Sends clear emails</h3>
+          <p>Notifies configured recipients when new or changed walks need attention, with HTML email summaries and direct links.</p>
+        </article>
+        <article class="card">
+          <h3>Runs from your desktop tray</h3>
+          <p>Connects to your group's server account, stores your connection details locally, and stays out of the way in the menu bar or system tray.</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="section" id="setup">
+      <div class="section-heading">
+        <div>
+          <h2>Setup flow</h2>
+          <p>The first launch collects the details needed for background checks and email notifications.</p>
+        </div>
+      </div>
+      <div class="steps">
+        <article class="step">
+          <h3>Add recipients</h3>
+          <p>Enter one or more email addresses for walk review notifications.</p>
+        </article>
+        <article class="step">
+          <h3>Configure SMTP</h3>
+          <p>Add host, port, username, password, from address, and display name.</p>
+        </article>
+        <article class="step">
+          <h3>Sign in</h3>
+          <p>Open the Walks Manager login window, sign in, and let the app detect available groups.</p>
+        </article>
+        <article class="step">
+          <h3>Select group</h3>
+          <p>Choose the group to monitor, then save setup and run the first check.</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="section-heading">
+        <div>
+          <h2>Screenshots</h2>
+          <p>Connect once, then check status or app details from the tray at any time.</p>
+        </div>
+      </div>
+      <div class="screenshots">
+        <figure class="shot">
+          <img src="assets/screenshot-connect.png" alt="Server connection and login screen">
+          <figcaption>Connect &amp; login</figcaption>
+        </figure>
+        <figure class="shot">
+          <img src="assets/screenshot-status.png" alt="Status window showing pending walks, schedule, and recipients">
+          <figcaption>Status</figcaption>
+        </figure>
+        <figure class="shot">
+          <img src="assets/screenshot-about.png" alt="About window showing the RA Walks Notifier logo and version">
+          <figcaption>About</figcaption>
+        </figure>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="footer-inner">
+      <span>RA Walks Notifier for East Cheshire Ramblers</span>
+      <a href="https://github.com/East-Cheshire-Ramblers/ra_walks_notifier/releases/latest">Latest release</a>
+    </div>
+  </footer>
+
+  <script>
+    const repo = 'East-Cheshire-Ramblers/ra_walks_notifier';
+    const latestReleaseUrl = `https://github.com/${repo}/releases/latest`;
+    const apiUrl = `https://api.github.com/repos/${repo}/releases/latest`;
+
+    function detectOs() {
+      const platform = (navigator.userAgentData && navigator.userAgentData.platform) || navigator.platform || '';
+      const ua = navigator.userAgent || '';
+      const value = `${platform} ${ua}`.toLowerCase();
+      const touchMac = value.includes('mac') && navigator.maxTouchPoints > 1;
+      if (value.includes('iphone') || value.includes('ipad') || value.includes('ipod') || touchMac) return 'ios';
+      if (value.includes('android')) return 'android';
+      if (value.includes('mac')) return 'mac';
+      if (value.includes('win')) return 'windows';
+      if (value.includes('linux') || value.includes('x11')) return 'linux';
+      return 'unknown';
+    }
+
+    function setInstructions(os, release) {
+      const detected = document.getElementById('detected-os');
+      const title = document.getElementById('download-title');
+      const copy = document.getElementById('download-copy');
+      const instructionsTitle = document.getElementById('instructions-title');
+      const instructions = document.getElementById('os-instructions');
+      const download = document.getElementById('download-link');
+      const primary = document.getElementById('primary-download');
+      const version = release ? release.tag_name : 'latest';
+      const assets = release ? release.assets || [] : [];
+      const dmg = assets.find(asset => /arm64\.dmg$/i.test(asset.name));
+      const dmgUrl = dmg ? dmg.browser_download_url : latestReleaseUrl;
+      const deb = assets.find(asset => /\.deb$/i.test(asset.name));
+      const rpm = assets.find(asset => /\.rpm$/i.test(asset.name));
+      const appImage = assets.find(asset => /\.AppImage$/i.test(asset.name));
+      const linuxInstaller = deb || rpm || appImage;
+      const linuxInstallerUrl = linuxInstaller ? linuxInstaller.browser_download_url : latestReleaseUrl;
+      const appImageUrl = appImage ? appImage.browser_download_url : latestReleaseUrl;
+      const winSetup = assets.find(asset => /-setup\.exe$/i.test(asset.name));
+      const winSetupUrl = winSetup ? winSetup.browser_download_url : latestReleaseUrl;
+
+      if (os === 'mac') {
+        detected.textContent = 'macOS detected';
+        title.textContent = `Download ${version} for macOS`;
+        copy.textContent = 'Use the DMG installer for Apple silicon Macs. The app can check for future updates from GitHub.';
+        download.href = dmgUrl;
+        download.textContent = 'Download macOS DMG';
+        primary.href = dmgUrl;
+        primary.textContent = 'Download for macOS';
+        instructionsTitle.textContent = 'macOS install instructions';
+        instructions.innerHTML = `
+          <li>Download the DMG installer.</li>
+          <li>Open the DMG and drag RA Walks Notifier into Applications.</li>
+          <li>Launch it from Applications. If macOS asks, confirm that you want to open the notarized app.</li>
+          <li>Complete setup: recipients, SMTP settings, Walks Manager login, and group selection.</li>
+        `;
+        return;
+      }
+
+      if (os === 'windows') {
+        detected.textContent = 'Windows detected';
+        if (winSetup) {
+          title.textContent = `Download ${version} for Windows`;
+          copy.textContent = 'Use the installer for 64-bit Windows. The app can check for future updates from GitHub.';
+          download.href = winSetupUrl;
+          download.textContent = 'Download Windows installer';
+          primary.href = winSetupUrl;
+          primary.textContent = 'Download for Windows';
+          instructionsTitle.textContent = 'Windows install instructions';
+          instructions.innerHTML = `
+            <li>Download the installer (.exe).</li>
+            <li>Run it and choose an install location if prompted.</li>
+            <li>Windows SmartScreen may warn that the app is unsigned &mdash; choose "More info" then "Run anyway".</li>
+            <li>Launch RA Walks Notifier and complete setup.</li>
+          `;
+        } else {
+          title.textContent = 'Windows build not published yet';
+          copy.textContent = 'A Windows installer is not available in the latest release yet.';
+          download.href = latestReleaseUrl;
+          download.textContent = 'View latest release';
+          primary.href = latestReleaseUrl;
+          primary.textContent = 'View latest release';
+          instructionsTitle.textContent = 'Windows status';
+          instructions.innerHTML = `
+            <li>A Windows installer is not available in the latest release yet.</li>
+            <li>For now, use the latest published package for a supported platform.</li>
+          `;
+        }
+        return;
+      }
+
+      if (os === 'ios') {
+        detected.textContent = 'iPhone or iPad detected';
+        title.textContent = 'Desktop required';
+        copy.textContent = 'RA Walks Notifier is a desktop tray app. It cannot be installed on iPhone or iPad.';
+        download.href = latestReleaseUrl;
+        download.textContent = 'View latest release';
+        primary.href = latestReleaseUrl;
+        primary.textContent = 'View latest release';
+        instructionsTitle.textContent = 'iPhone and iPad status';
+        instructions.innerHTML = `
+          <li>This app needs a desktop menu bar or system tray (macOS, Windows, or Linux).</li>
+          <li>Use a supported desktop computer to download and install RA Walks Notifier.</li>
+          <li>You can still view the latest release details from this device.</li>
+        `;
+        return;
+      }
+
+      if (os === 'android') {
+        detected.textContent = 'Android detected';
+        title.textContent = 'Desktop required';
+        copy.textContent = 'RA Walks Notifier is a desktop tray app. It cannot be installed on Android.';
+        download.href = latestReleaseUrl;
+        download.textContent = 'View latest release';
+        primary.href = latestReleaseUrl;
+        primary.textContent = 'View latest release';
+        instructionsTitle.textContent = 'Android status';
+        instructions.innerHTML = `
+          <li>This app needs a desktop menu bar or system tray (macOS, Windows, or Linux).</li>
+          <li>Use a supported desktop computer to download and install RA Walks Notifier.</li>
+          <li>You can still view the latest release details from this device.</li>
+        `;
+        return;
+      }
+
+      if (os === 'linux') {
+        detected.textContent = 'Linux detected';
+        if (linuxInstaller) {
+          const rpmLink = rpm ? `<li>Fedora/openSUSE users can use the <a href="${rpm.browser_download_url}">RPM package</a>.</li>` : '';
+          const appImageLink = appImage ? `<li>The <a href="${appImageUrl}">AppImage</a> remains available as a portable option.</li>` : '';
+          title.textContent = `Download ${version} for Linux`;
+          copy.textContent = 'Use the DEB installer for Ubuntu, Debian, or Mint. RPM and AppImage packages are also published for other Linux desktops.';
+          download.href = linuxInstallerUrl;
+          download.textContent = deb ? 'Download Linux DEB' : rpm ? 'Download Linux RPM' : 'Download Linux AppImage';
+          primary.href = linuxInstallerUrl;
+          primary.textContent = 'Download for Linux';
+          instructionsTitle.textContent = 'Linux install instructions';
+          instructions.innerHTML = `
+            <li>Download and install the DEB package on Ubuntu, Debian, or Mint.</li>
+            ${rpmLink}
+            ${appImageLink}
+            <li>Launch RA Walks Notifier from the application menu and complete setup.</li>
+            <li>If the tray icon is not visible, check that your desktop environment supports app indicators or status notifier items.</li>
+          `;
+        } else {
+          title.textContent = 'Linux build not published yet';
+          copy.textContent = 'A Linux installer is not available in the latest release yet.';
+          download.href = latestReleaseUrl;
+          download.textContent = 'View latest release';
+          primary.href = latestReleaseUrl;
+          primary.textContent = 'View latest release';
+          instructionsTitle.textContent = 'Linux status';
+          instructions.innerHTML = `
+            <li>A Linux package is not available in the latest release yet.</li>
+            <li>Tray behaviour will need desktop-environment testing.</li>
+            <li>For now, use the latest published package for a supported platform.</li>
+          `;
+        }
+        return;
+      }
+
+      detected.textContent = 'OS not detected';
+      title.textContent = `Latest release ${version}`;
+      copy.textContent = 'RA Walks Notifier is packaged for macOS, Windows, and Linux.';
+      download.href = latestReleaseUrl;
+      download.textContent = 'Open latest release';
+    }
+
+    async function loadRelease() {
+      const note = document.getElementById('release-note');
+      const os = detectOs();
+      try {
+        const response = await fetch(apiUrl, { headers: { Accept: 'application/vnd.github+json' } });
+        if (!response.ok) throw new Error('GitHub release lookup failed');
+        const release = await response.json();
+        note.textContent = `Latest release: ${release.tag_name}`;
+        setInstructions(os, release);
+      } catch (error) {
+        note.textContent = 'Latest release is available on GitHub.';
+        setInstructions(os, null);
+      }
+    }
+
+    loadRelease();
+  </script>
+</body>
+</html>
