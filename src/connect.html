@@ -90,6 +90,12 @@
 
     .message.ok { color: #1f7a3f; }
     .message.error { color: #b42318; }
+    .message.pending { animation: pulse 1.2s ease-in-out infinite; }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.35; }
+    }
 
     .group-list {
       max-height: 160px;
@@ -275,7 +281,7 @@
         return;
       }
       loginButton.disabled = true;
-      setMessage(loginMessage, 'Signing in...', '');
+      setMessage(loginMessage, 'Signing in...', 'pending');
       try {
         const result = await window.connect.login({ username, password });
         applyLoginResult(result);
@@ -288,7 +294,7 @@
 
     loginManualButton.addEventListener('click', async () => {
       loginManualButton.disabled = true;
-      setMessage(loginMessage, 'Waiting for login...', '');
+      setMessage(loginMessage, 'Waiting for login...', 'pending');
       try {
         const result = await window.connect.login();
         applyLoginResult(result);
