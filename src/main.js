@@ -69,7 +69,14 @@ function displayVersion() {
 function includeBetaUpdates() {
   const configured = apiClient.getIncludeBetaUpdates();
   if (typeof configured === 'boolean') return configured;
-  return isBetaBuild();
+  // Never explicitly set - persist the computed default immediately so it
+  // survives a later update from a beta build to a stable one (otherwise
+  // this always re-derives from isBetaBuild(), which silently flips to
+  // false the moment a beta user updates to stable, making their
+  // subscription look like it was cleared when it was never actually saved).
+  const defaultValue = isBetaBuild();
+  apiClient.setIncludeBetaUpdates(defaultValue);
+  return defaultValue;
 }
 
 async function toggleBetaUpdates() {
