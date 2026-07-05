@@ -90,6 +90,12 @@
 
     .message.ok { color: #1f7a3f; }
     .message.error { color: #b42318; }
+    .message.pending { animation: pulse 1.2s ease-in-out infinite; }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.35; }
+    }
 
     .group-list {
       max-height: 160px;
@@ -124,9 +130,14 @@
 
   <section id="loginSection" class="disabled">
     <h2>2. Walks Manager Login</h2>
-    <div class="hint">A browser window will open. Sign in to Walks Manager and wait until the review list loads. The session is uploaded to the server automatically.</div>
+    <label for="wmUsername">Email address (registered with Ramblers)</label>
+    <input id="wmUsername" type="text" autocomplete="off">
+    <label for="wmPassword" style="margin-top: 10px;">Password</label>
+    <input id="wmPassword" type="password" autocomplete="off">
+    <div class="hint">We'll sign in for you automatically. If a security check (e.g. a verification code) is needed, a browser window will open so you can finish signing in yourself. Your password isn't stored by this app.</div>
     <div class="actions">
       <button id="login" class="primary">Login to Walks Manager</button>
+      <button id="loginManual" class="primary" style="display: none;">Open in browser instead</button>
     </div>
     <div id="loginMessage" class="message"></div>
   </section>
@@ -135,6 +146,7 @@
     <h2>3. Group Selection</h2>
     <div id="groupList" class="group-list"><div class="hint">Login first to detect your group(s).</div></div>
     <div class="actions">
+      <button id="redetectGroups" style="display: none;">Retry group detection</button>
       <button id="saveGroups" class="primary">Save Group Selection</button>
     </div>
     <div id="groupsMessage" class="message"></div>
@@ -160,9 +172,15 @@
     const apiKeyMessage = document.getElementById('apiKeyMessage');
     const loginSection = document.getElementById('loginSection');
     const loginMessage = document.getElementById('loginMessage');
+    const wmUsernameInput = document.getElementById('wmUsername');
+    const wmPasswordInput = document.getElementById('wmPassword');
+    const loginButton = document.getElementById('login');
+    const loginManualButton = document.getElementById('loginManual');
+    let failedLoginAttempts = 0;
     const groupsSection = document.getElementById('groupsSection');
     const groupList = document.getElementById('groupList');
     const groupsMessage = document.getElementById('groupsMessage');
+    const redetectGroupsButton = document.getElementById('redetectGroups');
     const recipientsSection = document.getElementById('recipientsSection');
     const recipientsInput = document.getElementById('recipients');
     const recipientsMessage = document.getElementById('recipientsMessage');
@@ -194,6 +212,10 @@
 
     let knownGroups = [];
 
+    function updateRedetectButtonVisibility(sessionPresent) {
+      redetectGroupsButton.style.display = (sessionPresent && !knownGroups.length) ? '' : 'none';
+    }
+
     window.connect.status().then((status) => {
       if (status.apiKeySet) {
         apiKeyInput.placeholder = 'API key saved (hidden)';
@@ -212,6 +234,7 @@
       if (status.sessionPresent) {
         setMessage(loginMessage, 'Walks Manager session is present.', 'ok');
       }
+      updateRedetectButtonVisibility(status.sessionPresent);
     });
 
     document.getElementById('saveApiKey').addEventListener('click', async () => {
@@ -234,21 +257,77 @@
       }
     });
 
-    document.getElementById('login').addEventListener('click', async () => {
-      const button = document.getElementById('login');
-      button.disabled = true;
-      setMessage(loginMessage, 'Waiting for login...', '');
+    function applyLoginResult(result) {
+      wmPasswordInput.value = '';
+      setMessage(loginMessage, result.message, result.code === 0 ? 'ok' : 'error');
+      if (result.groups && result.groups.length) {
+        knownGroups = result.groups;
+        renderGroups(result.groups, result.groups.length === 1 ? [result.groups[0].gid] : []);
+        if (result.groups.length === 1) {
+          setMessage(groupsMessage, 'Saved automatically.', 'ok');
+        }
+      }
+      if (result.code === 2) {
+        failedLoginAttempts += 1;
+        if (failedLoginAttempts >= 3) {
+          loginButton.style.display = 'none';
+          loginManualButton.style.display = '';
+        }
+      } else if (result.code === 0) {
+        failedLoginAttempts = 0;
+        loginButton.style.display = '';
+        loginManualButton.style.display = 'none';
+      }
+      updateRedetectButtonVisibility(result.sessionPresent);
+    }
+
+    loginButton.addEventListener('click', async () => {
+      const username = wmUsernameInput.value.trim();
+      const password = wmPasswordInput.value;
+      if (!username || !password) {
+        setMessage(loginMessage, 'Enter your Ramblers email address and password.', 'error');
+        return;
+      }
+      loginButton.disabled = true;
+      setMessage(loginMessage, 'Signing in...', 'pending');
+      try {
+        const result = await window.connect.login({ username, password });
+        applyLoginResult(result);
+      } catch (error) {
+        setMessage(loginMessage, error.message, 'error');
+      } finally {
+        loginButton.disabled = false;
+      }
+    });
+
+    loginManualButton.addEventListener('click', async () => {
+      loginManualButton.disabled = true;
+      setMessage(loginMessage, 'Waiting for login...', 'pending');
       try {
         const result = await window.connect.login();
-        setMessage(loginMessage, result.message, result.code === 0 ? 'ok' : 'error');
+        applyLoginResult(result);
+      } catch (error) {
+        setMessage(loginMessage, error.message, 'error');
+      } finally {
+        loginManualButton.disabled = false;
+      }
+    });
+
+    redetectGroupsButton.addEventListener('click', async () => {
+      redetectGroupsButton.disabled = true;
+      setMessage(groupsMessage, 'Checking your Walks Manager session for groups...', 'pending');
+      try {
+        const result = await window.connect.redetectGroups();
         if (result.groups && result.groups.length) {
           knownGroups = result.groups;
           renderGroups(result.groups, result.groups.length === 1 ? [result.groups[0].gid] : []);
         }
+        setMessage(groupsMessage, result.message, result.code === 0 ? 'ok' : 'error');
+        updateRedetectButtonVisibility(result.sessionPresent);
       } catch (error) {
-        setMessage(loginMessage, error.message, 'error');
+        setMessage(groupsMessage, error.message, 'error');
       } finally {
-        button.disabled = false;
+        redetectGroupsButton.disabled = false;
       }
     });
 

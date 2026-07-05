@@ -17,9 +17,14 @@ function getApiKey() {
   return String(readJson(paths.clientConfigFile, {}).apiKey || '').trim();
 }
 
-function setApiKey(apiKey) {
+function writeClientConfig(patch) {
+  const current = readJson(paths.clientConfigFile, {});
   fs.mkdirSync(path.dirname(paths.clientConfigFile), { recursive: true });
-  fs.writeFileSync(paths.clientConfigFile, `${JSON.stringify({ apiKey: String(apiKey || '').trim() }, null, 2)}\n`, { mode: 0o600 });
+  fs.writeFileSync(paths.clientConfigFile, `${JSON.stringify({ ...current, ...patch }, null, 2)}\n`, { mode: 0o600 });
+}
+
+function setApiKey(apiKey) {
+  writeClientConfig({ apiKey: String(apiKey || '').trim() });
 }
 
 function hasApiKey() {
@@ -30,18 +35,36 @@ function clearApiKey() {
   setApiKey('');
 }
 
-function errorFromResponse(response, body) {
+// The beta-updates opt-in is a per-device preference, not tenant config, so
+// it is stored locally rather than round-tripped through the server (the
+// server's /api/config merge logic does not recognise this field and would
+// silently drop it).
+function getIncludeBetaUpdates() {
+  const value = readJson(paths.clientConfigFile, {}).includeBetaUpdates;
+  return typeof value === 'boolean' ? value : null;
+}
+
+function setIncludeBetaUpdates(value) {
+  writeClientConfig({ includeBetaUpdates: Boolean(value) });
+}
+
+function errorFromResponse(response, body, pathName) {
+  const diagnostic = `${pathName} -> HTTP ${response.status} ${JSON.stringify(body).slice(0, 200)} at ${new Date().toISOString()}`;
   if (response.status === 503 && body.error === 'maintenance') {
     const error = new Error(body.message || 'The server is undergoing maintenance. Please try again shortly.');
     error.code = 'maintenance';
+    error.diagnostic = diagnostic;
     return error;
   }
   if (response.status === 401) {
     const error = new Error('That API key is no longer valid. Enter a new one to reconnect.');
     error.code = 'unauthorized';
+    error.diagnostic = diagnostic;
     return error;
   }
-  return new Error(body.error || `Server returned HTTP ${response.status}`);
+  const error = new Error(body.error || `Server returned HTTP ${response.status}`);
+  error.diagnostic = diagnostic;
+  return error;
 }
 
 async function apiFetch(pathName, options = {}) {
@@ -50,6 +73,12 @@ async function apiFetch(pathName, options = {}) {
 
   const response = await fetch(`${API_BASE_URL}${pathName}`, {
     ...options,
+    // Electron's main-process fetch is backed by Chromium's network stack,
+    // which maintains its own on-disk HTTP cache independent of the server
+    // and any CDN in front of it. A transient response (e.g. a maintenance
+    // 503) could otherwise get served from that cache indefinitely, surviving
+    // both app restarts and upstream cache purges.
+    cache: 'no-store',
     headers: {
       Authorization: `Bearer ${apiKey}`,
       'Content-Type': 'application/json',
@@ -59,7 +88,7 @@ async function apiFetch(pathName, options = {}) {
 
   const body = await response.json().catch(() => ({}));
   if (!response.ok) {
-    throw errorFromResponse(response, body);
+    throw errorFromResponse(response, body, pathName);
   }
   return body;
 }
@@ -116,6 +145,7 @@ function getLogs(lines = 500) {
 // above, so the "Connect" window can confirm a key works before saving it.
 async function testConnection(apiKey) {
   const response = await fetch(`${API_BASE_URL}/api/status`, {
+    cache: 'no-store',
     headers: { Authorization: `Bearer ${apiKey}` }
   });
   if (response.status === 401) throw new Error('That API key was not accepted.');
@@ -132,6 +162,8 @@ module.exports = {
   setApiKey,
   clearApiKey,
   hasApiKey,
+  getIncludeBetaUpdates,
+  setIncludeBetaUpdates,
   getConfig,
   putConfig,
   getStatus,

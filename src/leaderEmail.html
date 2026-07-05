@@ -136,6 +136,14 @@
   <input id="lookupFailureNotifyAddress" autocomplete="off" placeholder="admin@example.org">
 
   <label class="checkbox">
+    <input id="notifyOnNameNotShared" type="checkbox">
+    Notify if a walk leader has not shared their name
+  </label>
+
+  <label for="nameNotSharedNotifyAddress">Notify address</label>
+  <input id="nameNotSharedNotifyAddress" autocomplete="off" placeholder="admin@example.org" disabled>
+
+  <label class="checkbox">
     <input id="testModeEnabled" type="checkbox">
     Test mode (only send leader emails to the addresses below)
   </label>
@@ -164,6 +172,8 @@
       apiToken: document.getElementById('apiToken'),
       notifyOnLookupFailure: document.getElementById('notifyOnLookupFailure'),
       lookupFailureNotifyAddress: document.getElementById('lookupFailureNotifyAddress'),
+      notifyOnNameNotShared: document.getElementById('notifyOnNameNotShared'),
+      nameNotSharedNotifyAddress: document.getElementById('nameNotSharedNotifyAddress'),
       testModeEnabled: document.getElementById('testModeEnabled'),
       testAllowedEmails: document.getElementById('testAllowedEmails')
     };
@@ -178,6 +188,8 @@
         apiToken: fields.apiToken.value,
         notifyOnLookupFailure: fields.notifyOnLookupFailure.checked,
         lookupFailureNotifyAddress: fields.lookupFailureNotifyAddress.value,
+        notifyOnNameNotShared: fields.notifyOnNameNotShared.checked,
+        nameNotSharedNotifyAddress: fields.nameNotSharedNotifyAddress.value,
         testModeEnabled: fields.testModeEnabled.checked,
         testAllowedEmails: fields.testAllowedEmails.value
       };
@@ -186,6 +198,9 @@
     function validationError(settings) {
       if (settings.notifyOnLookupFailure && !settings.lookupFailureNotifyAddress.trim()) {
         return 'Enter a report address, or turn off the lookup-failure email.';
+      }
+      if (settings.notifyOnNameNotShared && !settings.nameNotSharedNotifyAddress.trim()) {
+        return 'Enter a notify address, or turn off the name-not-shared notification.';
       }
       if (settings.testModeEnabled && !settings.testAllowedEmails.trim()) {
         return 'Enter at least one test leader email address, or turn off test mode.';
@@ -198,6 +213,12 @@
       message.className = `message ${kind || ''}`;
     }
 
+    function updateNameNotSharedAddressState() {
+      fields.nameNotSharedNotifyAddress.disabled = !fields.notifyOnNameNotShared.checked;
+    }
+
+    fields.notifyOnNameNotShared.addEventListener('change', updateNameNotSharedAddressState);
+
     window.leaderEmailSettings.load().then((settings) => {
       fields.enabled.checked = settings.enabled === true;
       fields.sendOnSubmit.checked = settings.sendOnSubmit !== false;
@@ -207,6 +228,9 @@
       fields.apiToken.placeholder = settings.apiTokenIsSet ? '•••• (already set - leave blank to keep it)' : '';
       fields.notifyOnLookupFailure.checked = settings.notifyOnLookupFailure === true;
       fields.lookupFailureNotifyAddress.value = settings.lookupFailureNotifyAddress || '';
+      fields.notifyOnNameNotShared.checked = settings.notifyOnNameNotShared === true;
+      fields.nameNotSharedNotifyAddress.value = settings.nameNotSharedNotifyAddress || '';
+      updateNameNotSharedAddressState();
       fields.testModeEnabled.checked = settings.testModeEnabled === true;
       fields.testAllowedEmails.value = Array.isArray(settings.testAllowedEmails) ? settings.testAllowedEmails.join('\n') : '';
     });
