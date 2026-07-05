@@ -10,6 +10,7 @@ on:
 
 permissions:
   contents: write
+  actions: write
 
 env:
   NODE_VERSION: "20"
@@ -125,3 +126,17 @@ jobs:
       - env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: bash scripts/publish-release.sh "${{ github.event.inputs.notes }}"
+
+      # GitHub suppresses the "release: published" event when the release is
+      # created via GITHUB_TOKEN (anti-recursion protection), so pages.yml's
+      # release trigger never actually fires for our own publishes. Dispatch
+      # it explicitly instead, only for stable (non-beta) versions.
+      - name: Trigger Pages publish for stable releases
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          VERSION=$(node -p "require('./package.json').version")
+          if [[ "$VERSION" != *-beta.* ]]; then
+            gh workflow run pages.yml --ref main
+          fi
