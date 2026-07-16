@@ -69,7 +69,14 @@ function displayVersion() {
 function includeBetaUpdates() {
   const configured = apiClient.getIncludeBetaUpdates();
   if (typeof configured === 'boolean') return configured;
-  return isBetaBuild();
+  // Never explicitly set - persist the computed default immediately so it
+  // survives a later update from a beta build to a stable one (otherwise
+  // this always re-derives from isBetaBuild(), which silently flips to
+  // false the moment a beta user updates to stable, making their
+  // subscription look like it was cleared when it was never actually saved).
+  const defaultValue = isBetaBuild();
+  apiClient.setIncludeBetaUpdates(defaultValue);
+  return defaultValue;
 }
 
 async function toggleBetaUpdates() {
@@ -842,10 +849,27 @@ async function extractWalksManagerGroups(window) {
       if (!gid) {
         return { groups: [], diagnostic: (select ? 'select found with 0 usable options' : 'no select') + ' and no gid in URL (' + window.location.href + ')' };
       }
-      const heading = document.querySelector('h1, h2, .page-title, [data-drupal-selector="page-title"]');
+      // Skip visually-hidden accessibility headings (e.g. Drupal's hidden
+      // "Breadcrumb" <h2> that precedes the breadcrumb nav) and anything
+      // inside a breadcrumb region - we want the actual page title.
+      const isHiddenOrBreadcrumb = (el) => {
+        if (el.closest('nav[aria-label], .breadcrumb, .breadcrumbs, ol.breadcrumb')) return true;
+        const classes = (el.className && el.className.toString) ? el.className.toString() : '';
+        if (/visually-hidden|visuallyhidden|sr-only|screen-reader-text/i.test(classes)) return true;
+        return /^breadcrumb$/i.test((el.textContent || '').trim());
+      };
+      const headingCandidates = Array.from(document.querySelectorAll('h1, h2, .page-title, [data-drupal-selector="page-title"]'));
+      const heading = headingCandidates.find(el => !isHiddenOrBreadcrumb(el));
       const name = (heading && heading.textContent || '').trim();
+      // Don't synthesize a "Group <gid>" placeholder here - if no usable
+      // heading was found, report zero groups so the caller falls through
+      // to the my-groups page fallback, which scrapes the real group name
+      // from a table rather than guessing from the page's heading markup.
+      if (!name) {
+        return { groups: [], diagnostic: 'no select; used gid=' + gid + ' from URL, but no usable heading found' };
+      }
       return {
-        groups: [{ gid, name: name || ('Group ' + gid) }],
+        groups: [{ gid, name }],
         diagnostic: 'no select; used gid=' + gid + ' from URL, heading=' + JSON.stringify(name)
       };
     })()
@@ -1294,7 +1318,7 @@ function openWalksManagerLoginWindow(credentials) {
 
         if (groups.length === 1) {
           await saveSelectedGroups(groups);
-          finish({ code: 0, message: `Walks Manager login saved. Group set to ${groups[0].name}.`, groups, sessionPresent: true });
+          finish({ code: 0, message: `Walks Manager login saved. Group set to ${groups[0].name}. (${diagnostic})`, groups, sessionPresent: true });
           return;
         }
 
@@ -1448,7 +1472,7 @@ ipcMain.handle('connect:redetect-groups', async () => {
     await saveSelectedGroups(result.groups);
     return {
       code: 0,
-      message: `Group set to ${result.groups[0].name}.`,
+      message: `Group set to ${result.groups[0].name}. (${result.diagnostic})`,
       groups: result.groups,
       sessionPresent: cachedSessionPresent
     };

@@ -101,10 +101,17 @@
 <body>
   <h1>Leader Email Settings</h1>
 
+  <div class="hint">
+    This feature needs extra setup beyond the base app: a Ramblers-Webs Joomla website, and an experimental fork of Mailman for looking up walk leaders' email addresses. If your group doesn't already have both of these in place, leave this feature disabled.
+  </div>
+
   <label class="checkbox">
-    <input id="enabled" type="checkbox">
+    <input id="enabled" type="checkbox" disabled>
     Email walk leaders
   </label>
+  <div class="hint">
+    Disabled until you've entered a Joomla API URL and key and clicked "Test API" successfully. Editing either field re-locks this until tested again.
+  </div>
 
   <label class="checkbox">
     <input id="sendOnSubmit" type="checkbox">
@@ -196,6 +203,9 @@
     }
 
     function validationError(settings) {
+      if (settings.enabled && !isApiValidatedFor(settings)) {
+        return 'Test the Joomla API URL and key successfully before enabling walk leader emails.';
+      }
       if (settings.notifyOnLookupFailure && !settings.lookupFailureNotifyAddress.trim()) {
         return 'Enter a report address, or turn off the lookup-failure email.';
       }
@@ -207,6 +217,31 @@
       }
       return '';
     }
+
+    // Tracks whether the currently-entered Joomla URL/key combination has
+    // been successfully tested, so "Email walk leaders" can't be enabled
+    // (client-side) with an unverified or blank API connection. Keyed on
+    // the base URL plus the token - an empty token means "keep the
+    // already-saved one", which only counts as validated if it was already
+    // enabled+set when this window was opened (see load handler below).
+    let apiValidatedKey = null;
+
+    function apiKeyFor(settings) {
+      return `${(settings.apiBaseUrl || '').trim()}::${settings.apiToken || ''}`;
+    }
+
+    function isApiValidatedFor(settings) {
+      return apiValidatedKey !== null && apiValidatedKey === apiKeyFor(settings);
+    }
+
+    function refreshEnabledAvailability() {
+      const valid = isApiValidatedFor(currentSettings());
+      fields.enabled.disabled = !valid;
+      if (!valid) fields.enabled.checked = false;
+    }
+
+    fields.apiBaseUrl.addEventListener('input', refreshEnabledAvailability);
+    fields.apiToken.addEventListener('input', refreshEnabledAvailability);
 
     function setMessage(text, kind) {
       message.textContent = text || '';
@@ -223,7 +258,7 @@
       fields.enabled.checked = settings.enabled === true;
       fields.sendOnSubmit.checked = settings.sendOnSubmit !== false;
       fields.sendOnPublish.checked = settings.sendOnPublish !== false;
-      fields.apiBaseUrl.value = settings.apiBaseUrl || 'https://ramblerseastcheshire.org.uk/api/index.php/v1';
+      fields.apiBaseUrl.value = settings.apiBaseUrl || '';
       fields.apiToken.value = '';
       fields.apiToken.placeholder = settings.apiTokenIsSet ? '•••• (already set - leave blank to keep it)' : '';
       fields.notifyOnLookupFailure.checked = settings.notifyOnLookupFailure === true;
@@ -233,6 +268,16 @@
       updateNameNotSharedAddressState();
       fields.testModeEnabled.checked = settings.testModeEnabled === true;
       fields.testAllowedEmails.value = Array.isArray(settings.testAllowedEmails) ? settings.testAllowedEmails.join('\n') : '';
+
+      // An already-enabled account with a saved URL/token was validated
+      // when it was originally enabled - treat that as still valid until
+      // either field is edited, rather than forcing a re-test every time
+      // this window is opened.
+      if (settings.enabled && settings.apiBaseUrl && settings.apiTokenIsSet) {
+        apiValidatedKey = apiKeyFor({ apiBaseUrl: settings.apiBaseUrl, apiToken: '' });
+      }
+      refreshEnabledAvailability();
+      fields.enabled.checked = settings.enabled === true && isApiValidatedFor(currentSettings());
     });
 
     document.getElementById('testApi').addEventListener('click', async () => {
@@ -240,10 +285,15 @@
       button.disabled = true;
       setMessage('Testing Joomla API...', '');
       try {
-        const result = await window.leaderEmailSettings.testApi(currentSettings());
+        const settings = currentSettings();
+        const result = await window.leaderEmailSettings.testApi(settings);
         setMessage(result.message, result.ok ? 'ok' : 'error');
+        apiValidatedKey = result.ok ? apiKeyFor(settings) : null;
+        refreshEnabledAvailability();
       } catch (error) {
         setMessage(`API test failed: ${error.message}`, 'error');
+        apiValidatedKey = null;
+        refreshEnabledAvailability();
       } finally {
         button.disabled = false;
       }
