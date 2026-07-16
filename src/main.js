@@ -849,7 +849,17 @@ async function extractWalksManagerGroups(window) {
       if (!gid) {
         return { groups: [], diagnostic: (select ? 'select found with 0 usable options' : 'no select') + ' and no gid in URL (' + window.location.href + ')' };
       }
-      const heading = document.querySelector('h1, h2, .page-title, [data-drupal-selector="page-title"]');
+      // Skip visually-hidden accessibility headings (e.g. Drupal's hidden
+      // "Breadcrumb" <h2> that precedes the breadcrumb nav) and anything
+      // inside a breadcrumb region - we want the actual page title.
+      const isHiddenOrBreadcrumb = (el) => {
+        if (el.closest('nav[aria-label], .breadcrumb, .breadcrumbs, ol.breadcrumb')) return true;
+        const classes = (el.className && el.className.toString) ? el.className.toString() : '';
+        if (/visually-hidden|visuallyhidden|sr-only|screen-reader-text/i.test(classes)) return true;
+        return /^breadcrumb$/i.test((el.textContent || '').trim());
+      };
+      const headingCandidates = Array.from(document.querySelectorAll('h1, h2, .page-title, [data-drupal-selector="page-title"]'));
+      const heading = headingCandidates.find(el => !isHiddenOrBreadcrumb(el));
       const name = (heading && heading.textContent || '').trim();
       return {
         groups: [{ gid, name: name || ('Group ' + gid) }],
