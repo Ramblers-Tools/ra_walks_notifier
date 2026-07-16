@@ -130,7 +130,7 @@
     "publish": [
       {
         "provider": "github",
-        "owner": "East-Cheshire-Ramblers",
+        "owner": "Ramblers-Tools",
         "repo": "ra_walks_notifier"
       }
     ]
