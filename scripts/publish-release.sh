@@ -6,7 +6,7 @@ cd "$ROOT_DIR"
 
 VERSION=$(node -p "require('./package.json').version")
 TAG="v$VERSION"
-REPO="East-Cheshire-Ramblers/ra_walks_notifier"
+REPO="Ramblers-Tools/ra_walks_notifier"
 NOTES=${1:-"RA Walks Notifier $TAG release."}
 
 PRERELEASE_FLAGS=()
