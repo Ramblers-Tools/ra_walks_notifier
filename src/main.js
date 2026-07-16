@@ -1301,7 +1301,7 @@ function openWalksManagerLoginWindow(credentials) {
 
         if (groups.length === 1) {
           await saveSelectedGroups(groups);
-          finish({ code: 0, message: `Walks Manager login saved. Group set to ${groups[0].name}.`, groups, sessionPresent: true });
+          finish({ code: 0, message: `Walks Manager login saved. Group set to ${groups[0].name}. (${diagnostic})`, groups, sessionPresent: true });
           return;
         }
 
@@ -1455,7 +1455,7 @@ ipcMain.handle('connect:redetect-groups', async () => {
     await saveSelectedGroups(result.groups);
     return {
       code: 0,
-      message: `Group set to ${result.groups[0].name}.`,
+      message: `Group set to ${result.groups[0].name}. (${result.diagnostic})`,
       groups: result.groups,
       sessionPresent: cachedSessionPresent
     };
