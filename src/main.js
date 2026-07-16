@@ -861,8 +861,15 @@ async function extractWalksManagerGroups(window) {
       const headingCandidates = Array.from(document.querySelectorAll('h1, h2, .page-title, [data-drupal-selector="page-title"]'));
       const heading = headingCandidates.find(el => !isHiddenOrBreadcrumb(el));
       const name = (heading && heading.textContent || '').trim();
+      // Don't synthesize a "Group <gid>" placeholder here - if no usable
+      // heading was found, report zero groups so the caller falls through
+      // to the my-groups page fallback, which scrapes the real group name
+      // from a table rather than guessing from the page's heading markup.
+      if (!name) {
+        return { groups: [], diagnostic: 'no select; used gid=' + gid + ' from URL, but no usable heading found' };
+      }
       return {
-        groups: [{ gid, name: name || ('Group ' + gid) }],
+        groups: [{ gid, name }],
         diagnostic: 'no select; used gid=' + gid + ' from URL, heading=' + JSON.stringify(name)
       };
     })()
