@@ -1416,6 +1416,7 @@ ipcMain.handle('app:settings-load', () => ({
 }));
 ipcMain.handle('app:toggle-beta-updates', async () => ({ includeBetaUpdates: await toggleBetaUpdates() }));
 ipcMain.handle('app:check-for-updates', () => checkForUpdates(true));
+ipcMain.handle('app:install-update', () => installDownloadedUpdate());
 ipcMain.handle('app:logo-status', () => loadBrandLogo());
 ipcMain.handle('app:choose-logo', () => chooseBrandLogo());
 ipcMain.handle('app:reset-logo', () => resetBrandLogo());

@@ -154,8 +154,15 @@
         betaUpdatesCheckbox.checked = settings.includeBetaUpdates;
         updateStatusText.textContent = `Update: ${settings.updateStatus}`;
         const inProgress = /^(Checking|Downloading)/.test(settings.updateStatus);
+        // If the user dismissed the "install now?" dialog with Later, the
+        // update is still sitting there downloaded - offer to install it
+        // straight from here instead of making them re-check for updates.
+        const ready = /ready$/i.test(settings.updateStatus);
+        checkForUpdatesButton.dataset.mode = ready ? 'install' : 'check';
         checkForUpdatesButton.disabled = inProgress;
-        checkForUpdatesButton.textContent = inProgress ? 'Checking...' : 'Check for Updates';
+        checkForUpdatesButton.textContent = inProgress
+          ? 'Checking...'
+          : (ready ? 'Install and Restart' : 'Check for Updates');
       });
     }
 
@@ -168,6 +175,10 @@
     });
 
     checkForUpdatesButton.addEventListener('click', () => {
+      if (checkForUpdatesButton.dataset.mode === 'install') {
+        window.appSettings.installUpdate();
+        return;
+      }
       checkForUpdatesButton.disabled = true;
       checkForUpdatesButton.textContent = 'Checking...';
       updateStatusText.textContent = 'Update: Checking...';
