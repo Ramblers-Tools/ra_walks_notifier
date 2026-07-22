@@ -1,4 +1,4 @@
-const { app, Menu, shell, dialog, BrowserWindow, ipcMain } = require('electron');
+const { app, Menu, shell, dialog, BrowserWindow, ipcMain, nativeImage } = require('electron');
 const { autoUpdater } = require('electron-updater');
 const path = require('path');
 const fs = require('fs');
@@ -319,6 +319,7 @@ async function checkNow(force = false) {
 }
 
 const maxLogoBytes = 2 * 1024 * 1024; // 2 MB - plenty for a logo, not for a full-res photo
+const maxLogoDimension = 1000; // px, generous for a logo - not a full-res photo
 
 async function chooseBrandLogo() {
   const result = await dialog.showOpenDialog({
@@ -333,6 +334,14 @@ async function chooseBrandLogo() {
   const { size } = fs.statSync(filePath);
   if (size > maxLogoBytes) {
     return { ok: false, error: `That image is too large (${(size / (1024 * 1024)).toFixed(1)} MB). Please choose one under ${maxLogoBytes / (1024 * 1024)} MB.` };
+  }
+  // nativeImage can't read SVG dimensions (it's vector, not raster), so this
+  // check only applies to the raster formats in the file filter above.
+  if (ext.toLowerCase() !== 'svg') {
+    const { width, height } = nativeImage.createFromPath(filePath).getSize();
+    if (width > maxLogoDimension || height > maxLogoDimension) {
+      return { ok: false, error: `That image is ${width}x${height}px. Please choose one no larger than ${maxLogoDimension}x${maxLogoDimension}px.` };
+    }
   }
   try {
     const data = fs.readFileSync(filePath).toString('base64');
