@@ -1308,6 +1308,9 @@ ipcMain.handle('app:settings-load', () => ({
 }));
 ipcMain.handle('app:toggle-beta-updates', async () => ({ includeBetaUpdates: await toggleBetaUpdates() }));
 ipcMain.handle('app:check-for-updates', () => checkForUpdates(true));
+ipcMain.handle('app:open-devtools', () => {
+  if (dashboardWindow && !dashboardWindow.isDestroyed()) dashboardWindow.webContents.openDevTools({ mode: 'detach' });
+});
 ipcMain.handle('app:logo-status', () => loadBrandLogo());
 ipcMain.handle('app:choose-logo', () => chooseBrandLogo());
 ipcMain.handle('app:reset-logo', () => resetBrandLogo());
