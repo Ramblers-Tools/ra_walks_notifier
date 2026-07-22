@@ -101,6 +101,10 @@
       color: #1f2933;
     }
 
+    .pending-walks-count.has-pending {
+      color: #b42318;
+    }
+
     .setup-header {
       text-align: center;
       margin: 40px 0 24px;
@@ -757,7 +761,10 @@
     // --- Status ---
     function renderStatus(result) {
       document.getElementById('statusText').textContent = result.text;
-      document.getElementById('pendingWalksCount').textContent = String(result.pendingWalks || 0);
+      const pendingWalks = Number(result.pendingWalks || 0);
+      const pendingWalksCountEl = document.getElementById('pendingWalksCount');
+      pendingWalksCountEl.textContent = String(pendingWalks);
+      pendingWalksCountEl.classList.toggle('has-pending', pendingWalks > 0);
       const groupNames = result.groupNames || [];
       document.getElementById('statusGroups').textContent = groupNames.length
         ? (groupNames.length === 1 ? groupNames[0] : groupNames.join(', '))
