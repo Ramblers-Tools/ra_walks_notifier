@@ -381,6 +381,10 @@
       margin-top: 6px;
     }
 
+    .status-groups-label {
+      color: #1f2933;
+    }
+
     #maintenanceBanner {
       display: none;
       margin-bottom: 10px;
@@ -767,9 +771,18 @@
       pendingWalksCountEl.textContent = String(pendingWalks);
       pendingWalksCountEl.classList.toggle('has-pending', pendingWalks > 0);
       const groupNames = result.groupNames || [];
-      document.getElementById('statusGroups').textContent = groupNames.length
-        ? (groupNames.length === 1 ? groupNames[0] : groupNames.join(', '))
-        : '';
+      const statusGroupsEl = document.getElementById('statusGroups');
+      if (groupNames.length) {
+        const label = groupNames.length === 1 ? 'Group' : 'Groups';
+        statusGroupsEl.innerHTML = '';
+        const labelSpan = document.createElement('span');
+        labelSpan.className = 'status-groups-label';
+        labelSpan.textContent = `${label}: `;
+        statusGroupsEl.appendChild(labelSpan);
+        statusGroupsEl.appendChild(document.createTextNode(groupNames.join(', ')));
+      } else {
+        statusGroupsEl.textContent = '';
+      }
       const banner = document.getElementById('maintenanceBanner');
       if (result.maintenanceMessage) {
         banner.textContent = result.maintenanceMessage;
