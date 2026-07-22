@@ -91,6 +91,13 @@
       line-height: 1;
     }
 
+    .pending-walks-count {
+      font-size: 16px;
+      font-weight: 700;
+      line-height: 1;
+      color: #1f2933;
+    }
+
     .setup-header {
       text-align: center;
       margin: 40px 0 24px;
@@ -431,6 +438,10 @@
       </svg>
       <span class="icon-button-label">Settings</span>
     </button>
+    <button id="pendingWalksIndicator" class="icon-button" title="Pending walks awaiting review" aria-label="Pending walks">
+      <span class="icon-button-label">Pending Walks</span>
+      <span id="pendingWalksCount" class="pending-walks-count">0</span>
+    </button>
     </div>
   </header>
 
@@ -732,6 +743,7 @@
     // --- Status ---
     function renderStatus(result) {
       document.getElementById('statusText').textContent = result.text;
+      document.getElementById('pendingWalksCount').textContent = String(result.pendingWalks || 0);
       const banner = document.getElementById('maintenanceBanner');
       if (result.maintenanceMessage) {
         banner.textContent = result.maintenanceMessage;
@@ -745,6 +757,7 @@
     setInterval(() => window.statusApi.load().then(renderStatus), 15000);
 
     document.getElementById('openReviewList').addEventListener('click', () => window.statusApi.openReviewList());
+    document.getElementById('pendingWalksIndicator').addEventListener('click', () => window.statusApi.openReviewList());
 
     document.getElementById('upgradeAutoLogin').addEventListener('click', () => window.credentials.openUpgradeWindow());
 

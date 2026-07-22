@@ -135,14 +135,12 @@ function stripUnreliableResultCounts(lastResult) {
 function buildStatusText() {
   const s = cachedStatus || {};
   const groupNames = cachedGroups.map(group => group.name || `Group ${group.gid}`);
-  const pending = Number(s.pendingWalks || 0);
   const credentialsSet = Boolean(cachedConfig?.walksManagerCredentials?.credentialsSet);
   return [
     `Status: ${s.maintenanceMessage ? 'Server offline (maintenance)' : apiClient.hasApiKey() ? 'Connected' : 'Not connected'}`,
     `Last error: ${s.lastError || 'None'}`,
     `Auto re-login credentials: ${credentialsSet ? 'Saved' : 'Not saved'}`,
     `Session: ${cachedSessionPresent ? 'Present' : 'Missing'}`,
-    `Pending walks: ${pending}`,
     '',
     statusList(cachedGroups.length === 1 ? 'Group' : 'Groups', groupNames, 'Not selected'),
     '',
@@ -1414,7 +1412,8 @@ ipcMain.handle('status:load', async () => {
   return {
     text: buildStatusText(),
     maintenanceMessage: cachedStatus?.maintenanceMessage || null,
-    checking: Boolean(cachedStatus?.checking)
+    checking: Boolean(cachedStatus?.checking),
+    pendingWalks: Number(cachedStatus?.pendingWalks || 0)
   };
 });
 
