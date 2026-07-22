@@ -1,13 +1,12 @@
 name: Publish GitHub Pages
 
-# Only publish on a stable (non-prerelease) GitHub release, not on every
-# push to beta/main - the download page fetches release assets live from
-# the GitHub API client-side, so it only ever needs updating when the
-# static site content itself changes, which happens at the same cadence
-# as stable releases, not every beta build.
+# Manual only. gh-pages is maintained by hand (uploaded directly to that
+# branch) rather than generated from main's index.html - an automatic
+# publish-on-release trigger here would silently overwrite that content
+# on every stable release, as happened on 2026-07-16. Run this manually
+# via workflow_dispatch only when main's index.html/assets are meant to
+# become the live site.
 on:
-  release:
-    types: [published]
   workflow_dispatch:
 
 permissions:
@@ -19,7 +18,6 @@ concurrency:
 
 jobs:
   publish:
-    if: github.event_name == 'workflow_dispatch' || github.event.release.prerelease == false
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
