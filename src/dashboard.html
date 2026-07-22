@@ -676,6 +676,13 @@
         if (status.apiKeySet) {
           const recipients = await window.recipients.load();
           latestRecipientsCount = recipients.length;
+          // The branding tile's own status() call only ever runs once, at
+          // script load - if that happened before an API key was set (e.g.
+          // right after a local Reset All Settings, which clears the key
+          // and reloads this window), it never learns the server-side logo
+          // actually still exists once the wizard reaches a usable state.
+          // Refresh it here too, once a key is present to fetch it with.
+          window.branding.status().then((result) => applyLogoState(result.dataUrl));
         } else {
           latestRecipientsCount = 0;
         }
@@ -686,6 +693,12 @@
         console.error('refreshWizard failed:', error);
       }
     }
+
+    // Run once immediately so tile visibility (and the Status section,
+    // below) reflect the real server-side state as soon as the window
+    // opens, rather than showing stale/blank "nothing set up" placeholders
+    // for up to 15 seconds until the first poll tick.
+    refreshWizard();
 
     // Session/group state can change server-side without any action taken
     // in this window (e.g. the server's own headless auto-relogin, or
