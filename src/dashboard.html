@@ -414,6 +414,14 @@
       color: white;
     }
 
+    #minimizeToTrayButton {
+      position: fixed;
+      right: 130px;
+      bottom: 24px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+      z-index: 10;
+    }
+
     #openReviewList:hover {
       border-color: #6b9e7f;
       background: #6b9e7f;
@@ -620,6 +628,7 @@
 
   </div>
 
+  <button id="minimizeToTrayButton">Minimize to Tray</button>
   <button id="quitButton">Quit</button>
 
   <script>
@@ -1336,6 +1345,7 @@
 
     // --- Quit ---
     document.getElementById('quitButton').addEventListener('click', () => window.appSettings.quit());
+    document.getElementById('minimizeToTrayButton').addEventListener('click', () => window.appSettings.minimizeToTray());
   </script>
 </body>
 </html>

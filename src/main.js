@@ -1,4 +1,4 @@
-const { app, Menu, shell, dialog, BrowserWindow, ipcMain, nativeImage } = require('electron');
+const { app, Menu, Tray, Notification, shell, dialog, BrowserWindow, ipcMain, nativeImage } = require('electron');
 const { autoUpdater } = require('electron-updater');
 const path = require('path');
 const fs = require('fs');
@@ -30,11 +30,16 @@ let loginWindow;
 let logWindow;
 let settingsWindow;
 let credentialsUpgradeWindow;
+let tray;
 let updateStatus = 'Not checked';
 let manualUpdateCheck = false;
 let updateHandlersConfigured = false;
 let quittingForUpdate = false;
 let lastLoginAutoAdvanceAt = 0;
+// Baseline for the "new pending walks" tray notification - null until the
+// first successful status fetch, so we never notify about walks that were
+// already pending before this run started, only ones that show up after.
+let lastNotifiedPendingWalks = null;
 
 // In-memory cache of the last successful API responses, refreshed on a
 // timer and re-read by the Dashboard's Status section on demand.
@@ -103,6 +108,19 @@ function appWindowOptions(options) {
   return Object.assign({ icon: appIconPath() }, options);
 }
 
+function createTray() {
+  if (tray) return;
+  const trayImage = nativeImage.createFromPath(appIconPath()).resize({ width: 16, height: 16 });
+  tray = new Tray(trayImage);
+  tray.setToolTip('RA Walks Notifier');
+  tray.setContextMenu(Menu.buildFromTemplate([
+    { label: 'Open RA Walks Notifier', click: () => showDashboard() },
+    { type: 'separator' },
+    { label: 'Quit', click: () => app.quit() }
+  ]));
+  tray.on('click', () => showDashboard());
+}
+
 function isConfigured() {
   return Boolean(
     apiClient.hasApiKey() &&
@@ -149,6 +167,10 @@ function reviewUrlForGroup(group = selectedGroup()) {
 
 function showDashboard() {
   if (dashboardWindow) {
+    // Minimize to Tray hides rather than closes the window, so it can
+    // still exist here but not be visible - show() before focus() or the
+    // focus call is a no-op on a hidden window.
+    dashboardWindow.show();
     dashboardWindow.focus();
     return;
   }
@@ -268,6 +290,7 @@ function handleRevokedApiKey(message) {
   cachedGroups = [];
   cachedSessionPresent = false;
   cachedStatus = null;
+  lastNotifiedPendingWalks = null;
   dialog.showMessageBox({
     type: 'error',
     title: 'RA Walks Notifier',
@@ -275,6 +298,27 @@ function handleRevokedApiKey(message) {
     detail: message
   });
   showDashboard();
+}
+
+function notifyIfNewPendingWalks(status) {
+  const pending = Number(status?.pendingWalks || 0);
+  // No baseline yet (first successful fetch this run) - just record it,
+  // don't notify about walks that were already pending before we started.
+  if (lastNotifiedPendingWalks === null) {
+    lastNotifiedPendingWalks = pending;
+    return;
+  }
+  const isRunningInTray = !dashboardWindow || dashboardWindow.isDestroyed() || !dashboardWindow.isVisible();
+  if (isRunningInTray && pending > lastNotifiedPendingWalks && Notification.isSupported()) {
+    const added = pending - lastNotifiedPendingWalks;
+    const notification = new Notification({
+      title: 'RA Walks Notifier',
+      body: `${added} new pending walk${added === 1 ? '' : 's'} to review (${pending} total).`
+    });
+    notification.on('click', () => showDashboard());
+    notification.show();
+  }
+  lastNotifiedPendingWalks = pending;
 }
 
 async function refreshCache() {
@@ -299,6 +343,7 @@ async function refreshCache() {
 
   try {
     cachedStatus = await apiClient.getStatus();
+    notifyIfNewPendingWalks(cachedStatus);
   } catch (error) {
     if (error.code === 'unauthorized') unauthorizedError = error;
     else otherError = error;
@@ -1211,6 +1256,7 @@ app.whenReady().then(async () => {
   // render of the same PNG. Only needed in dev mode, where there's no
   // bundle/Info.plist and Electron would otherwise show its own icon.
   if (app.dock && !app.isPackaged) app.dock.setIcon(appIconPath());
+  createTray();
   configureUpdates();
   // Wait for the first cache fill before opening the Dashboard, so its
   // Status section doesn't start out reading the empty initial cache.
@@ -1429,6 +1475,9 @@ ipcMain.handle('app:open-logs', () => showLogWindow());
 ipcMain.handle('app:open-settings', () => showSettingsWindow());
 ipcMain.handle('app:open-credentials-upgrade', () => showCredentialsUpgradeWindow());
 ipcMain.handle('app:quit', () => app.quit());
+ipcMain.handle('app:minimize-to-tray', () => {
+  if (dashboardWindow && !dashboardWindow.isDestroyed()) dashboardWindow.hide();
+});
 
 ipcMain.handle('app:reset-settings', async () => {
   const result = await dialog.showMessageBox({
@@ -1447,6 +1496,7 @@ ipcMain.handle('app:reset-settings', async () => {
   cachedGroups = [];
   cachedSessionPresent = false;
   cachedStatus = null;
+  lastNotifiedPendingWalks = null;
   if (dashboardWindow && !dashboardWindow.isDestroyed()) dashboardWindow.reload();
   return { ok: true };
 });

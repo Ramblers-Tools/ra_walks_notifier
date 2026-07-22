@@ -44,7 +44,8 @@ contextBridge.exposeInMainWorld('about', {
 contextBridge.exposeInMainWorld('appSettings', {
   openSettings: () => ipcRenderer.invoke('app:open-settings'),
   openHelp: () => ipcRenderer.invoke('app:open-help'),
-  quit: () => ipcRenderer.invoke('app:quit')
+  quit: () => ipcRenderer.invoke('app:quit'),
+  minimizeToTray: () => ipcRenderer.invoke('app:minimize-to-tray')
 });
 
 contextBridge.exposeInMainWorld('branding', {
