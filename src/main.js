@@ -122,7 +122,6 @@ function isConfigured() {
 function buildStatusText() {
   const s = cachedStatus || {};
   const groupNames = cachedGroups.map(group => group.name || `Group ${group.gid}`);
-  const recipients = parseRecipients(cachedConfig?.notificationRecipients || []);
   const schedule = { checkIntervalMinutes: cachedConfig?.checkIntervalMinutes || 5, activeHours: cachedConfig?.activeHours || { start: 7, end: 22 } };
   const pending = Number(s.pendingWalks || 0);
   return [
@@ -137,9 +136,7 @@ function buildStatusText() {
     `Active hours: ${String(schedule.activeHours.start).padStart(2, '0')}:00 to ${String(schedule.activeHours.end).padStart(2, '0')}:00`,
     `Last check: ${formatUkDateTime(s.lastCheckCompletedAt)}`,
     `Last result: ${s.lastResult || 'None yet'}`,
-    `Last email: ${formatUkDateTime(s.lastEmailAt)}`,
-    '',
-    statusList('Recipients', recipients)
+    `Last email: ${formatUkDateTime(s.lastEmailAt)}`
   ].join('\n');
 }
 

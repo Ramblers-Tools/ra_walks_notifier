@@ -50,7 +50,7 @@
     }
 
     #aboutInline a {
-      color: #1264a3;
+      color: #f0814f;
       cursor: pointer;
       text-decoration: none;
     }
@@ -118,9 +118,9 @@
 
     #statusSection { border-top-color: var(--tile-status); }
     #apiKeySection { border-top-color: var(--tile-connection); }
-    #loginSection { border-top-color: var(--tile-login); }
+    #loginSection { border-top-color: var(--tile-credentials); }
     #groupsSection { border-top-color: var(--tile-groups); }
-    #credentialsSection { border-top-color: var(--tile-credentials); }
+    #credentialsSection { border-top-color: var(--tile-login); }
     #recipientsSection { border-top-color: var(--tile-recipients); }
     #scheduleSection { border-top-color: var(--tile-schedule); }
     #leaderEmailSection { border-top-color: var(--tile-leader); }
@@ -220,9 +220,14 @@
     }
 
     button.primary {
-      border-color: #1264a3;
-      background: #1264a3;
+      border-color: #f0814f;
+      background: #f0814f;
       color: white;
+    }
+
+    button.primary:hover {
+      border-color: #d96a3a;
+      background: #d96a3a;
     }
 
     .message {
@@ -332,13 +337,29 @@
     <div id="apiKeyMessage" class="message"></div>
   </section>
 
-  <section id="loginSection" class="disabled" data-step="login">
+  <section id="credentialsSection" data-step="login">
     <h2>Walks Manager Login</h2>
+    <div class="hint">
+      We'll sign in and save your username and password (encrypted, server-side) so the server can automatically re-log-in when your Walks Manager session expires - normally about once a week. If this doesn't work, we'll fall back to a one-off browser login instead.
+    </div>
+    <label for="credUsername">Email address</label>
+    <input id="credUsername" type="text" autocomplete="off">
+    <label for="credPassword">Password</label>
+    <input id="credPassword" type="password" autocomplete="off">
+    <div class="hint" id="credentialsHint"></div>
+    <div class="actions">
+      <button id="saveCredentials" class="primary">Verify &amp; Save</button>
+    </div>
+    <div id="credentialsMessage" class="message"></div>
+  </section>
+
+  <section id="loginSection" class="grid-only">
+    <h2>Walks Manager Login (fallback)</h2>
     <label for="wmUsername">Email address (registered with Ramblers)</label>
     <input id="wmUsername" type="text" autocomplete="off">
     <label for="wmPassword">Password</label>
     <input id="wmPassword" type="password" autocomplete="off">
-    <div class="hint">We'll sign in for you automatically. If a security check (e.g. a verification code) is needed, a browser window will open so you can finish signing in yourself. Your password isn't stored by this app.</div>
+    <div class="hint">Only needed if auto re-login above isn't working. We'll sign in for you automatically. If a security check (e.g. a verification code) is needed, a browser window will open so you can finish signing in yourself. Your password isn't stored by this app.</div>
     <div class="actions">
       <button id="login" class="primary">Login to Walks Manager</button>
       <button id="loginManual" class="primary" style="display: none;">Open in browser instead</button>
@@ -356,24 +377,8 @@
     <div id="groupsMessage" class="message"></div>
   </section>
 
-  <section id="credentialsSection" class="disabled grid-only">
-    <h2>Walks Manager Auto Re-login (optional)</h2>
-    <div class="hint">
-      Walks Manager sessions expire roughly every week. Saving your username and password here lets the server sign back in automatically instead of waiting for a manual re-login. Entirely optional - if you skip this, the existing session-based login above still works, you'll just need to log in again when it expires.
-    </div>
-    <label for="credUsername">Email address</label>
-    <input id="credUsername" type="text" autocomplete="off">
-    <label for="credPassword">Password</label>
-    <input id="credPassword" type="password" autocomplete="off">
-    <div class="hint" id="credentialsHint"></div>
-    <div class="actions">
-      <button id="saveCredentials" class="primary">Verify &amp; Save</button>
-    </div>
-    <div id="credentialsMessage" class="message"></div>
-  </section>
-
-  <details id="recipientsSection" data-step="recipients" open>
-    <summary>Notification Recipients</summary>
+  <section id="recipientsSection" data-step="recipients">
+    <h2>Notification Recipients</h2>
     <label for="recipients">Email addresses</label>
     <textarea id="recipients" rows="4" spellcheck="false"></textarea>
     <div class="hint">Enter one address per line, or separate addresses with commas. At least one is required before the app is fully set up.</div>
@@ -381,10 +386,10 @@
       <button id="saveRecipients" class="primary">Save Recipients</button>
     </div>
     <div id="recipientsMessage" class="message"></div>
-  </details>
+  </section>
 
-  <details id="scheduleSection" class="grid-only" open>
-    <summary>Check Schedule and Active Hours</summary>
+  <section id="scheduleSection" class="grid-only">
+    <h2>Check Schedule and Active Hours</h2>
     <label for="interval">Check every</label>
     <select id="interval">
       <option value="1">1 minute</option>
@@ -408,7 +413,7 @@
     <div class="actions">
       <button id="saveSchedule" class="primary">Save Schedule</button>
     </div>
-  </details>
+  </section>
 
   <details id="leaderEmailSection" class="grid-only">
     <summary>Leader Email Settings (Advanced)</summary>
@@ -453,8 +458,8 @@
     <div id="settingsMessage" class="message"></div>
   </details>
 
-  <details id="brandingSection" class="grid-only">
-    <summary>Branding</summary>
+  <details id="brandingSection" class="grid-only" open>
+    <summary>Group Branding</summary>
     <img id="brandingPreview" alt="Current logo" style="display:none; max-width: 100%; max-height: 120px; margin-bottom: 10px;">
     <div class="actions">
       <button id="chooseLogo" class="primary">Upload Logo</button>
@@ -475,9 +480,11 @@
 
     // --- Setup wizard gating ---
     // Nothing else is usable until an API key is saved, then Walks Manager
-    // login, group selection, and recipients unlock one at a time. Once all
+    // login (auto re-login by default, saving credentials for the server to
+    // use), group selection, and recipients unlock one at a time. Once all
     // four are satisfied, the full tile dashboard is shown instead.
     const WIZARD_ORDER = ['api-key', 'login', 'groups', 'recipients'];
+
     let latestRecipientsCount = 0;
 
     function computeWizardStage(status) {
@@ -488,19 +495,28 @@
       return 'done';
     }
 
-    function applyWizardStage(stage) {
+    function applyWizardStage(stage, status) {
       const setupMode = stage !== 'done';
       document.body.classList.toggle('setup-mode', setupMode);
-      if (!setupMode) {
-        // Fully configured - Server Connection and Group Selection have
-        // nothing left to do once set, so keep them out of the main
-        // dashboard too.
-        document.getElementById('apiKeySection').style.display = 'none';
-        document.getElementById('groupsSection').style.display = 'none';
-        return;
-      }
-      // Only the current step's tile is shown - earlier, already-completed
-      // steps stay hidden rather than piling up on screen.
+
+      // These three each have their own "nothing left to do" condition,
+      // independent of overall wizard progress, so they're evaluated the
+      // same way whether still in setup or on the full dashboard:
+      // - Server Connection: done once an API key is saved.
+      // - Group Selection: done once a group is set.
+      // - Walks Manager Login (fallback): only needed if the server isn't
+      //   reporting a working session - the primary auto re-login tile
+      //   above handles the normal case.
+      document.getElementById('apiKeySection').style.display = status.apiKeySet ? 'none' : '';
+      document.getElementById('groupsSection').style.display = (status.groups && status.groups.length) ? 'none' : '';
+      document.getElementById('loginSection').style.display = status.sessionPresent ? 'none' : '';
+
+      if (!setupMode) return;
+
+      // Only the current step's tile is shown among the sequential wizard
+      // steps - earlier, already-completed steps stay hidden rather than
+      // piling up on screen. (Walks Manager Login's fallback tile is handled
+      // above, separately from this sequence, since it's optional.)
       document.querySelectorAll('[data-step]').forEach((el) => {
         el.style.display = el.dataset.step === stage ? '' : 'none';
       });
@@ -522,7 +538,7 @@
       } else {
         latestRecipientsCount = 0;
       }
-      applyWizardStage(computeWizardStage(status));
+      applyWizardStage(computeWizardStage(status), status);
     }
 
     // --- Status ---
@@ -780,9 +796,11 @@
         if (result.status === 'saved') {
           credentialsHint.textContent = 'Credentials are saved for auto-relogin. Enter a password (and username, if it changed) to update them.';
         }
-        // A successful fallback session upload also refreshes group/session
-        // state, so re-check connection status to pick it up.
+        // A successful save (or fallback session upload) also refreshes
+        // group/session state, so re-check connection status and advance
+        // the wizard/tile visibility to pick it up.
         window.connect.status().then((status) => updateRedetectButtonVisibility(status.sessionPresent));
+        refreshWizard();
       } catch (error) {
         setMessage(credentialsMessage, error.message, 'error');
       } finally {
