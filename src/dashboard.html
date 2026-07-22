@@ -138,6 +138,12 @@
       align-items: start;
     }
 
+    .tile-stack {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
     h2 {
       font-size: 14px;
       margin: 0 0 10px;
@@ -248,8 +254,8 @@
     }
 
     #recipients {
-      resize: vertical;
-      height: 70px;
+      resize: none;
+      height: 165px;
     }
 
 
@@ -486,28 +492,30 @@
     <div id="groupsMessage" class="message"></div>
   </section>
 
-  <section id="recipientsSection" data-step="recipients">
-    <h2>Notification Recipients</h2>
-    <label for="recipients">Email addresses</label>
-    <textarea id="recipients" spellcheck="false"></textarea>
-    <div class="hint">Enter one address per line, or separate addresses with commas. At least one is required before the app is fully set up.</div>
-    <div class="actions">
-      <button id="saveRecipients" class="primary">Save Recipients</button>
-    </div>
-  </section>
-
-  <details id="brandingSection" class="grid-only" open>
-    <summary>Group Branding</summary>
-    <div class="branding-body">
-      <div class="hint" id="brandingHint">If you'd like your group's logo displayed on your notification emails, please upload it below.</div>
-      <img id="brandingPreview" alt="Current logo" style="display:none;">
+  <div class="tile-stack">
+    <section id="recipientsSection" data-step="recipients">
+      <h2>Notification Recipients</h2>
+      <label for="recipients">Email addresses</label>
+      <textarea id="recipients" spellcheck="false"></textarea>
+      <div class="hint">Enter one address per line, or separate addresses with commas. At least one is required before the app is fully set up.</div>
       <div class="actions">
-        <button id="chooseLogo" class="primary">Upload Logo</button>
-        <button id="resetLogo" style="display: none;">Reset Logo</button>
+        <button id="saveRecipients" class="primary">Save Recipients</button>
       </div>
-      <div id="brandingMessage" class="message"></div>
-    </div>
-  </details>
+    </section>
+
+    <details id="brandingSection" class="grid-only" open>
+      <summary>Group Branding</summary>
+      <div class="branding-body">
+        <div class="hint" id="brandingHint">If you'd like your group's logo displayed on your notification emails, please upload it below.</div>
+        <img id="brandingPreview" alt="Current logo" style="display:none;">
+        <div class="actions">
+          <button id="chooseLogo" class="primary">Upload Logo</button>
+          <button id="resetLogo" style="display: none;">Reset Logo</button>
+        </div>
+        <div id="brandingMessage" class="message"></div>
+      </div>
+    </details>
+  </div>
 
   <section id="scheduleSection" class="grid-only">
     <h2>Check Schedule and Active Hours</h2>
