@@ -5,6 +5,12 @@ const fs = require('fs');
 const { formatUkDateTime } = require('./time');
 const { migrateLegacyConfig, parseRecipients } = require('./config');
 
+// Packaged builds already get "RA Walks Notifier" from package.json's
+// productName (baked into the executable/Info.plist). In an unpackaged dev
+// run the binary is literally named Electron, so macOS's menu bar shows
+// that name unless overridden here.
+app.setName('RA Walks Notifier');
+
 if (!app.requestSingleInstanceLock()) {
   app.quit();
   process.exit(0);
@@ -278,8 +284,8 @@ async function chooseBrandLogo() {
   const ext = path.extname(filePath).slice(1);
   try {
     const data = fs.readFileSync(filePath).toString('base64');
-    await apiClient.putLogo(data, ext);
-    return { ok: true, message: 'Logo updated.' };
+    const response = await apiClient.putLogo(data, ext);
+    return { ok: true, message: 'Logo updated.', dataUrl: response.dataUrl || '' };
   } catch (error) {
     return { ok: false, error: error.message };
   }
@@ -287,65 +293,20 @@ async function chooseBrandLogo() {
 
 async function resetBrandLogo() {
   try {
-    await apiClient.deleteLogo();
-    return { ok: true, message: 'Logo reset to the built-in Ramblers logo.' };
+    const response = await apiClient.deleteLogo();
+    return { ok: true, message: 'Logo removed.', dataUrl: response.dataUrl || '' };
   } catch (error) {
     return { ok: false, error: error.message };
   }
 }
 
-function supportsLoginItemSettings() {
-  return process.platform === 'darwin' || process.platform === 'win32' || process.platform === 'linux';
-}
-
-function linuxAutostartFile() {
-  const configHome = process.env.XDG_CONFIG_HOME || path.join(app.getPath('home'), '.config');
-  return path.join(configHome, 'autostart', 'walks-manager-watch.desktop');
-}
-
-function quoteDesktopExec(value) {
-  return `"${String(value).replace(/(["\\`$])/g, '\\$1')}"`;
-}
-
-function linuxAutostartEntry() {
-  return [
-    '[Desktop Entry]',
-    'Type=Application',
-    'Name=RA Walks Notifier',
-    'Comment=Monitor Ramblers Walks Manager review queues',
-    `Exec=${quoteDesktopExec(process.execPath)}`,
-    'Terminal=false',
-    'X-GNOME-Autostart-enabled=true',
-    'Categories=Utility;',
-    ''
-  ].join('\n');
-}
-
-function startAtBootEnabled() {
-  if (!supportsLoginItemSettings()) return false;
-  if (process.platform === 'linux') return fs.existsSync(linuxAutostartFile());
-  return app.getLoginItemSettings().openAtLogin;
-}
-
-function toggleStartAtBoot() {
-  const enabled = !startAtBootEnabled();
-  if (process.platform === 'linux') {
-    const autostartFile = linuxAutostartFile();
-    if (enabled) {
-      fs.mkdirSync(path.dirname(autostartFile), { recursive: true });
-      fs.writeFileSync(autostartFile, linuxAutostartEntry());
-    } else if (fs.existsSync(autostartFile)) {
-      fs.rmSync(autostartFile, { force: true });
-    }
-    return enabled;
+async function loadBrandLogo() {
+  try {
+    const response = await apiClient.getLogo();
+    return { dataUrl: response.dataUrl || '' };
+  } catch (error) {
+    return { dataUrl: '', error: error.message };
   }
-
-  app.setLoginItemSettings({
-    openAtLogin: enabled,
-    openAsHidden: true,
-    path: process.execPath
-  });
-  return enabled;
 }
 
 function prepareForUpdateInstall() {
@@ -1312,33 +1273,17 @@ ipcMain.handle('status:load', () => ({
   text: buildStatusText(),
   maintenanceMessage: cachedStatus?.maintenanceMessage || null
 }));
-ipcMain.handle('status:retry', async () => {
-  try {
-    await refreshCache();
-    return {
-      text: buildStatusText(),
-      maintenanceMessage: cachedStatus?.maintenanceMessage || null
-    };
-  } catch (error) {
-    return {
-      text: `Check failed unexpectedly: ${error.message}`,
-      maintenanceMessage: null
-    };
-  }
-});
 
 ipcMain.handle('app:check-now', (_event, force) => checkNow(Boolean(force)));
 ipcMain.handle('app:open-review-list', () => shell.openExternal(reviewUrlForGroup()));
 
 ipcMain.handle('app:settings-load', () => ({
-  canStartOnLogin: supportsLoginItemSettings(),
-  startAtBootEnabled: startAtBootEnabled(),
   includeBetaUpdates: includeBetaUpdates(),
   updateStatus
 }));
-ipcMain.handle('app:toggle-start-at-boot', () => ({ startAtBootEnabled: toggleStartAtBoot() }));
 ipcMain.handle('app:toggle-beta-updates', async () => ({ includeBetaUpdates: await toggleBetaUpdates() }));
 ipcMain.handle('app:check-for-updates', () => checkForUpdates(true));
+ipcMain.handle('app:logo-status', () => loadBrandLogo());
 ipcMain.handle('app:choose-logo', () => chooseBrandLogo());
 ipcMain.handle('app:reset-logo', () => resetBrandLogo());
 ipcMain.handle('app:open-logs', () => showLogWindow());

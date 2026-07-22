@@ -31,7 +31,6 @@ contextBridge.exposeInMainWorld('leaderEmailSettings', {
 
 contextBridge.exposeInMainWorld('statusApi', {
   load: () => ipcRenderer.invoke('status:load'),
-  retry: () => ipcRenderer.invoke('status:retry'),
   checkNow: (force) => ipcRenderer.invoke('app:check-now', force),
   openReviewList: () => ipcRenderer.invoke('app:open-review-list')
 });
@@ -43,12 +42,15 @@ contextBridge.exposeInMainWorld('about', {
 
 contextBridge.exposeInMainWorld('appSettings', {
   load: () => ipcRenderer.invoke('app:settings-load'),
-  toggleStartAtBoot: () => ipcRenderer.invoke('app:toggle-start-at-boot'),
   toggleBetaUpdates: () => ipcRenderer.invoke('app:toggle-beta-updates'),
   checkForUpdates: () => ipcRenderer.invoke('app:check-for-updates'),
-  chooseLogo: () => ipcRenderer.invoke('app:choose-logo'),
-  resetLogo: () => ipcRenderer.invoke('app:reset-logo'),
   openLogs: () => ipcRenderer.invoke('app:open-logs'),
   resetSettings: () => ipcRenderer.invoke('app:reset-settings'),
   quit: () => ipcRenderer.invoke('app:quit')
+});
+
+contextBridge.exposeInMainWorld('branding', {
+  status: () => ipcRenderer.invoke('app:logo-status'),
+  chooseLogo: () => ipcRenderer.invoke('app:choose-logo'),
+  resetLogo: () => ipcRenderer.invoke('app:reset-logo')
 });

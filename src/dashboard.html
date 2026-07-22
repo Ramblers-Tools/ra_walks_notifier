@@ -125,6 +125,7 @@
     #scheduleSection { border-top-color: var(--tile-schedule); }
     #leaderEmailSection { border-top-color: var(--tile-leader); }
     #settingsSection { border-top-color: var(--tile-settings); }
+    #brandingSection { border-top-color: var(--tile-about); }
     #aboutSection { border-top-color: var(--tile-about); }
 
     section.disabled {
@@ -316,7 +317,6 @@
     <div id="statusText">Loading&hellip;</div>
     <div class="actions">
       <button id="openReviewList">Open Review List</button>
-      <button id="retryStatus">Refresh</button>
       <button id="checkNow" class="primary">Check Now</button>
     </div>
     <div id="checkNowMessage" class="message"></div>
@@ -383,7 +383,7 @@
     <div id="recipientsMessage" class="message"></div>
   </details>
 
-  <details id="scheduleSection" class="grid-only">
+  <details id="scheduleSection" class="grid-only" open>
     <summary>Check Schedule and Active Hours</summary>
     <label for="interval">Check every</label>
     <select id="interval">
@@ -411,7 +411,7 @@
   </details>
 
   <details id="leaderEmailSection" class="grid-only">
-    <summary>Leader Email Settings</summary>
+    <summary>Leader Email Settings (Advanced)</summary>
     <div class="hint">
       This feature needs extra setup beyond the base app: a Ramblers-Webs Joomla website, and an experimental fork of Mailman for looking up walk leaders' email addresses. If your group doesn't already have both of these in place, leave this feature disabled.
     </div>
@@ -443,17 +443,24 @@
 
   <details id="settingsSection" class="grid-only">
     <summary>App Settings</summary>
-    <label class="checkbox"><input id="startAtBoot" type="checkbox"> Start app on login</label>
     <label class="checkbox"><input id="betaUpdates" type="checkbox"> Subscribe to beta updates</label>
     <div class="hint" id="updateStatusText"></div>
     <div class="actions">
       <button id="checkForUpdates">Check for Updates</button>
-      <button id="chooseLogo">Change Logo</button>
-      <button id="resetLogo">Reset Logo</button>
       <button id="viewLogs">View Logs</button>
       <button id="resetSettings">Reset All Settings</button>
     </div>
     <div id="settingsMessage" class="message"></div>
+  </details>
+
+  <details id="brandingSection" class="grid-only">
+    <summary>Branding</summary>
+    <img id="brandingPreview" alt="Current logo" style="display:none; max-width: 100%; max-height: 120px; margin-bottom: 10px;">
+    <div class="actions">
+      <button id="chooseLogo" class="primary">Upload Logo</button>
+      <button id="resetLogo" style="display: none;">Reset Logo</button>
+    </div>
+    <div id="brandingMessage" class="message"></div>
   </details>
 
   </div>
@@ -532,16 +539,6 @@
 
     window.statusApi.load().then(renderStatus);
     setInterval(() => window.statusApi.load().then(renderStatus), 15000);
-
-    document.getElementById('retryStatus').addEventListener('click', async () => {
-      const button = document.getElementById('retryStatus');
-      button.disabled = true;
-      try {
-        renderStatus(await window.statusApi.retry());
-      } finally {
-        button.disabled = false;
-      }
-    });
 
     document.getElementById('openReviewList').addEventListener('click', () => window.statusApi.openReviewList());
 
@@ -972,20 +969,12 @@
 
     // --- App Settings ---
     const settingsMessage = document.getElementById('settingsMessage');
-    const startAtBootCheckbox = document.getElementById('startAtBoot');
     const betaUpdatesCheckbox = document.getElementById('betaUpdates');
     const updateStatusText = document.getElementById('updateStatusText');
 
     window.appSettings.load().then((settings) => {
-      startAtBootCheckbox.checked = settings.startAtBootEnabled;
-      startAtBootCheckbox.disabled = !settings.canStartOnLogin;
       betaUpdatesCheckbox.checked = settings.includeBetaUpdates;
       updateStatusText.textContent = `Update: ${settings.updateStatus}`;
-    });
-
-    startAtBootCheckbox.addEventListener('change', async () => {
-      const result = await window.appSettings.toggleStartAtBoot();
-      startAtBootCheckbox.checked = result.startAtBootEnabled;
     });
 
     betaUpdatesCheckbox.addEventListener('change', async () => {
@@ -995,18 +984,39 @@
 
     document.getElementById('checkForUpdates').addEventListener('click', () => window.appSettings.checkForUpdates());
 
-    document.getElementById('chooseLogo').addEventListener('click', async () => {
-      const result = await window.appSettings.chooseLogo();
-      if (result.ok && result.message) setMessage(settingsMessage, result.message, 'ok');
-      else if (!result.ok && result.error) setMessage(settingsMessage, result.error, 'error');
-    });
-
-    document.getElementById('resetLogo').addEventListener('click', async () => {
-      const result = await window.appSettings.resetLogo();
-      setMessage(settingsMessage, result.message || result.error, result.ok ? 'ok' : 'error');
-    });
-
     document.getElementById('viewLogs').addEventListener('click', () => window.appSettings.openLogs());
+
+    // --- Branding ---
+    const brandingPreview = document.getElementById('brandingPreview');
+    const brandingMessage = document.getElementById('brandingMessage');
+    const chooseLogoButton = document.getElementById('chooseLogo');
+    const resetLogoButton = document.getElementById('resetLogo');
+
+    function applyLogoState(dataUrl) {
+      const hasLogo = Boolean(dataUrl);
+      brandingPreview.style.display = hasLogo ? '' : 'none';
+      brandingPreview.src = hasLogo ? dataUrl : '';
+      chooseLogoButton.textContent = hasLogo ? 'Change Logo' : 'Upload Logo';
+      resetLogoButton.style.display = hasLogo ? '' : 'none';
+    }
+
+    window.branding.status().then((result) => applyLogoState(result.dataUrl));
+
+    chooseLogoButton.addEventListener('click', async () => {
+      const result = await window.branding.chooseLogo();
+      if (result.ok) {
+        setMessage(brandingMessage, result.message, 'ok');
+        applyLogoState(result.dataUrl);
+      } else if (result.error) {
+        setMessage(brandingMessage, result.error, 'error');
+      }
+    });
+
+    resetLogoButton.addEventListener('click', async () => {
+      const result = await window.branding.resetLogo();
+      setMessage(brandingMessage, result.message || result.error, result.ok ? 'ok' : 'error');
+      if (result.ok) applyLogoState(result.dataUrl);
+    });
 
     document.getElementById('resetSettings').addEventListener('click', async () => {
       const result = await window.appSettings.resetSettings();
