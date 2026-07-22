@@ -1,6 +1,6 @@
 {
   "name": "ra-walks-notifier",
-  "version": "2.0.0-beta.8",
+  "version": "2.0.0-beta.9",
   "description": "Menu bar app for monitoring Ramblers Walks Manager review queues",
   "main": "src/main.js",
   "author": "Richard Higham <me@richyhigham.uk>",
