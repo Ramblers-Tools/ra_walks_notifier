@@ -513,7 +513,14 @@
       document.getElementById('groupsSection').style.display = (status.groups && status.groups.length) ? 'none' : '';
       document.getElementById('loginSection').style.display = status.sessionPresent ? 'none' : '';
 
-      if (!setupMode) return;
+      if (!setupMode) {
+        // Fully configured, including a working Walks Manager login -
+        // nothing left to do here, so hide it just like the fallback tile.
+        // Recipients stays visible as an ongoing, editable setting.
+        document.getElementById('credentialsSection').style.display = 'none';
+        document.getElementById('recipientsSection').style.display = '';
+        return;
+      }
 
       // Only the current step's tile is shown among the sequential wizard
       // steps - earlier, already-completed steps stay hidden rather than
