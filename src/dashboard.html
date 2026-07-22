@@ -676,13 +676,14 @@
         if (status.apiKeySet) {
           const recipients = await window.recipients.load();
           latestRecipientsCount = recipients.length;
-          // The branding tile's own status() call only ever runs once, at
-          // script load - if that happened before an API key was set (e.g.
-          // right after a local Reset All Settings, which clears the key
-          // and reloads this window), it never learns the server-side logo
-          // actually still exists once the wizard reaches a usable state.
-          // Refresh it here too, once a key is present to fetch it with.
+          // The branding and schedule tiles' own load calls only ever run
+          // once, at script load - if that happened before an API key was
+          // set (e.g. right after a local Reset All Settings, which clears
+          // the key and reloads this window), they never learn the real
+          // server-side values once the wizard reaches a usable state.
+          // Refresh both here too, once a key is present to fetch with.
           window.branding.status().then((result) => applyLogoState(result.dataUrl));
+          loadScheduleSettings();
         } else {
           latestRecipientsCount = 0;
         }
@@ -1040,12 +1041,16 @@
     populateHourSelect(scheduleFields.activeStart);
     populateHourSelect(scheduleFields.activeEnd);
 
-    window.scheduleSettings.load().then((settings) => {
-      scheduleFields.interval.value = String(settings.checkIntervalMinutes || 5);
-      scheduleFields.activeStart.value = String(settings.activeHours?.start ?? 7);
-      scheduleFields.activeEnd.value = String(settings.activeHours?.end ?? 22);
-      updateScheduleSummary();
-    });
+    function loadScheduleSettings() {
+      window.scheduleSettings.load().then((settings) => {
+        scheduleFields.interval.value = String(settings.checkIntervalMinutes || 5);
+        scheduleFields.activeStart.value = String(settings.activeHours?.start ?? 7);
+        scheduleFields.activeEnd.value = String(settings.activeHours?.end ?? 22);
+        updateScheduleSummary();
+      });
+    }
+
+    loadScheduleSettings();
 
     scheduleFields.activeStart.addEventListener('change', updateScheduleSummary);
     scheduleFields.activeEnd.addEventListener('change', updateScheduleSummary);
