@@ -123,9 +123,11 @@ function buildStatusText() {
   const s = cachedStatus || {};
   const groupNames = cachedGroups.map(group => group.name || `Group ${group.gid}`);
   const pending = Number(s.pendingWalks || 0);
+  const credentialsSet = Boolean(cachedConfig?.walksManagerCredentials?.credentialsSet);
   return [
     `Status: ${s.maintenanceMessage ? 'Server offline (maintenance)' : apiClient.hasApiKey() ? 'Connected' : 'Not connected'}`,
     `Last error: ${s.lastError || 'None'}`,
+    `Auto re-login credentials: ${credentialsSet ? 'Saved' : 'Not saved'}`,
     `Session: ${cachedSessionPresent ? 'Present' : 'Missing'}`,
     `Pending walks: ${pending}`,
     '',
@@ -215,25 +217,48 @@ function handleRevokedApiKey(message) {
 
 async function refreshCache() {
   if (!apiClient.hasApiKey()) return;
+
+  // Each endpoint is fetched independently - previously a Promise.all meant
+  // one endpoint failing (even transiently) discarded every other endpoint's
+  // successful result for this cycle, e.g. a session-status check that
+  // genuinely succeeded would still get reported stale because /api/status
+  // hiccuped in the same batch.
+  let unauthorizedError = null;
+  let otherError = null;
+
   try {
-    const [config, status, sessionStatus] = await Promise.all([
-      apiClient.getConfig(),
-      apiClient.getStatus(),
-      apiClient.getSessionStatus()
-    ]);
+    const config = await apiClient.getConfig();
     cachedConfig = config;
-    cachedStatus = status;
     cachedGroups = config.groups || [];
+  } catch (error) {
+    if (error.code === 'unauthorized') unauthorizedError = error;
+    else otherError = error;
+  }
+
+  try {
+    cachedStatus = await apiClient.getStatus();
+  } catch (error) {
+    if (error.code === 'unauthorized') unauthorizedError = error;
+    else otherError = error;
+  }
+
+  try {
+    const sessionStatus = await apiClient.getSessionStatus();
     cachedSessionPresent = sessionStatus.present;
   } catch (error) {
-    if (error.code === 'unauthorized') {
-      handleRevokedApiKey(error.message);
-      return;
-    }
-    if (error.code === 'maintenance') {
-      cachedStatus = { ...(cachedStatus || {}), maintenanceMessage: `${error.message} [${error.diagnostic || 'no diagnostic'}]` };
+    if (error.code === 'unauthorized') unauthorizedError = error;
+    else otherError = error;
+  }
+
+  if (unauthorizedError) {
+    handleRevokedApiKey(unauthorizedError.message);
+    return;
+  }
+  if (otherError) {
+    if (otherError.code === 'maintenance') {
+      cachedStatus = { ...(cachedStatus || {}), maintenanceMessage: `${otherError.message} [${otherError.diagnostic || 'no diagnostic'}]` };
     } else {
-      cachedStatus = { ...(cachedStatus || {}), maintenanceMessage: null, lastError: `Could not reach server: ${error.message}` };
+      cachedStatus = { ...(cachedStatus || {}), maintenanceMessage: null, lastError: `Could not reach server: ${otherError.message}` };
     }
   }
 }
@@ -1097,13 +1122,20 @@ app.whenReady().then(async () => {
 ipcMain.handle('connect:status', async () => {
   const apiKeySet = apiClient.hasApiKey();
   if (!apiKeySet) return { apiKeySet: false, groups: [], sessionPresent: false };
+  // Fetched independently so one endpoint failing (e.g. a transient /api/config
+  // hiccup) can't discard a session-status check that genuinely succeeded.
   try {
-    const [config, sessionStatus] = await Promise.all([apiClient.getConfig(), apiClient.getSessionStatus()]);
+    const config = await apiClient.getConfig();
     cachedConfig = config;
     cachedGroups = config.groups || [];
-    cachedSessionPresent = sessionStatus.present;
   } catch (_) {
     // Key saved but server unreachable right now - report what we know locally.
+  }
+  try {
+    const sessionStatus = await apiClient.getSessionStatus();
+    cachedSessionPresent = sessionStatus.present;
+  } catch (_) {
+    // Same as above - fall back to the last known value.
   }
   return { apiKeySet, groups: cachedGroups, sessionPresent: cachedSessionPresent };
 });
