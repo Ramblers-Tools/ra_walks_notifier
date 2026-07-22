@@ -122,7 +122,6 @@ function isConfigured() {
 function buildStatusText() {
   const s = cachedStatus || {};
   const groupNames = cachedGroups.map(group => group.name || `Group ${group.gid}`);
-  const schedule = { checkIntervalMinutes: cachedConfig?.checkIntervalMinutes || 5, activeHours: cachedConfig?.activeHours || { start: 7, end: 22 } };
   const pending = Number(s.pendingWalks || 0);
   return [
     `Status: ${s.maintenanceMessage ? 'Server offline (maintenance)' : apiClient.hasApiKey() ? 'Connected' : 'Not connected'}`,
@@ -132,8 +131,6 @@ function buildStatusText() {
     '',
     statusList(cachedGroups.length === 1 ? 'Group' : 'Groups', groupNames, 'Not selected'),
     '',
-    `Schedule: Every ${schedule.checkIntervalMinutes} minutes`,
-    `Active hours: ${String(schedule.activeHours.start).padStart(2, '0')}:00 to ${String(schedule.activeHours.end).padStart(2, '0')}:00`,
     `Last check: ${formatUkDateTime(s.lastCheckCompletedAt)}`,
     `Last result: ${s.lastResult || 'None yet'}`,
     `Last email: ${formatUkDateTime(s.lastEmailAt)}`
@@ -156,7 +153,7 @@ function showDashboard() {
   }
 
   dashboardWindow = new BrowserWindow(appWindowOptions({
-    width: 1280,
+    width: 900,
     height: 900,
     title: 'RA Walks Notifier',
     backgroundColor: '#e9ebef',
@@ -167,7 +164,6 @@ function showDashboard() {
   }));
 
   dashboardWindow.once('ready-to-show', () => {
-    dashboardWindow.maximize();
     dashboardWindow.show();
   });
 

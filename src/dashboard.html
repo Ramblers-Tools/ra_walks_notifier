@@ -354,12 +354,13 @@
   </section>
 
   <section id="loginSection" class="grid-only">
-    <h2>Walks Manager Login (fallback)</h2>
+    <h2>Please log in to Walks Manager - there's an issue</h2>
+    <div class="hint">The server doesn't have a working Walks Manager session for you right now. This box only appears when something needs attention - once you log in below, it disappears again.</div>
     <label for="wmUsername">Email address (registered with Ramblers)</label>
     <input id="wmUsername" type="text" autocomplete="off">
     <label for="wmPassword">Password</label>
     <input id="wmPassword" type="password" autocomplete="off">
-    <div class="hint">Only needed if auto re-login above isn't working. We'll sign in for you automatically. If a security check (e.g. a verification code) is needed, a browser window will open so you can finish signing in yourself. Your password isn't stored by this app.</div>
+    <div class="hint">We'll sign in for you automatically. If a security check (e.g. a verification code) is needed, a browser window will open so you can finish signing in yourself. Your password isn't stored by this app.</div>
     <div class="actions">
       <button id="login" class="primary">Login to Walks Manager</button>
       <button id="loginManual" class="primary" style="display: none;">Open in browser instead</button>
