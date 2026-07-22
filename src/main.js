@@ -1148,7 +1148,7 @@ app.whenReady().then(async () => {
 
 ipcMain.handle('connect:status', async () => {
   const apiKeySet = apiClient.hasApiKey();
-  if (!apiKeySet) return { apiKeySet: false, groups: [], sessionPresent: false };
+  if (!apiKeySet) return { apiKeySet: false, groups: [], sessionPresent: false, betaUser: false };
   // Fetched independently so one endpoint failing (e.g. a transient /api/config
   // hiccup) can't discard a session-status check that genuinely succeeded.
   try {
@@ -1164,7 +1164,7 @@ ipcMain.handle('connect:status', async () => {
   } catch (_) {
     // Same as above - fall back to the last known value.
   }
-  return { apiKeySet, groups: cachedGroups, sessionPresent: cachedSessionPresent };
+  return { apiKeySet, groups: cachedGroups, sessionPresent: cachedSessionPresent, betaUser: Boolean(cachedConfig?.betaUser) };
 });
 
 ipcMain.handle('connect:save-api-key', async (_event, apiKey) => {
