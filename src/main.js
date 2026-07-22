@@ -110,7 +110,10 @@ function appWindowOptions(options) {
 
 function createTray() {
   if (tray) return;
-  const trayImage = nativeImage.createFromPath(appIconPath()).resize({ width: 16, height: 16 });
+  // Just the mark, transparent background - not the full white-squircle
+  // app icon, which looks padded/boxy at tray size next to other apps'
+  // plain icons. Electron auto-picks tray-icon@2x.png for HiDPI displays.
+  const trayImage = nativeImage.createFromPath(path.join(root, 'assets', 'tray-icon.png'));
   tray = new Tray(trayImage);
   tray.setToolTip('RA Walks Notifier');
   tray.setContextMenu(Menu.buildFromTemplate([
