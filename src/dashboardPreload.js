@@ -10,7 +10,8 @@ contextBridge.exposeInMainWorld('connect', {
 
 contextBridge.exposeInMainWorld('credentials', {
   status: () => ipcRenderer.invoke('credentials:status'),
-  save: (credentials) => ipcRenderer.invoke('credentials:save', credentials)
+  save: (credentials) => ipcRenderer.invoke('credentials:save', credentials),
+  openUpgradeWindow: () => ipcRenderer.invoke('app:open-credentials-upgrade')
 });
 
 contextBridge.exposeInMainWorld('recipients', {

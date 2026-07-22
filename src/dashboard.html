@@ -395,10 +395,15 @@
       color: white;
     }
 
+    #upgradeAutoLogin {
+      border-color: #e8c14a;
+      background: #fdf3d6;
+      color: #7a5c00;
+    }
+
     #upgradeAutoLogin:hover {
       border-color: #d4a72c;
-      background: #d4a72c;
-      color: white;
+      background: #f7e2a0;
     }
   </style>
 </head>
@@ -601,11 +606,6 @@
     const WIZARD_ORDER = ['api-key', 'login', 'groups', 'recipients'];
 
     let latestRecipientsCount = 0;
-    // Set true when the user clicks "Upgrade to Auto Login" on the Status
-    // tile, to force the (normally hidden-once-done) credentials tile back
-    // into view. Cleared once credentials are actually saved, or if the
-    // wizard drops back into setup mode for some other reason.
-    let credentialsUpgradeRequested = false;
 
     function computeWizardStage(status) {
       if (!status.apiKeySet) return 'api-key';
@@ -638,17 +638,18 @@
 
       if (!setupMode) {
         // Fully configured, including a working Walks Manager login -
-        // nothing left to do here, so hide it just like the fallback tile,
-        // unless the user asked to upgrade from session-only auth (below).
+        // nothing left to do here, so hide it just like the fallback tile.
         // Recipients stays visible as an ongoing, editable setting.
-        if (status.credentialsSet) credentialsUpgradeRequested = false;
-        document.getElementById('credentialsSection').style.display = credentialsUpgradeRequested ? '' : 'none';
+        document.getElementById('credentialsSection').style.display = 'none';
         document.getElementById('recipientsSection').style.display = '';
 
         // Auto re-login credentials are the default login path, but a
         // session-only setup (the fallback) still works day-to-day - only
         // needs a session cookie, which happens to already be present here.
-        // Surface a low-key upsell rather than treating it as a problem.
+        // Surface a low-key upsell (opens its own popup, rather than
+        // reusing this inline tile - doing that in-grid pushed every other
+        // tile's position around whenever it toggled) rather than treating
+        // this as a problem.
         const upgradeButton = document.getElementById('upgradeAutoLogin');
         upgradeButton.style.display = (status.sessionPresent && !status.credentialsSet) ? '' : 'none';
         return;
@@ -745,11 +746,7 @@
 
     document.getElementById('openReviewList').addEventListener('click', () => window.statusApi.openReviewList());
 
-    document.getElementById('upgradeAutoLogin').addEventListener('click', () => {
-      credentialsUpgradeRequested = true;
-      refreshWizard();
-      document.getElementById('credentialsSection').scrollIntoView({ behavior: 'smooth', block: 'center' });
-    });
+    document.getElementById('upgradeAutoLogin').addEventListener('click', () => window.credentials.openUpgradeWindow());
 
     // Briefly repurposes a button's own label for feedback instead of a
     // separate message line that would otherwise sit there indefinitely.

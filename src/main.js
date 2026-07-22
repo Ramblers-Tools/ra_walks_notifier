@@ -29,6 +29,7 @@ let dashboardWindow;
 let loginWindow;
 let logWindow;
 let settingsWindow;
+let credentialsUpgradeWindow;
 let updateStatus = 'Not checked';
 let manualUpdateCheck = false;
 let updateHandlersConfigured = false;
@@ -236,6 +237,32 @@ function showSettingsWindow() {
   });
 
   settingsWindow.loadFile(path.join(__dirname, 'settings.html'));
+}
+
+function showCredentialsUpgradeWindow() {
+  if (credentialsUpgradeWindow) {
+    credentialsUpgradeWindow.focus();
+    return;
+  }
+
+  credentialsUpgradeWindow = new BrowserWindow(appWindowOptions({
+    width: 480,
+    height: 340,
+    title: 'Upgrade to Auto Login',
+    resizable: false,
+    minimizable: false,
+    fullscreenable: false,
+    backgroundColor: '#f7f8fa',
+    webPreferences: {
+      preload: path.join(__dirname, 'credentialsPreload.js')
+    }
+  }));
+
+  credentialsUpgradeWindow.on('closed', () => {
+    credentialsUpgradeWindow = null;
+  });
+
+  credentialsUpgradeWindow.loadFile(path.join(__dirname, 'credentials.html'));
 }
 
 function handleRevokedApiKey(message) {
@@ -1399,6 +1426,7 @@ ipcMain.handle('app:choose-logo', () => chooseBrandLogo());
 ipcMain.handle('app:reset-logo', () => resetBrandLogo());
 ipcMain.handle('app:open-logs', () => showLogWindow());
 ipcMain.handle('app:open-settings', () => showSettingsWindow());
+ipcMain.handle('app:open-credentials-upgrade', () => showCredentialsUpgradeWindow());
 ipcMain.handle('app:quit', () => app.quit());
 
 ipcMain.handle('app:reset-settings', async () => {
