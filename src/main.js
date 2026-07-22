@@ -180,8 +180,8 @@ function showDashboard() {
   }
 
   dashboardWindow = new BrowserWindow(appWindowOptions({
-    width: 900,
-    height: 900,
+    width: 960,
+    height: 1000,
     title: 'RA Walks Notifier',
     backgroundColor: '#e9ebef',
     show: false,
