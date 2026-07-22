@@ -542,6 +542,12 @@
       applyWizardStage(computeWizardStage(status), status);
     }
 
+    // Session/group state can change server-side without any action taken
+    // in this window (e.g. the server's own headless auto-relogin, or
+    // a session expiring) - poll periodically so tile visibility (like the
+    // fallback Walks Manager Login tile) doesn't go stale.
+    setInterval(refreshWizard, 15000);
+
     // --- Status ---
     function renderStatus(result) {
       document.getElementById('statusText').textContent = result.text;
