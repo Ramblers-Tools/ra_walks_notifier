@@ -209,7 +209,7 @@ function showSettingsWindow() {
 
   settingsWindow = new BrowserWindow(appWindowOptions({
     width: 480,
-    height: 420,
+    height: 270,
     title: 'App Settings',
     resizable: false,
     minimizable: false,
