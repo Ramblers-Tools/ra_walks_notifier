@@ -1,0 +1,892 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>RA Walks Notifier</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      margin: 0;
+      padding: 20px;
+      color: #1f2933;
+      background: #f7f8fa;
+    }
+
+    header.app-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+
+    header.app-header img {
+      width: 40px;
+      height: 40px;
+      object-fit: contain;
+    }
+
+    header.app-header h1 {
+      font-size: 20px;
+      margin: 0;
+    }
+
+    h2 {
+      font-size: 14px;
+      margin: 20px 0 8px;
+    }
+
+    section, details {
+      background: white;
+      border: 1px solid #d8dee8;
+      border-radius: 8px;
+      padding: 14px 16px;
+      margin-bottom: 14px;
+    }
+
+    section.disabled {
+      opacity: 0.5;
+      pointer-events: none;
+    }
+
+    details > summary {
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 600;
+      list-style: none;
+    }
+
+    details > summary::-webkit-details-marker {
+      display: none;
+    }
+
+    details[open] > summary {
+      margin-bottom: 10px;
+    }
+
+    label {
+      display: block;
+      font-size: 13px;
+      font-weight: 600;
+      margin-bottom: 6px;
+      margin-top: 12px;
+    }
+
+    label:first-of-type {
+      margin-top: 0;
+    }
+
+    label.checkbox {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-weight: 600;
+    }
+
+    label.checkbox input {
+      width: auto;
+    }
+
+    input[type="password"], input[type="text"], input[type="email"], select, textarea {
+      box-sizing: border-box;
+      width: 100%;
+      border: 1px solid #b8c1cc;
+      border-radius: 6px;
+      padding: 8px 10px;
+      font-size: 14px;
+      background: white;
+      font-family: inherit;
+    }
+
+    textarea {
+      resize: vertical;
+      min-height: 60px;
+    }
+
+    .row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+
+    .hint {
+      margin: 6px 0 0;
+      color: #52606d;
+      font-size: 12px;
+      line-height: 1.4;
+    }
+
+    .actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+      margin-top: 10px;
+    }
+
+    button {
+      border: 1px solid #9aa5b1;
+      border-radius: 6px;
+      padding: 7px 14px;
+      font-size: 13px;
+      background: white;
+      cursor: pointer;
+    }
+
+    button.primary {
+      border-color: #1264a3;
+      background: #1264a3;
+      color: white;
+    }
+
+    .message {
+      min-height: 18px;
+      margin-top: 8px;
+      font-size: 12px;
+      line-height: 1.4;
+      color: #52606d;
+    }
+
+    .message.ok { color: #1f7a3f; }
+    .message.error { color: #b42318; }
+    .message.pending { animation: pulse 1.2s ease-in-out infinite; }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.35; }
+    }
+
+    .group-list {
+      max-height: 160px;
+      overflow-y: auto;
+      border: 1px solid #d8dee8;
+      border-radius: 6px;
+      padding: 8px;
+      background: #fafbfc;
+    }
+
+    .group-list label {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-weight: 400;
+      margin: 4px 0;
+    }
+
+    #statusText {
+      white-space: pre-wrap;
+      font-size: 13px;
+      line-height: 1.6;
+      background: #fafbfc;
+      border: 1px solid #e4e7eb;
+      border-radius: 6px;
+      padding: 10px 12px;
+    }
+
+    #maintenanceBanner {
+      display: none;
+      margin-bottom: 10px;
+      padding: 10px 12px;
+      border-radius: 8px;
+      background: #fdecea;
+      border: 1px solid #f5c2c0;
+      color: #b42318;
+      font-size: 13px;
+      font-weight: 600;
+      text-align: center;
+    }
+
+    pre#logOutput {
+      max-height: 300px;
+      overflow: auto;
+      white-space: pre-wrap;
+      word-break: break-word;
+      background: #fafbfc;
+      border: 1px solid #e4e7eb;
+      border-radius: 6px;
+      padding: 10px 12px;
+      font: 12px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    }
+  </style>
+</head>
+<body>
+  <header class="app-header">
+    <img src="../assets/brand-lockup.svg" alt="RA Walks Notifier">
+    <h1>RA Walks Notifier</h1>
+  </header>
+
+  <section id="statusSection">
+    <h2>Status</h2>
+    <div id="maintenanceBanner"></div>
+    <div id="statusText">Loading&hellip;</div>
+    <div class="actions">
+      <button id="openReviewList">Open Review List</button>
+      <button id="retryStatus">Refresh</button>
+      <button id="sendReportEmail">Send Walks Report Email</button>
+      <button id="checkNow" class="primary">Check Now</button>
+    </div>
+    <div id="checkNowMessage" class="message"></div>
+  </section>
+
+  <section id="apiKeySection">
+    <h2>Server Connection</h2>
+    <label for="apiKey">API key</label>
+    <input id="apiKey" type="password" autocomplete="off" placeholder="Paste the API key you were given">
+    <div class="actions">
+      <button id="saveApiKey" class="primary">Save &amp; Test</button>
+    </div>
+    <div id="apiKeyMessage" class="message"></div>
+  </section>
+
+  <section id="loginSection" class="disabled">
+    <h2>Walks Manager Login</h2>
+    <label for="wmUsername">Email address (registered with Ramblers)</label>
+    <input id="wmUsername" type="text" autocomplete="off">
+    <label for="wmPassword">Password</label>
+    <input id="wmPassword" type="password" autocomplete="off">
+    <div class="hint">We'll sign in for you automatically. If a security check (e.g. a verification code) is needed, a browser window will open so you can finish signing in yourself. Your password isn't stored by this app.</div>
+    <div class="actions">
+      <button id="login" class="primary">Login to Walks Manager</button>
+      <button id="loginManual" class="primary" style="display: none;">Open in browser instead</button>
+    </div>
+    <div id="loginMessage" class="message"></div>
+  </section>
+
+  <section id="groupsSection" class="disabled">
+    <h2>Group Selection</h2>
+    <div id="groupList" class="group-list"><div class="hint">Login first to detect your group(s).</div></div>
+    <div class="actions">
+      <button id="redetectGroups" style="display: none;">Retry group detection</button>
+      <button id="saveGroups" class="primary">Save Group Selection</button>
+    </div>
+    <div id="groupsMessage" class="message"></div>
+  </section>
+
+  <section id="credentialsSection" class="disabled">
+    <h2>Walks Manager Auto Re-login (optional)</h2>
+    <div class="hint">
+      Walks Manager sessions expire roughly every week. Saving your username and password here lets the server sign back in automatically instead of waiting for a manual re-login. Entirely optional - if you skip this, the existing session-based login above still works, you'll just need to log in again when it expires.
+    </div>
+    <label for="credUsername">Email address</label>
+    <input id="credUsername" type="text" autocomplete="off">
+    <label for="credPassword">Password</label>
+    <input id="credPassword" type="password" autocomplete="off">
+    <div class="hint" id="credentialsHint"></div>
+    <div class="actions">
+      <button id="saveCredentials" class="primary">Verify &amp; Save</button>
+    </div>
+    <div id="credentialsMessage" class="message"></div>
+  </section>
+
+  <details id="recipientsSection">
+    <summary>Notification Recipients</summary>
+    <label for="recipients">Email addresses</label>
+    <textarea id="recipients" rows="4" spellcheck="false"></textarea>
+    <div class="hint">Enter one address per line, or separate addresses with commas. At least one is required before the app is fully set up.</div>
+    <div class="actions">
+      <button id="saveRecipients" class="primary">Save Recipients</button>
+    </div>
+    <div id="recipientsMessage" class="message"></div>
+  </details>
+
+  <details id="scheduleSection">
+    <summary>Check Schedule and Active Hours</summary>
+    <label for="interval">Check every</label>
+    <select id="interval">
+      <option value="1">1 minute</option>
+      <option value="5">5 minutes</option>
+      <option value="10">10 minutes</option>
+      <option value="15">15 minutes</option>
+      <option value="30">30 minutes</option>
+      <option value="60">1 hour</option>
+    </select>
+    <div class="row">
+      <div>
+        <label for="activeStart">Active from</label>
+        <select id="activeStart"></select>
+      </div>
+      <div>
+        <label for="activeEnd">Active until</label>
+        <select id="activeEnd"></select>
+      </div>
+    </div>
+    <div class="hint" id="scheduleSummary"></div>
+    <div class="actions">
+      <button id="saveSchedule" class="primary">Save Schedule</button>
+    </div>
+  </details>
+
+  <details id="leaderEmailSection">
+    <summary>Leader Email Settings</summary>
+    <div class="hint">
+      This feature needs extra setup beyond the base app: a Ramblers-Webs Joomla website, and an experimental fork of Mailman for looking up walk leaders' email addresses. If your group doesn't already have both of these in place, leave this feature disabled.
+    </div>
+    <label class="checkbox"><input id="leEnabled" type="checkbox" disabled> Email walk leaders</label>
+    <div class="hint">Disabled until you've entered a Joomla API URL and key and clicked "Test API" successfully. Editing either field re-locks this until tested again.</div>
+    <label class="checkbox"><input id="leSendOnSubmit" type="checkbox"> Send when a walk is submitted for checking</label>
+    <label class="checkbox"><input id="leSendOnPublish" type="checkbox"> Send when a walk is published</label>
+    <label for="leApiBaseUrl">Joomla API URL</label>
+    <input id="leApiBaseUrl" autocomplete="off" placeholder="https://ramblerseastcheshire.org.uk/api/index.php/v1">
+    <label for="leApiToken">Joomla API token</label>
+    <input id="leApiToken" type="password" autocomplete="off">
+    <div class="hint">The API token is used to look up the walk leader's email address from RA Mailman. If more than one matching profile is found, the app will skip the leader email rather than guess. Leave this blank when saving to keep the currently saved token unchanged.</div>
+    <label class="checkbox"><input id="leNotifyOnLookupFailure" type="checkbox"> Email a report if a leader's email address can't be resolved</label>
+    <label for="leLookupFailureNotifyAddress">Report address</label>
+    <input id="leLookupFailureNotifyAddress" autocomplete="off" placeholder="admin@example.org">
+    <label class="checkbox"><input id="leNotifyOnNameNotShared" type="checkbox"> Notify if a walk leader has not shared their name</label>
+    <label for="leNameNotSharedNotifyAddress">Notify address</label>
+    <input id="leNameNotSharedNotifyAddress" autocomplete="off" placeholder="admin@example.org" disabled>
+    <label class="checkbox"><input id="leTestModeEnabled" type="checkbox"> Test mode (only send leader emails to the addresses below)</label>
+    <label for="leTestAllowedEmails">Test leader email addresses</label>
+    <textarea id="leTestAllowedEmails" autocomplete="off" placeholder="one address per line, e.g. me@example.org"></textarea>
+    <div class="hint">While test mode is on, leader emails will only be sent if the resolved leader address matches one of these. Everyone else is skipped. Off by default so real leaders receive emails once you're ready.</div>
+    <div id="leaderEmailMessage" class="message"></div>
+    <div class="actions">
+      <button id="leTestApi">Test API</button>
+      <button id="saveLeaderEmail" class="primary">Save</button>
+    </div>
+  </details>
+
+  <details id="settingsSection">
+    <summary>App Settings</summary>
+    <label class="checkbox"><input id="startAtBoot" type="checkbox"> Start app on login</label>
+    <label class="checkbox"><input id="betaUpdates" type="checkbox"> Subscribe to beta updates</label>
+    <div class="hint" id="updateStatusText"></div>
+    <div class="actions">
+      <button id="checkForUpdates">Check for Updates</button>
+      <button id="chooseLogo">Change Logo</button>
+      <button id="resetLogo">Reset Logo</button>
+    </div>
+    <div id="settingsMessage" class="message"></div>
+  </details>
+
+  <details id="logsSection">
+    <summary>Logs</summary>
+    <pre id="logOutput">Loading&hellip;</pre>
+  </details>
+
+  <details id="aboutSection">
+    <summary>About</summary>
+    <p id="aboutVersion"></p>
+    <p id="aboutChannel"></p>
+    <div class="actions">
+      <button id="openWebsite">Open Website</button>
+    </div>
+  </details>
+
+  <script>
+    function setMessage(el, text, kind) {
+      el.textContent = text || '';
+      el.className = `message ${kind || ''}`;
+    }
+
+    // --- Status ---
+    function renderStatus(result) {
+      document.getElementById('statusText').textContent = result.text;
+      const banner = document.getElementById('maintenanceBanner');
+      if (result.maintenanceMessage) {
+        banner.textContent = result.maintenanceMessage;
+        banner.style.display = 'block';
+      } else {
+        banner.style.display = 'none';
+      }
+    }
+
+    window.statusApi.load().then(renderStatus);
+    setInterval(() => window.statusApi.load().then(renderStatus), 15000);
+
+    document.getElementById('retryStatus').addEventListener('click', async () => {
+      const button = document.getElementById('retryStatus');
+      button.disabled = true;
+      try {
+        renderStatus(await window.statusApi.retry());
+      } finally {
+        button.disabled = false;
+      }
+    });
+
+    document.getElementById('openReviewList').addEventListener('click', () => window.statusApi.openReviewList());
+
+    async function runCheckNow(force) {
+      const message = document.getElementById('checkNowMessage');
+      setMessage(message, force ? 'Sending walks report email...' : 'Checking...', 'pending');
+      const result = await window.statusApi.checkNow(force);
+      if (result.ok) {
+        setMessage(message, 'Check started - refreshing status shortly.', 'ok');
+        setTimeout(() => window.statusApi.load().then(renderStatus), 6000);
+      } else {
+        setMessage(message, result.error, 'error');
+      }
+    }
+
+    document.getElementById('checkNow').addEventListener('click', () => runCheckNow(false));
+    document.getElementById('sendReportEmail').addEventListener('click', () => runCheckNow(true));
+
+    // --- Server Connection & Walks Manager Login ---
+    const apiKeyInput = document.getElementById('apiKey');
+    const apiKeyMessage = document.getElementById('apiKeyMessage');
+    const loginSection = document.getElementById('loginSection');
+    const loginMessage = document.getElementById('loginMessage');
+    const wmUsernameInput = document.getElementById('wmUsername');
+    const wmPasswordInput = document.getElementById('wmPassword');
+    const loginButton = document.getElementById('login');
+    const loginManualButton = document.getElementById('loginManual');
+    let failedLoginAttempts = 0;
+    const groupsSection = document.getElementById('groupsSection');
+    const credentialsSection = document.getElementById('credentialsSection');
+    const groupList = document.getElementById('groupList');
+    const groupsMessage = document.getElementById('groupsMessage');
+    const redetectGroupsButton = document.getElementById('redetectGroups');
+    const recipientsInput = document.getElementById('recipients');
+
+    function renderGroups(groups, selectedGids) {
+      if (!groups || !groups.length) {
+        groupList.innerHTML = '<div class="hint">No groups found yet.</div>';
+        return;
+      }
+      groupList.innerHTML = groups.map(group => `
+        <label>
+          <input type="radio" name="group" value="${group.gid}" ${selectedGids.includes(group.gid) ? 'checked' : ''}>
+          ${group.name}
+        </label>
+      `).join('');
+    }
+
+    function selectedGroups(groups) {
+      const checked = groupList.querySelector('input[type="radio"]:checked');
+      if (!checked) return [];
+      const match = groups.find(group => String(group.gid) === checked.value);
+      return match ? [match] : [];
+    }
+
+    let knownGroups = [];
+
+    function updateRedetectButtonVisibility(sessionPresent) {
+      redetectGroupsButton.style.display = (sessionPresent && !knownGroups.length) ? '' : 'none';
+    }
+
+    function unlockConnectedSections() {
+      loginSection.classList.remove('disabled');
+      groupsSection.classList.remove('disabled');
+      credentialsSection.classList.remove('disabled');
+      window.connect.status(); // no-op refresh trigger left intentionally simple
+    }
+
+    window.connect.status().then((status) => {
+      if (status.apiKeySet) {
+        apiKeyInput.placeholder = 'API key saved (hidden)';
+        setMessage(apiKeyMessage, 'Connected.', 'ok');
+        unlockConnectedSections();
+        window.recipients.load().then((recipients) => {
+          recipientsInput.value = recipients.join('\n');
+        });
+      }
+      if (status.groups && status.groups.length) {
+        knownGroups = status.groups;
+        renderGroups(status.groups, status.groups.map(g => g.gid));
+      }
+      if (status.sessionPresent) {
+        setMessage(loginMessage, 'Walks Manager session is present.', 'ok');
+      }
+      updateRedetectButtonVisibility(status.sessionPresent);
+    });
+
+    document.getElementById('saveApiKey').addEventListener('click', async () => {
+      const button = document.getElementById('saveApiKey');
+      button.disabled = true;
+      setMessage(apiKeyMessage, 'Testing...', '');
+      try {
+        await window.connect.saveApiKey(apiKeyInput.value);
+        setMessage(apiKeyMessage, 'Connected.', 'ok');
+        unlockConnectedSections();
+        window.recipients.load().then((recipients) => {
+          recipientsInput.value = recipients.join('\n');
+        });
+      } catch (error) {
+        setMessage(apiKeyMessage, error.message, 'error');
+      } finally {
+        button.disabled = false;
+      }
+    });
+
+    function applyLoginResult(result) {
+      wmPasswordInput.value = '';
+      setMessage(loginMessage, result.message, result.code === 0 ? 'ok' : 'error');
+      if (result.groups && result.groups.length) {
+        knownGroups = result.groups;
+        renderGroups(result.groups, result.groups.length === 1 ? [result.groups[0].gid] : []);
+        if (result.groups.length === 1) {
+          setMessage(groupsMessage, 'Saved automatically.', 'ok');
+        }
+      }
+      if (result.code === 2) {
+        failedLoginAttempts += 1;
+        if (failedLoginAttempts >= 3) {
+          loginButton.style.display = 'none';
+          loginManualButton.style.display = '';
+        }
+      } else if (result.code === 0) {
+        failedLoginAttempts = 0;
+        loginButton.style.display = '';
+        loginManualButton.style.display = 'none';
+      }
+      updateRedetectButtonVisibility(result.sessionPresent);
+    }
+
+    loginButton.addEventListener('click', async () => {
+      const username = wmUsernameInput.value.trim();
+      const password = wmPasswordInput.value;
+      if (!username || !password) {
+        setMessage(loginMessage, 'Enter your Ramblers email address and password.', 'error');
+        return;
+      }
+      loginButton.disabled = true;
+      setMessage(loginMessage, 'Signing in...', 'pending');
+      try {
+        const result = await window.connect.login({ username, password });
+        applyLoginResult(result);
+      } catch (error) {
+        setMessage(loginMessage, error.message, 'error');
+      } finally {
+        loginButton.disabled = false;
+      }
+    });
+
+    loginManualButton.addEventListener('click', async () => {
+      loginManualButton.disabled = true;
+      setMessage(loginMessage, 'Waiting for login...', 'pending');
+      try {
+        const result = await window.connect.login();
+        applyLoginResult(result);
+      } catch (error) {
+        setMessage(loginMessage, error.message, 'error');
+      } finally {
+        loginManualButton.disabled = false;
+      }
+    });
+
+    redetectGroupsButton.addEventListener('click', async () => {
+      redetectGroupsButton.disabled = true;
+      setMessage(groupsMessage, 'Checking your Walks Manager session for groups...', 'pending');
+      try {
+        const result = await window.connect.redetectGroups();
+        if (result.groups && result.groups.length) {
+          knownGroups = result.groups;
+          renderGroups(result.groups, result.groups.length === 1 ? [result.groups[0].gid] : []);
+        }
+        setMessage(groupsMessage, result.message, result.code === 0 ? 'ok' : 'error');
+        updateRedetectButtonVisibility(result.sessionPresent);
+      } catch (error) {
+        setMessage(groupsMessage, error.message, 'error');
+      } finally {
+        redetectGroupsButton.disabled = false;
+      }
+    });
+
+    document.getElementById('saveGroups').addEventListener('click', async () => {
+      const groups = selectedGroups(knownGroups);
+      if (!groups.length) {
+        setMessage(groupsMessage, 'Select at least one group.', 'error');
+        return;
+      }
+      try {
+        await window.connect.saveGroups(groups);
+        setMessage(groupsMessage, `Saved ${groups.length} group${groups.length === 1 ? '' : 's'}.`, 'ok');
+      } catch (error) {
+        setMessage(groupsMessage, error.message, 'error');
+      }
+    });
+
+    document.getElementById('saveRecipients').addEventListener('click', async () => {
+      const message = document.getElementById('recipientsMessage');
+      try {
+        const recipients = await window.recipients.save(recipientsInput.value);
+        recipientsInput.value = recipients.join('\n');
+        setMessage(message, `Saved ${recipients.length} recipient${recipients.length === 1 ? '' : 's'}.`, recipients.length ? 'ok' : 'error');
+      } catch (error) {
+        setMessage(message, error.message, 'error');
+      }
+    });
+
+    // --- Walks Manager Auto Re-login credentials ---
+    const credUsernameInput = document.getElementById('credUsername');
+    const credPasswordInput = document.getElementById('credPassword');
+    const credentialsHint = document.getElementById('credentialsHint');
+    const credentialsMessage = document.getElementById('credentialsMessage');
+    const saveCredentialsButton = document.getElementById('saveCredentials');
+
+    window.credentials.status().then((status) => {
+      if (status.credentialsSet) {
+        credUsernameInput.value = status.username || '';
+        credentialsHint.textContent = 'Credentials are saved for auto-relogin. Enter a password (and username, if it changed) to update them.';
+      } else {
+        credentialsHint.textContent = 'No credentials saved yet.';
+      }
+    });
+
+    saveCredentialsButton.addEventListener('click', async () => {
+      const username = credUsernameInput.value.trim();
+      const password = credPasswordInput.value;
+      if (!username || !password) {
+        setMessage(credentialsMessage, 'Enter your Ramblers email address and password.', 'error');
+        return;
+      }
+      saveCredentialsButton.disabled = true;
+      setMessage(credentialsMessage, 'Verifying...', 'pending');
+      try {
+        const result = await window.credentials.save({ username, password });
+        credPasswordInput.value = '';
+        setMessage(credentialsMessage, result.message, result.status === 'saved' ? 'ok' : 'error');
+        if (result.status === 'saved') {
+          credentialsHint.textContent = 'Credentials are saved for auto-relogin. Enter a password (and username, if it changed) to update them.';
+        }
+        // A successful fallback session upload also refreshes group/session
+        // state, so re-check connection status to pick it up.
+        window.connect.status().then((status) => updateRedetectButtonVisibility(status.sessionPresent));
+      } catch (error) {
+        setMessage(credentialsMessage, error.message, 'error');
+      } finally {
+        saveCredentialsButton.disabled = false;
+      }
+    });
+
+    // --- Schedule ---
+    const scheduleFields = {
+      interval: document.getElementById('interval'),
+      activeStart: document.getElementById('activeStart'),
+      activeEnd: document.getElementById('activeEnd')
+    };
+    const scheduleSummary = document.getElementById('scheduleSummary');
+
+    function hourLabel(hour) {
+      return `${String(hour).padStart(2, '0')}:00`;
+    }
+
+    function populateHourSelect(select) {
+      for (let hour = 0; hour < 24; hour += 1) {
+        const option = document.createElement('option');
+        option.value = String(hour);
+        option.textContent = hourLabel(hour);
+        select.appendChild(option);
+      }
+    }
+
+    function updateScheduleSummary() {
+      const start = Number(scheduleFields.activeStart.value);
+      const end = Number(scheduleFields.activeEnd.value);
+      scheduleSummary.textContent = start === end
+        ? 'Automatic checks will run all day.'
+        : `Automatic checks will run from ${hourLabel(start)} to ${hourLabel(end)}.`;
+    }
+
+    populateHourSelect(scheduleFields.activeStart);
+    populateHourSelect(scheduleFields.activeEnd);
+
+    window.scheduleSettings.load().then((settings) => {
+      scheduleFields.interval.value = String(settings.checkIntervalMinutes || 5);
+      scheduleFields.activeStart.value = String(settings.activeHours?.start ?? 7);
+      scheduleFields.activeEnd.value = String(settings.activeHours?.end ?? 22);
+      updateScheduleSummary();
+    });
+
+    scheduleFields.activeStart.addEventListener('change', updateScheduleSummary);
+    scheduleFields.activeEnd.addEventListener('change', updateScheduleSummary);
+
+    document.getElementById('saveSchedule').addEventListener('click', async () => {
+      await window.scheduleSettings.save({
+        checkIntervalMinutes: Number(scheduleFields.interval.value || 5),
+        activeHours: {
+          start: Number(scheduleFields.activeStart.value || 7),
+          end: Number(scheduleFields.activeEnd.value || 22)
+        }
+      });
+    });
+
+    // --- Leader Email ---
+    const leFields = {
+      enabled: document.getElementById('leEnabled'),
+      sendOnSubmit: document.getElementById('leSendOnSubmit'),
+      sendOnPublish: document.getElementById('leSendOnPublish'),
+      apiBaseUrl: document.getElementById('leApiBaseUrl'),
+      apiToken: document.getElementById('leApiToken'),
+      notifyOnLookupFailure: document.getElementById('leNotifyOnLookupFailure'),
+      lookupFailureNotifyAddress: document.getElementById('leLookupFailureNotifyAddress'),
+      notifyOnNameNotShared: document.getElementById('leNotifyOnNameNotShared'),
+      nameNotSharedNotifyAddress: document.getElementById('leNameNotSharedNotifyAddress'),
+      testModeEnabled: document.getElementById('leTestModeEnabled'),
+      testAllowedEmails: document.getElementById('leTestAllowedEmails')
+    };
+    const leaderEmailMessage = document.getElementById('leaderEmailMessage');
+
+    function leCurrentSettings() {
+      return {
+        enabled: leFields.enabled.checked,
+        sendOnSubmit: leFields.sendOnSubmit.checked,
+        sendOnPublish: leFields.sendOnPublish.checked,
+        apiBaseUrl: leFields.apiBaseUrl.value,
+        apiToken: leFields.apiToken.value,
+        notifyOnLookupFailure: leFields.notifyOnLookupFailure.checked,
+        lookupFailureNotifyAddress: leFields.lookupFailureNotifyAddress.value,
+        notifyOnNameNotShared: leFields.notifyOnNameNotShared.checked,
+        nameNotSharedNotifyAddress: leFields.nameNotSharedNotifyAddress.value,
+        testModeEnabled: leFields.testModeEnabled.checked,
+        testAllowedEmails: leFields.testAllowedEmails.value
+      };
+    }
+
+    function leValidationError(settings) {
+      if (settings.enabled && !leIsApiValidatedFor(settings)) {
+        return 'Test the Joomla API URL and key successfully before enabling walk leader emails.';
+      }
+      if (settings.notifyOnLookupFailure && !settings.lookupFailureNotifyAddress.trim()) {
+        return 'Enter a report address, or turn off the lookup-failure email.';
+      }
+      if (settings.notifyOnNameNotShared && !settings.nameNotSharedNotifyAddress.trim()) {
+        return 'Enter a notify address, or turn off the name-not-shared notification.';
+      }
+      if (settings.testModeEnabled && !settings.testAllowedEmails.trim()) {
+        return 'Enter at least one test leader email address, or turn off test mode.';
+      }
+      return '';
+    }
+
+    let leApiValidatedKey = null;
+
+    function leApiKeyFor(settings) {
+      return `${(settings.apiBaseUrl || '').trim()}::${settings.apiToken || ''}`;
+    }
+
+    function leIsApiValidatedFor(settings) {
+      return leApiValidatedKey !== null && leApiValidatedKey === leApiKeyFor(settings);
+    }
+
+    function leRefreshEnabledAvailability() {
+      const valid = leIsApiValidatedFor(leCurrentSettings());
+      leFields.enabled.disabled = !valid;
+      if (!valid) leFields.enabled.checked = false;
+    }
+
+    leFields.apiBaseUrl.addEventListener('input', leRefreshEnabledAvailability);
+    leFields.apiToken.addEventListener('input', leRefreshEnabledAvailability);
+
+    function leUpdateNameNotSharedAddressState() {
+      leFields.nameNotSharedNotifyAddress.disabled = !leFields.notifyOnNameNotShared.checked;
+    }
+
+    leFields.notifyOnNameNotShared.addEventListener('change', leUpdateNameNotSharedAddressState);
+
+    window.leaderEmailSettings.load().then((settings) => {
+      leFields.enabled.checked = settings.enabled === true;
+      leFields.sendOnSubmit.checked = settings.sendOnSubmit !== false;
+      leFields.sendOnPublish.checked = settings.sendOnPublish !== false;
+      leFields.apiBaseUrl.value = settings.apiBaseUrl || '';
+      leFields.apiToken.value = '';
+      leFields.apiToken.placeholder = settings.apiTokenIsSet ? '•••• (already set - leave blank to keep it)' : '';
+      leFields.notifyOnLookupFailure.checked = settings.notifyOnLookupFailure === true;
+      leFields.lookupFailureNotifyAddress.value = settings.lookupFailureNotifyAddress || '';
+      leFields.notifyOnNameNotShared.checked = settings.notifyOnNameNotShared === true;
+      leFields.nameNotSharedNotifyAddress.value = settings.nameNotSharedNotifyAddress || '';
+      leUpdateNameNotSharedAddressState();
+      leFields.testModeEnabled.checked = settings.testModeEnabled === true;
+      leFields.testAllowedEmails.value = Array.isArray(settings.testAllowedEmails) ? settings.testAllowedEmails.join('\n') : '';
+
+      if (settings.enabled && settings.apiBaseUrl && settings.apiTokenIsSet) {
+        leApiValidatedKey = leApiKeyFor({ apiBaseUrl: settings.apiBaseUrl, apiToken: '' });
+      }
+      leRefreshEnabledAvailability();
+      leFields.enabled.checked = settings.enabled === true && leIsApiValidatedFor(leCurrentSettings());
+    });
+
+    document.getElementById('leTestApi').addEventListener('click', async () => {
+      const button = document.getElementById('leTestApi');
+      button.disabled = true;
+      setMessage(leaderEmailMessage, 'Testing Joomla API...', '');
+      try {
+        const settings = leCurrentSettings();
+        const result = await window.leaderEmailSettings.testApi(settings);
+        setMessage(leaderEmailMessage, result.message, result.ok ? 'ok' : 'error');
+        leApiValidatedKey = result.ok ? leApiKeyFor(settings) : null;
+        leRefreshEnabledAvailability();
+      } catch (error) {
+        setMessage(leaderEmailMessage, `API test failed: ${error.message}`, 'error');
+        leApiValidatedKey = null;
+        leRefreshEnabledAvailability();
+      } finally {
+        button.disabled = false;
+      }
+    });
+
+    document.getElementById('saveLeaderEmail').addEventListener('click', async () => {
+      const settings = leCurrentSettings();
+      const error = leValidationError(settings);
+      if (error) {
+        setMessage(leaderEmailMessage, error, 'error');
+        return;
+      }
+      await window.leaderEmailSettings.save(settings);
+      setMessage(leaderEmailMessage, 'Saved.', 'ok');
+    });
+
+    // --- App Settings ---
+    const settingsMessage = document.getElementById('settingsMessage');
+    const startAtBootCheckbox = document.getElementById('startAtBoot');
+    const betaUpdatesCheckbox = document.getElementById('betaUpdates');
+    const updateStatusText = document.getElementById('updateStatusText');
+
+    window.appSettings.load().then((settings) => {
+      startAtBootCheckbox.checked = settings.startAtBootEnabled;
+      startAtBootCheckbox.disabled = !settings.canStartOnLogin;
+      betaUpdatesCheckbox.checked = settings.includeBetaUpdates;
+      updateStatusText.textContent = `Update: ${settings.updateStatus}`;
+    });
+
+    startAtBootCheckbox.addEventListener('change', async () => {
+      const result = await window.appSettings.toggleStartAtBoot();
+      startAtBootCheckbox.checked = result.startAtBootEnabled;
+    });
+
+    betaUpdatesCheckbox.addEventListener('change', async () => {
+      const result = await window.appSettings.toggleBetaUpdates();
+      betaUpdatesCheckbox.checked = result.includeBetaUpdates;
+    });
+
+    document.getElementById('checkForUpdates').addEventListener('click', () => window.appSettings.checkForUpdates());
+
+    document.getElementById('chooseLogo').addEventListener('click', async () => {
+      const result = await window.appSettings.chooseLogo();
+      if (result.ok && result.message) setMessage(settingsMessage, result.message, 'ok');
+      else if (!result.ok && result.error) setMessage(settingsMessage, result.error, 'error');
+    });
+
+    document.getElementById('resetLogo').addEventListener('click', async () => {
+      const result = await window.appSettings.resetLogo();
+      setMessage(settingsMessage, result.message || result.error, result.ok ? 'ok' : 'error');
+    });
+
+    // --- Logs ---
+    const logsSection = document.getElementById('logsSection');
+    const logOutput = document.getElementById('logOutput');
+    let logsPollTimer = null;
+
+    async function refreshLogs() {
+      const lines = await window.logs.load();
+      logOutput.textContent = lines.length ? lines.join('\n') : 'No log entries yet.';
+    }
+
+    logsSection.addEventListener('toggle', () => {
+      if (logsSection.open) {
+        refreshLogs();
+        logsPollTimer = setInterval(refreshLogs, 3000);
+      } else if (logsPollTimer) {
+        clearInterval(logsPollTimer);
+        logsPollTimer = null;
+      }
+    });
+
+    // --- About ---
+    window.about.load().then((info) => {
+      document.getElementById('aboutVersion').textContent = `Version: ${info.version}`;
+      document.getElementById('aboutChannel').textContent = `Release channel: ${info.channel}`;
+    });
+    document.getElementById('openWebsite').addEventListener('click', () => window.about.openWebsite());
+  </script>
+</body>
+</html>
