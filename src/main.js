@@ -103,15 +103,6 @@ function appWindowOptions(options) {
   return Object.assign({ icon: appIconPath() }, options);
 }
 
-function statusLine(label, value) {
-  return `${label}: ${value}`;
-}
-
-function statusList(label, values, empty = 'None configured') {
-  if (!values.length) return statusLine(label, empty);
-  return `${label}:\n${values.map(value => `  ${value}`).join('\n')}`;
-}
-
 function isConfigured() {
   return Boolean(
     apiClient.hasApiKey() &&
@@ -134,15 +125,12 @@ function stripUnreliableResultCounts(lastResult) {
 
 function buildStatusText() {
   const s = cachedStatus || {};
-  const groupNames = cachedGroups.map(group => group.name || `Group ${group.gid}`);
   const credentialsSet = Boolean(cachedConfig?.walksManagerCredentials?.credentialsSet);
   return [
     `Status: ${s.maintenanceMessage ? 'Server offline (maintenance)' : apiClient.hasApiKey() ? 'Connected' : 'Not connected'}`,
     `Last error: ${s.lastError || 'None'}`,
     `Auto re-login credentials: ${credentialsSet ? 'Saved' : 'Not saved'}`,
     `Session: ${cachedSessionPresent ? 'Present' : 'Missing'}`,
-    '',
-    statusList(cachedGroups.length === 1 ? 'Group' : 'Groups', groupNames, 'Not selected'),
     '',
     `Last check: ${formatUkDateTime(s.lastCheckCompletedAt)}`,
     `Last result: ${stripUnreliableResultCounts(s.lastResult) || 'None yet'}`,
@@ -1414,7 +1402,8 @@ ipcMain.handle('status:load', async () => {
     text: buildStatusText(),
     maintenanceMessage: cachedStatus?.maintenanceMessage || null,
     checking: Boolean(cachedStatus?.checking),
-    pendingWalks: Number(cachedStatus?.pendingWalks || 0)
+    pendingWalks: Number(cachedStatus?.pendingWalks || 0),
+    groupNames: cachedGroups.map(group => group.name || `Group ${group.gid}`)
   };
 });
 
