@@ -120,6 +120,17 @@ function isConfigured() {
   );
 }
 
+// The server can't reliably tell "changed" and "cleared" walks apart from
+// a plain review-list diff, so those two counts in its check-result summary
+// are not trustworthy - strip them here rather than show numbers that look
+// precise but aren't. ("N pending; N new" stays, since those are reliable.)
+function stripUnreliableResultCounts(lastResult) {
+  if (!lastResult) return lastResult;
+  return lastResult
+    .replace(/;\s*\d+\s*changed/i, '')
+    .replace(/;\s*\d+\s*cleared/i, '');
+}
+
 function buildStatusText() {
   const s = cachedStatus || {};
   const groupNames = cachedGroups.map(group => group.name || `Group ${group.gid}`);
@@ -135,7 +146,7 @@ function buildStatusText() {
     statusList(cachedGroups.length === 1 ? 'Group' : 'Groups', groupNames, 'Not selected'),
     '',
     `Last check: ${formatUkDateTime(s.lastCheckCompletedAt)}`,
-    `Last result: ${s.lastResult || 'None yet'}`,
+    `Last result: ${stripUnreliableResultCounts(s.lastResult) || 'None yet'}`,
     `Last email: ${formatUkDateTime(s.lastEmailAt)}`
   ].join('\n');
 }
