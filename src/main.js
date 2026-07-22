@@ -319,7 +319,7 @@ async function checkNow(force = false) {
 }
 
 const maxLogoBytes = 2 * 1024 * 1024; // 2 MB - plenty for a logo, not for a full-res photo
-const maxLogoDimension = 1000; // px, generous for a logo - not a full-res photo
+const maxLogoDimension = 250; // px - a logo, not a full-res photo
 
 async function chooseBrandLogo() {
   const result = await dialog.showOpenDialog({
