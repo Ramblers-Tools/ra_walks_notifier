@@ -166,6 +166,7 @@ function reviewUrlForGroup(group = selectedGroup()) {
 }
 
 function showDashboard() {
+  if (app.dock) app.dock.show();
   if (dashboardWindow) {
     // Minimize to Tray hides rather than closes the window, so it can
     // still exist here but not be visible - show() before focus() or the
@@ -1477,6 +1478,11 @@ ipcMain.handle('app:open-credentials-upgrade', () => showCredentialsUpgradeWindo
 ipcMain.handle('app:quit', () => app.quit());
 ipcMain.handle('app:minimize-to-tray', () => {
   if (dashboardWindow && !dashboardWindow.isDestroyed()) dashboardWindow.hide();
+  // hide()'ing the window already drops it from the Windows/Linux taskbar
+  // (those only list actually-visible windows), but macOS keeps showing
+  // the Dock icon for as long as any window exists, hidden or not, unless
+  // told otherwise here.
+  if (app.dock) app.dock.hide();
 });
 
 ipcMain.handle('app:reset-settings', async () => {
