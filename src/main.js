@@ -480,14 +480,10 @@ function configureUpdates() {
   });
 
   autoUpdater.on('update-not-available', () => {
+    // No dialog here - App Settings now shows this status live ("Update:
+    // No update available") while Check for Updates is in flight, so a
+    // popup the user has to dismiss on top of that would be redundant.
     updateStatus = 'No update available';
-    if (manualUpdateCheck) {
-      dialog.showMessageBox({
-        type: 'info',
-        title: 'RA Walks Notifier',
-        message: 'RA Walks Notifier is up to date.'
-      });
-    }
     manualUpdateCheck = false;
   });
 
