@@ -1169,7 +1169,12 @@ function openWalksManagerLoginWindow(credentials) {
 
 app.whenReady().then(async () => {
   Menu.setApplicationMenu(null);
-  if (app.dock) app.dock.setIcon(appIconPath());
+  // A packaged build already gets its Dock icon from build/icon.icns via
+  // the app bundle's Info.plist - calling dock.setIcon() here as well was
+  // overriding that properly macOS-masked icon with a flatter-looking
+  // render of the same PNG. Only needed in dev mode, where there's no
+  // bundle/Info.plist and Electron would otherwise show its own icon.
+  if (app.dock && !app.isPackaged) app.dock.setIcon(appIconPath());
   configureUpdates();
   // Wait for the first cache fill before opening the Dashboard, so its
   // Status section doesn't start out reading the empty initial cache.
