@@ -31,21 +31,64 @@
     header.app-header {
       display: flex;
       align-items: center;
+      justify-content: space-between;
       gap: 12px;
       margin-bottom: 20px;
     }
 
     header.app-header img {
-      width: 40px;
-      height: 40px;
+      height: 64px;
+      width: auto;
       object-fit: contain;
     }
 
-    header.app-header h1 {
-      font-size: 22px;
-      margin: 0;
-      font-weight: 300;
-      letter-spacing: 0.5px;
+    #aboutInline {
+      text-align: right;
+      font-size: 12px;
+      color: #52606d;
+      line-height: 1.5;
+    }
+
+    #aboutInline a {
+      color: #1264a3;
+      cursor: pointer;
+      text-decoration: none;
+    }
+
+    #aboutInline a:hover {
+      text-decoration: underline;
+    }
+
+    .setup-header {
+      text-align: center;
+      margin: 40px 0 24px;
+    }
+
+    .setup-header h2 {
+      font-size: 20px;
+      text-transform: none;
+      letter-spacing: normal;
+      color: #1f2933;
+    }
+
+    .setup-header p {
+      color: #52606d;
+      font-size: 13px;
+    }
+
+    body.setup-mode .tile-grid {
+      display: block;
+      max-width: 560px;
+      margin: 0 auto;
+    }
+
+    body.setup-mode .tile-grid > * {
+      margin-bottom: 16px;
+    }
+
+    body:not(.setup-mode) .setup-only,
+    body.setup-mode .grid-only {
+      display: none !important;
     }
 
     .tile-grid {
@@ -71,10 +114,6 @@
       box-shadow: 0 1px 3px rgba(0,0,0,0.12);
       padding: 16px 18px;
       margin-bottom: 0;
-    }
-
-    .tile-full {
-      grid-column: 1 / -1;
     }
 
     #statusSection { border-top-color: var(--tile-status); }
@@ -259,12 +298,21 @@
 <body>
   <header class="app-header">
     <img src="../assets/brand-lockup.svg" alt="RA Walks Notifier">
-    <h1>RA Walks Notifier</h1>
+    <div id="aboutInline">
+      <div id="aboutVersion"></div>
+      <div id="aboutChannel"></div>
+      <a id="openWebsite">rawalksnotifier.ramblers.tools</a>
+    </div>
   </header>
+
+  <div id="setupHeader" class="setup-header setup-only">
+    <h2 id="setupHeaderText">Let's get you set up</h2>
+    <p>Complete each step below to start using RA Walks Notifier.</p>
+  </div>
 
   <div class="tile-grid">
 
-  <section id="statusSection" class="tile-full">
+  <section id="statusSection" class="grid-only">
     <h2>Status</h2>
     <div id="maintenanceBanner"></div>
     <div id="statusText">Loading&hellip;</div>
@@ -277,7 +325,7 @@
     <div id="checkNowMessage" class="message"></div>
   </section>
 
-  <section id="apiKeySection">
+  <section id="apiKeySection" data-step="api-key">
     <h2>Server Connection</h2>
     <label for="apiKey">API key</label>
     <input id="apiKey" type="password" autocomplete="off" placeholder="Paste the API key you were given">
@@ -287,7 +335,7 @@
     <div id="apiKeyMessage" class="message"></div>
   </section>
 
-  <section id="loginSection" class="disabled">
+  <section id="loginSection" class="disabled" data-step="login">
     <h2>Walks Manager Login</h2>
     <label for="wmUsername">Email address (registered with Ramblers)</label>
     <input id="wmUsername" type="text" autocomplete="off">
@@ -301,7 +349,7 @@
     <div id="loginMessage" class="message"></div>
   </section>
 
-  <section id="groupsSection" class="disabled">
+  <section id="groupsSection" class="disabled" data-step="groups">
     <h2>Group Selection</h2>
     <div id="groupList" class="group-list"><div class="hint">Login first to detect your group(s).</div></div>
     <div class="actions">
@@ -311,7 +359,7 @@
     <div id="groupsMessage" class="message"></div>
   </section>
 
-  <section id="credentialsSection" class="disabled">
+  <section id="credentialsSection" class="disabled grid-only">
     <h2>Walks Manager Auto Re-login (optional)</h2>
     <div class="hint">
       Walks Manager sessions expire roughly every week. Saving your username and password here lets the server sign back in automatically instead of waiting for a manual re-login. Entirely optional - if you skip this, the existing session-based login above still works, you'll just need to log in again when it expires.
@@ -327,7 +375,7 @@
     <div id="credentialsMessage" class="message"></div>
   </section>
 
-  <details id="recipientsSection">
+  <details id="recipientsSection" data-step="recipients" open>
     <summary>Notification Recipients</summary>
     <label for="recipients">Email addresses</label>
     <textarea id="recipients" rows="4" spellcheck="false"></textarea>
@@ -338,7 +386,7 @@
     <div id="recipientsMessage" class="message"></div>
   </details>
 
-  <details id="scheduleSection">
+  <details id="scheduleSection" class="grid-only">
     <summary>Check Schedule and Active Hours</summary>
     <label for="interval">Check every</label>
     <select id="interval">
@@ -365,7 +413,7 @@
     </div>
   </details>
 
-  <details id="leaderEmailSection">
+  <details id="leaderEmailSection" class="grid-only">
     <summary>Leader Email Settings</summary>
     <div class="hint">
       This feature needs extra setup beyond the base app: a Ramblers-Webs Joomla website, and an experimental fork of Mailman for looking up walk leaders' email addresses. If your group doesn't already have both of these in place, leave this feature disabled.
@@ -396,7 +444,7 @@
     </div>
   </details>
 
-  <details id="settingsSection">
+  <details id="settingsSection" class="grid-only">
     <summary>App Settings</summary>
     <label class="checkbox"><input id="startAtBoot" type="checkbox"> Start app on login</label>
     <label class="checkbox"><input id="betaUpdates" type="checkbox"> Subscribe to beta updates</label>
@@ -409,18 +457,9 @@
     <div id="settingsMessage" class="message"></div>
   </details>
 
-  <details id="logsSection">
+  <details id="logsSection" class="grid-only">
     <summary>Logs</summary>
     <pre id="logOutput">Loading&hellip;</pre>
-  </details>
-
-  <details id="aboutSection">
-    <summary>About</summary>
-    <p id="aboutVersion"></p>
-    <p id="aboutChannel"></p>
-    <div class="actions">
-      <button id="openWebsite">Open Website</button>
-    </div>
   </details>
 
   </div>
@@ -429,6 +468,51 @@
     function setMessage(el, text, kind) {
       el.textContent = text || '';
       el.className = `message ${kind || ''}`;
+    }
+
+    // --- Setup wizard gating ---
+    // Nothing else is usable until an API key is saved, then Walks Manager
+    // login, group selection, and recipients unlock one at a time. Once all
+    // four are satisfied, the full tile dashboard is shown instead.
+    const WIZARD_ORDER = ['api-key', 'login', 'groups', 'recipients'];
+    let latestRecipientsCount = 0;
+
+    function computeWizardStage(status) {
+      if (!status.apiKeySet) return 'api-key';
+      if (!status.sessionPresent) return 'login';
+      if (!status.groups || !status.groups.length) return 'groups';
+      if (!latestRecipientsCount) return 'recipients';
+      return 'done';
+    }
+
+    function applyWizardStage(stage) {
+      const setupMode = stage !== 'done';
+      document.body.classList.toggle('setup-mode', setupMode);
+      if (!setupMode) return;
+      const doneIdx = WIZARD_ORDER.indexOf(stage);
+      document.querySelectorAll('[data-step]').forEach((el) => {
+        const idx = WIZARD_ORDER.indexOf(el.dataset.step);
+        el.style.display = idx <= doneIdx ? '' : 'none';
+      });
+      const setupHeaderText = document.getElementById('setupHeaderText');
+      const labels = {
+        'api-key': 'Step 1 of 4: connect to the server',
+        login: 'Step 2 of 4: log in to Walks Manager',
+        groups: 'Step 3 of 4: choose your group',
+        recipients: 'Step 4 of 4: add notification recipients'
+      };
+      setupHeaderText.textContent = labels[stage] || "Let's get you set up";
+    }
+
+    async function refreshWizard() {
+      const status = await window.connect.status();
+      if (status.apiKeySet) {
+        const recipients = await window.recipients.load();
+        latestRecipientsCount = recipients.length;
+      } else {
+        latestRecipientsCount = 0;
+      }
+      applyWizardStage(computeWizardStage(status));
     }
 
     // --- Status ---
@@ -540,6 +624,7 @@
         setMessage(loginMessage, 'Walks Manager session is present.', 'ok');
       }
       updateRedetectButtonVisibility(status.sessionPresent);
+      refreshWizard();
     });
 
     document.getElementById('saveApiKey').addEventListener('click', async () => {
@@ -553,6 +638,7 @@
         window.recipients.load().then((recipients) => {
           recipientsInput.value = recipients.join('\n');
         });
+        refreshWizard();
       } catch (error) {
         setMessage(apiKeyMessage, error.message, 'error');
       } finally {
@@ -582,6 +668,7 @@
         loginManualButton.style.display = 'none';
       }
       updateRedetectButtonVisibility(result.sessionPresent);
+      refreshWizard();
     }
 
     loginButton.addEventListener('click', async () => {
@@ -627,6 +714,7 @@
         }
         setMessage(groupsMessage, result.message, result.code === 0 ? 'ok' : 'error');
         updateRedetectButtonVisibility(result.sessionPresent);
+        refreshWizard();
       } catch (error) {
         setMessage(groupsMessage, error.message, 'error');
       } finally {
@@ -643,6 +731,7 @@
       try {
         await window.connect.saveGroups(groups);
         setMessage(groupsMessage, `Saved ${groups.length} group${groups.length === 1 ? '' : 's'}.`, 'ok');
+        refreshWizard();
       } catch (error) {
         setMessage(groupsMessage, error.message, 'error');
       }
@@ -654,6 +743,7 @@
         const recipients = await window.recipients.save(recipientsInput.value);
         recipientsInput.value = recipients.join('\n');
         setMessage(message, `Saved ${recipients.length} recipient${recipients.length === 1 ? '' : 's'}.`, recipients.length ? 'ok' : 'error');
+        refreshWizard();
       } catch (error) {
         setMessage(message, error.message, 'error');
       }

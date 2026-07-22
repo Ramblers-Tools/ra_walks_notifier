@@ -1106,6 +1106,7 @@ function openWalksManagerLoginWindow(credentials) {
 
 app.whenReady().then(async () => {
   Menu.setApplicationMenu(null);
+  if (app.dock) app.dock.setIcon(appIconPath());
   configureUpdates();
   // Wait for the first cache fill before opening the Dashboard, so its
   // Status section doesn't start out reading the empty initial cache.
