@@ -190,6 +190,11 @@
       min-height: 60px;
     }
 
+    #recipients {
+      resize: none;
+      height: 230px;
+    }
+
     .row {
       display: grid;
       grid-template-columns: 1fr 1fr;
@@ -381,7 +386,7 @@
   <section id="recipientsSection" data-step="recipients">
     <h2>Notification Recipients</h2>
     <label for="recipients">Email addresses</label>
-    <textarea id="recipients" rows="4" spellcheck="false"></textarea>
+    <textarea id="recipients" spellcheck="false"></textarea>
     <div class="hint">Enter one address per line, or separate addresses with commas. At least one is required before the app is fully set up.</div>
     <div class="actions">
       <button id="saveRecipients" class="primary">Save Recipients</button>
