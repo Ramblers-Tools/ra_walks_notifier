@@ -195,10 +195,6 @@
       height: 165px;
     }
 
-    #checkNowMessage:empty {
-      min-height: 0;
-      margin-top: 0;
-    }
 
     .row {
       display: grid;
@@ -334,7 +330,6 @@
       <button id="openReviewList">Open Review List</button>
       <button id="checkNow" class="primary">Check Now</button>
     </div>
-    <div id="checkNowMessage" class="message"></div>
   </section>
 
   <section id="apiKeySection" data-step="api-key">
@@ -396,7 +391,6 @@
     <div class="actions">
       <button id="saveRecipients" class="primary">Save Recipients</button>
     </div>
-    <div id="recipientsMessage" class="message"></div>
   </section>
 
   <section id="scheduleSection" class="grid-only">
@@ -608,15 +602,35 @@
 
     document.getElementById('openReviewList').addEventListener('click', () => window.statusApi.openReviewList());
 
+    // Briefly repurposes a button's own label for feedback instead of a
+    // separate message line that would otherwise sit there indefinitely.
+    function flashButtonText(button, text, revertText, ms = 5000) {
+      button.disabled = true;
+      button.textContent = text;
+      setTimeout(() => {
+        button.disabled = false;
+        button.textContent = revertText;
+      }, ms);
+    }
+
     async function runCheckNow(force) {
-      const message = document.getElementById('checkNowMessage');
-      setMessage(message, force ? 'Sending walks report email...' : 'Checking...', 'pending');
+      const checkNowButton = document.getElementById('checkNow');
+      const statusText = document.getElementById('statusText');
+      checkNowButton.disabled = true;
+      checkNowButton.textContent = 'Checking...';
+      // Give immediate feedback in the status box too, so "Last check"
+      // doesn't keep showing the previous (now stale) time while this runs.
+      statusText.textContent = statusText.textContent.replace(/^Last check:.*$/m, 'Last check: Checking...');
+
       const result = await window.statusApi.checkNow(force);
       if (result.ok) {
-        setMessage(message, 'Check started - refreshing status shortly.', 'ok');
-        setTimeout(() => window.statusApi.load().then(renderStatus), 6000);
+        setTimeout(() => {
+          window.statusApi.load().then(renderStatus);
+          checkNowButton.disabled = false;
+          checkNowButton.textContent = 'Check Now';
+        }, 6000);
       } else {
-        setMessage(message, result.error, 'error');
+        flashButtonText(checkNowButton, 'Check failed', 'Check Now', 4000);
       }
     }
 
@@ -803,14 +817,14 @@
     });
 
     document.getElementById('saveRecipients').addEventListener('click', async () => {
-      const message = document.getElementById('recipientsMessage');
+      const button = document.getElementById('saveRecipients');
       try {
         const recipients = await window.recipients.save(recipientsInput.value);
         recipientsInput.value = recipients.join('\n');
-        setMessage(message, `Saved ${recipients.length} recipient${recipients.length === 1 ? '' : 's'}.`, recipients.length ? 'ok' : 'error');
+        flashButtonText(button, 'Saved', 'Save Recipients');
         refreshWizard();
       } catch (error) {
-        setMessage(message, error.message, 'error');
+        flashButtonText(button, 'Error', 'Save Recipients', 4000);
       }
     });
 
