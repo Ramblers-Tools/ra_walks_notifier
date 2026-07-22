@@ -321,6 +321,26 @@ async function checkNow(force = false) {
 const maxLogoBytes = 2 * 1024 * 1024; // 2 MB - plenty for a logo, not for a full-res photo
 const maxLogoDimension = 250; // px - a logo, not a full-res photo
 
+// Electron's nativeImage silently fails to decode WebP (isEmpty() true,
+// size {0,0}) rather than throwing, which let any WebP through the
+// dimension check below undetected. Parsed directly from the well-documented
+// RIFF/WebP header instead: https://developers.google.com/speed/webp/docs/riff_container
+function getWebpSize(buffer) {
+  if (buffer.length < 30 || buffer.toString('ascii', 0, 4) !== 'RIFF' || buffer.toString('ascii', 8, 12) !== 'WEBP') return null;
+  const fourCC = buffer.toString('ascii', 12, 16);
+  if (fourCC === 'VP8X') {
+    return { width: (buffer.readUIntLE(24, 3) + 1), height: (buffer.readUIntLE(27, 3) + 1) };
+  }
+  if (fourCC === 'VP8L') {
+    const bits = buffer.readUInt32LE(21);
+    return { width: (bits & 0x3fff) + 1, height: ((bits >> 14) & 0x3fff) + 1 };
+  }
+  if (fourCC === 'VP8 ') {
+    return { width: buffer.readUInt16LE(26) & 0x3fff, height: buffer.readUInt16LE(28) & 0x3fff };
+  }
+  return null;
+}
+
 async function chooseBrandLogo() {
   const result = await dialog.showOpenDialog({
     title: 'Choose Ramblers Logo',
@@ -330,17 +350,25 @@ async function chooseBrandLogo() {
   if (result.canceled || !result.filePaths.length) return { ok: false };
 
   const filePath = result.filePaths[0];
-  const ext = path.extname(filePath).slice(1);
+  const ext = path.extname(filePath).slice(1).toLowerCase();
   const { size } = fs.statSync(filePath);
   if (size > maxLogoBytes) {
     return { ok: false, error: `That image is too large (${(size / (1024 * 1024)).toFixed(1)} MB). Please choose one under ${maxLogoBytes / (1024 * 1024)} MB.` };
   }
-  // nativeImage can't read SVG dimensions (it's vector, not raster), so this
-  // check only applies to the raster formats in the file filter above.
-  if (ext.toLowerCase() !== 'svg') {
-    const { width, height } = nativeImage.createFromPath(filePath).getSize();
-    if (width > maxLogoDimension || height > maxLogoDimension) {
-      return { ok: false, error: `That image is ${width}x${height}px. Please choose one no larger than ${maxLogoDimension}x${maxLogoDimension}px.` };
+  // SVG is vector, so a pixel-dimension check doesn't apply.
+  if (ext !== 'svg') {
+    let dimensions;
+    if (ext === 'webp') {
+      dimensions = getWebpSize(fs.readFileSync(filePath));
+    } else {
+      const image = nativeImage.createFromPath(filePath);
+      dimensions = image.isEmpty() ? null : image.getSize();
+    }
+    if (!dimensions) {
+      return { ok: false, error: "Couldn't read that image's dimensions - please choose a different file." };
+    }
+    if (dimensions.width > maxLogoDimension || dimensions.height > maxLogoDimension) {
+      return { ok: false, error: `That image is ${dimensions.width}x${dimensions.height}px. Please choose one no larger than ${maxLogoDimension}x${maxLogoDimension}px.` };
     }
   }
   try {
