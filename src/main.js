@@ -1119,12 +1119,16 @@ function openWalksManagerLoginWindow(credentials) {
 
         // The review page's group selector is populated by client-side JS
         // after navigation, so it isn't always ready the instant the page
-        // itself matches - give it a beat before scraping, or extraction
-        // can spuriously report zero groups (worked around today by the
-        // user manually retrying, which just gave it more time to render).
-        await new Promise((r) => setTimeout(r, 1500));
-
-        let { groups, diagnostic } = await extractWalksManagerGroups(loginWindow);
+        // itself matches - a single fixed delay wasn't reliable enough (it
+        // still needed a manual retry sometimes), so retry the scrape a few
+        // times with a short wait between attempts before giving up on it.
+        let groups = [];
+        let diagnostic = '';
+        for (let attempt = 0; attempt < 5; attempt++) {
+          await new Promise((r) => setTimeout(r, 1200));
+          ({ groups, diagnostic } = await extractWalksManagerGroups(loginWindow));
+          if (groups.length) break;
+        }
         await saveElectronLoginSession(loginWindow);
 
         if (!groups.length) {
