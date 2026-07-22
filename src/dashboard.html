@@ -517,7 +517,7 @@
   <details id="brandingSection" class="grid-only" open>
     <summary>Group Branding</summary>
     <div class="branding-body">
-      <div class="hint">If you'd like your group's logo displayed on your notification emails, please upload it below.</div>
+      <div class="hint" id="brandingHint">If you'd like your group's logo displayed on your notification emails, please upload it below.</div>
       <img id="brandingPreview" alt="Current logo" style="display:none;">
       <div class="actions">
         <button id="chooseLogo" class="primary">Upload Logo</button>
@@ -1166,8 +1166,11 @@
     // --- Branding ---
     const brandingPreview = document.getElementById('brandingPreview');
     const brandingMessage = document.getElementById('brandingMessage');
+    const brandingHint = document.getElementById('brandingHint');
     const chooseLogoButton = document.getElementById('chooseLogo');
     const resetLogoButton = document.getElementById('resetLogo');
+    const brandingHintDefault = brandingHint.textContent;
+    const brandingHintSet = "The logo below is currently set on your notification emails. To remove it, click Reset Logo, or to change it, click Change Logo.";
 
     function applyLogoState(dataUrl) {
       const hasLogo = Boolean(dataUrl);
@@ -1175,6 +1178,7 @@
       brandingPreview.src = hasLogo ? dataUrl : '';
       chooseLogoButton.textContent = hasLogo ? 'Change Logo' : 'Upload Logo';
       resetLogoButton.style.display = hasLogo ? '' : 'none';
+      brandingHint.textContent = hasLogo ? brandingHintSet : brandingHintDefault;
     }
 
     window.branding.status().then((result) => applyLogoState(result.dataUrl));
