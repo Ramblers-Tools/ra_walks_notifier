@@ -311,7 +311,7 @@
 
   <div id="setupHeader" class="setup-header setup-only">
     <h2 id="setupHeaderText">Let's get you set up</h2>
-    <p>Complete each step below to start using RA Walks Notifier.</p>
+    <p id="setupHeaderSubtext">Complete each step below to start using RA Walks Notifier.</p>
   </div>
 
   <div class="tile-grid">
@@ -542,8 +542,10 @@
         : 'Walks Manager Login';
 
       const setupHeaderText = document.getElementById('setupHeaderText');
+      const setupHeaderSubtext = document.getElementById('setupHeaderSubtext');
       if (reloginNeeded) {
-        setupHeaderText.textContent = "There's an issue with your Walks Manager login - please log in again below.";
+        setupHeaderText.textContent = "There's an issue with your Walks Manager login";
+        setupHeaderSubtext.textContent = 'Please log in again below.';
         return;
       }
       const labels = {
@@ -553,6 +555,7 @@
         recipients: 'Step 4 of 4: add notification recipients'
       };
       setupHeaderText.textContent = labels[stage] || "Let's get you set up";
+      setupHeaderSubtext.textContent = 'Complete each step below to start using RA Walks Notifier.';
     }
 
     async function refreshWizard() {
