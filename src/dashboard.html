@@ -518,7 +518,7 @@
       We'll sign in and save your username and password (encrypted, server-side) so the server can automatically re-log-in when your Walks Manager session expires - normally about once a week. If this doesn't work, we'll fall back to a one-off browser login instead.
     </div>
     <label for="credUsername">Email address</label>
-    <input id="credUsername" type="text" autocomplete="off">
+    <input id="credUsername" type="email" autocomplete="off">
     <label for="credPassword">Password</label>
     <input id="credPassword" type="password" autocomplete="off">
     <div class="hint" id="credentialsHint"></div>
@@ -532,7 +532,7 @@
     <h2>Please log in to Walks Manager - there's an issue</h2>
     <div class="hint">The server doesn't have a working Walks Manager session for you right now. This box only appears when something needs attention - once you log in below, it disappears again.</div>
     <label for="wmUsername">Email address (registered with Ramblers)</label>
-    <input id="wmUsername" type="text" autocomplete="off">
+    <input id="wmUsername" type="email" autocomplete="off">
     <label for="wmPassword">Password</label>
     <input id="wmPassword" type="password" autocomplete="off">
     <div class="hint">We'll sign in for you automatically. If a security check (e.g. a verification code) is needed, a browser window will open so you can finish signing in yourself. Your password isn't stored by this app.</div>
@@ -617,6 +617,10 @@
     function setMessage(el, text, kind) {
       el.textContent = text || '';
       el.className = `message ${kind || ''}`;
+    }
+
+    function isValidEmail(value) {
+      return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
     }
 
     // --- Setup wizard gating ---
@@ -944,6 +948,10 @@
         setMessage(loginMessage, 'Enter your Ramblers email address and password.', 'error');
         return;
       }
+      if (!isValidEmail(username)) {
+        setMessage(loginMessage, 'Enter a valid email address.', 'error');
+        return;
+      }
       loginButton.disabled = true;
       setMessage(loginMessage, 'Signing in...', 'pending');
       try {
@@ -1036,6 +1044,10 @@
       const password = credPasswordInput.value;
       if (!username || !password) {
         setMessage(credentialsMessage, 'Enter your Ramblers email address and password.', 'error');
+        return;
+      }
+      if (!isValidEmail(username)) {
+        setMessage(credentialsMessage, 'Enter a valid email address.', 'error');
         return;
       }
       saveCredentialsButton.disabled = true;
