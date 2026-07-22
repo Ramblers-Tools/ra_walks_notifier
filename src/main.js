@@ -1201,7 +1201,13 @@ ipcMain.handle('connect:status', async () => {
   } catch (_) {
     // Same as above - fall back to the last known value.
   }
-  return { apiKeySet, groups: cachedGroups, sessionPresent: cachedSessionPresent, betaUser: Boolean(cachedConfig?.betaUser) };
+  return {
+    apiKeySet,
+    groups: cachedGroups,
+    sessionPresent: cachedSessionPresent,
+    betaUser: Boolean(cachedConfig?.betaUser),
+    credentialsSet: Boolean(cachedConfig?.walksManagerCredentials?.credentialsSet)
+  };
 });
 
 ipcMain.handle('connect:save-api-key', async (_event, apiKey) => {

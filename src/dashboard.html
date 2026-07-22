@@ -394,6 +394,12 @@
       background: #6b9e7f;
       color: white;
     }
+
+    #upgradeAutoLogin:hover {
+      border-color: #d4a72c;
+      background: #d4a72c;
+      color: white;
+    }
   </style>
 </head>
 <body>
@@ -437,6 +443,7 @@
       <div id="maintenanceBanner"></div>
       <div id="statusText">Loading&hellip;</div>
       <div class="actions">
+        <button id="upgradeAutoLogin" style="display: none;">Upgrade to Auto Login</button>
         <button id="openReviewList">Open Review List</button>
         <button id="checkNow" class="primary">Check Now</button>
       </div>
@@ -594,6 +601,11 @@
     const WIZARD_ORDER = ['api-key', 'login', 'groups', 'recipients'];
 
     let latestRecipientsCount = 0;
+    // Set true when the user clicks "Upgrade to Auto Login" on the Status
+    // tile, to force the (normally hidden-once-done) credentials tile back
+    // into view. Cleared once credentials are actually saved, or if the
+    // wizard drops back into setup mode for some other reason.
+    let credentialsUpgradeRequested = false;
 
     function computeWizardStage(status) {
       if (!status.apiKeySet) return 'api-key';
@@ -626,10 +638,19 @@
 
       if (!setupMode) {
         // Fully configured, including a working Walks Manager login -
-        // nothing left to do here, so hide it just like the fallback tile.
+        // nothing left to do here, so hide it just like the fallback tile,
+        // unless the user asked to upgrade from session-only auth (below).
         // Recipients stays visible as an ongoing, editable setting.
-        document.getElementById('credentialsSection').style.display = 'none';
+        if (status.credentialsSet) credentialsUpgradeRequested = false;
+        document.getElementById('credentialsSection').style.display = credentialsUpgradeRequested ? '' : 'none';
         document.getElementById('recipientsSection').style.display = '';
+
+        // Auto re-login credentials are the default login path, but a
+        // session-only setup (the fallback) still works day-to-day - only
+        // needs a session cookie, which happens to already be present here.
+        // Surface a low-key upsell rather than treating it as a problem.
+        const upgradeButton = document.getElementById('upgradeAutoLogin');
+        upgradeButton.style.display = (status.sessionPresent && !status.credentialsSet) ? '' : 'none';
         return;
       }
 
@@ -723,6 +744,12 @@
     setInterval(() => window.statusApi.load().then(renderStatus), 15000);
 
     document.getElementById('openReviewList').addEventListener('click', () => window.statusApi.openReviewList());
+
+    document.getElementById('upgradeAutoLogin').addEventListener('click', () => {
+      credentialsUpgradeRequested = true;
+      refreshWizard();
+      document.getElementById('credentialsSection').scrollIntoView({ behavior: 'smooth', block: 'center' });
+    });
 
     // Briefly repurposes a button's own label for feedback instead of a
     // separate message line that would otherwise sit there indefinitely.
