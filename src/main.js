@@ -44,6 +44,7 @@ let cachedSessionPresent = false;
 
 const root = path.join(__dirname, '..');
 const websiteUrl = 'https://rawalksnotifier.ramblers.tools/';
+const helpUrl = 'https://docs.ramblers.tools/ra-walks-notifier';
 const walksPartition = 'persist:walks-manager-watch-browser';
 const updateCheckIntervalMs = 6 * 60 * 60 * 1000;
 const statusPollIntervalMs = 30 * 1000;
@@ -1320,6 +1321,7 @@ ipcMain.handle('about:load', () => ({
   channel: releaseChannelLabel()
 }));
 ipcMain.handle('about:open-website', () => shell.openExternal(websiteUrl));
+ipcMain.handle('app:open-help', () => shell.openExternal(helpUrl));
 
 ipcMain.handle('status:load', async () => {
   await refreshCache();

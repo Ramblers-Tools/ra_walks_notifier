@@ -42,6 +42,7 @@ contextBridge.exposeInMainWorld('about', {
 
 contextBridge.exposeInMainWorld('appSettings', {
   openSettings: () => ipcRenderer.invoke('app:open-settings'),
+  openHelp: () => ipcRenderer.invoke('app:open-help'),
   quit: () => ipcRenderer.invoke('app:quit')
 });
 

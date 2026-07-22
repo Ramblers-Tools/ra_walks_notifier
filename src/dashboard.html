@@ -371,8 +371,16 @@
     <div id="aboutInline">
       <div id="aboutVersion"></div>
       <div id="aboutChannel"></div>
-      <a id="openWebsite">rawalksnotifier.ramblers.tools</a>
+      <a id="openWebsite">https://rawalksnotifier.ramblers.tools</a>
     </div>
+    <button id="openHelp" class="icon-button" title="Help" aria-label="Help">
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="10"></circle>
+        <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
+        <line x1="12" y1="17" x2="12.01" y2="17"></line>
+      </svg>
+      <span class="icon-button-label">Help</span>
+    </button>
     <button id="openSettings" class="icon-button" title="App Settings" aria-label="App Settings">
       <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <circle cx="12" cy="12" r="3"></circle>
@@ -1126,6 +1134,7 @@
 
     // --- App Settings ---
     document.getElementById('openSettings').addEventListener('click', () => window.appSettings.openSettings());
+    document.getElementById('openHelp').addEventListener('click', () => window.appSettings.openHelp());
 
     // --- Branding ---
     const brandingPreview = document.getElementById('brandingPreview');
