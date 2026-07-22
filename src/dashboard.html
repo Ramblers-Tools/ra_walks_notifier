@@ -488,7 +488,12 @@
     function applyWizardStage(stage) {
       const setupMode = stage !== 'done';
       document.body.classList.toggle('setup-mode', setupMode);
-      if (!setupMode) return;
+      if (!setupMode) {
+        // Fully configured - the Server Connection tile has nothing left to
+        // do once an API key is saved, so keep it out of the main dashboard too.
+        document.getElementById('apiKeySection').style.display = 'none';
+        return;
+      }
       // Only the current step's tile is shown - earlier, already-completed
       // steps stay hidden rather than piling up on screen.
       document.querySelectorAll('[data-step]').forEach((el) => {
