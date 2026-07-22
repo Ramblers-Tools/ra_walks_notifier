@@ -193,11 +193,16 @@ function showLogWindow() {
     return;
   }
 
+  // Nest under whichever modal window is currently open (e.g. App
+  // Settings, where "View Logs" lives) rather than always the Dashboard -
+  // two sibling modals both blocking the Dashboard left this one opening
+  // behind the other, looking like nothing happened.
+  const logParent = (settingsWindow && !settingsWindow.isDestroyed()) ? settingsWindow : dashboardWindow;
   logWindow = new BrowserWindow(appWindowOptions({
     width: 900,
     height: 620,
     title: 'RA Walks Notifier Logs',
-    parent: dashboardWindow,
+    parent: logParent,
     modal: true,
     webPreferences: {
       preload: path.join(__dirname, 'logPreload.js'),
