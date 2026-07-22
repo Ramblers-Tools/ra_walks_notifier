@@ -58,8 +58,7 @@ function releaseChannelLabel() {
 }
 
 function displayVersion() {
-  const version = app.getVersion();
-  return isBetaBuild() ? `${version} Beta` : version;
+  return app.getVersion();
 }
 
 function includeBetaUpdates() {
