@@ -684,6 +684,7 @@
           // Refresh both here too, once a key is present to fetch with.
           window.branding.status().then((result) => applyLogoState(result.dataUrl));
           loadScheduleSettings();
+          if (status.betaUser) loadLeaderEmailSettings();
         } else {
           latestRecipientsCount = 0;
         }
@@ -1144,27 +1145,31 @@
 
     leFields.notifyOnNameNotShared.addEventListener('change', leUpdateNameNotSharedAddressState);
 
-    window.leaderEmailSettings.load().then((settings) => {
-      leFields.enabled.checked = settings.enabled === true;
-      leFields.sendOnSubmit.checked = settings.sendOnSubmit !== false;
-      leFields.sendOnPublish.checked = settings.sendOnPublish !== false;
-      leFields.apiBaseUrl.value = settings.apiBaseUrl || '';
-      leFields.apiToken.value = '';
-      leFields.apiToken.placeholder = settings.apiTokenIsSet ? '•••• (already set - leave blank to keep it)' : '';
-      leFields.notifyOnLookupFailure.checked = settings.notifyOnLookupFailure === true;
-      leFields.lookupFailureNotifyAddress.value = settings.lookupFailureNotifyAddress || '';
-      leFields.notifyOnNameNotShared.checked = settings.notifyOnNameNotShared === true;
-      leFields.nameNotSharedNotifyAddress.value = settings.nameNotSharedNotifyAddress || '';
-      leUpdateNameNotSharedAddressState();
-      leFields.testModeEnabled.checked = settings.testModeEnabled === true;
-      leFields.testAllowedEmails.value = Array.isArray(settings.testAllowedEmails) ? settings.testAllowedEmails.join('\n') : '';
+    function loadLeaderEmailSettings() {
+      window.leaderEmailSettings.load().then((settings) => {
+        leFields.enabled.checked = settings.enabled === true;
+        leFields.sendOnSubmit.checked = settings.sendOnSubmit !== false;
+        leFields.sendOnPublish.checked = settings.sendOnPublish !== false;
+        leFields.apiBaseUrl.value = settings.apiBaseUrl || '';
+        leFields.apiToken.value = '';
+        leFields.apiToken.placeholder = settings.apiTokenIsSet ? '•••• (already set - leave blank to keep it)' : '';
+        leFields.notifyOnLookupFailure.checked = settings.notifyOnLookupFailure === true;
+        leFields.lookupFailureNotifyAddress.value = settings.lookupFailureNotifyAddress || '';
+        leFields.notifyOnNameNotShared.checked = settings.notifyOnNameNotShared === true;
+        leFields.nameNotSharedNotifyAddress.value = settings.nameNotSharedNotifyAddress || '';
+        leUpdateNameNotSharedAddressState();
+        leFields.testModeEnabled.checked = settings.testModeEnabled === true;
+        leFields.testAllowedEmails.value = Array.isArray(settings.testAllowedEmails) ? settings.testAllowedEmails.join('\n') : '';
 
-      if (settings.enabled && settings.apiBaseUrl && settings.apiTokenIsSet) {
-        leApiValidatedKey = leApiKeyFor({ apiBaseUrl: settings.apiBaseUrl, apiToken: '' });
-      }
-      leRefreshEnabledAvailability();
-      leFields.enabled.checked = settings.enabled === true && leIsApiValidatedFor(leCurrentSettings());
-    });
+        if (settings.enabled && settings.apiBaseUrl && settings.apiTokenIsSet) {
+          leApiValidatedKey = leApiKeyFor({ apiBaseUrl: settings.apiBaseUrl, apiToken: '' });
+        }
+        leRefreshEnabledAvailability();
+        leFields.enabled.checked = settings.enabled === true && leIsApiValidatedFor(leCurrentSettings());
+      });
+    }
+
+    loadLeaderEmailSettings();
 
     document.getElementById('leTestApi').addEventListener('click', async () => {
       const button = document.getElementById('leTestApi');
