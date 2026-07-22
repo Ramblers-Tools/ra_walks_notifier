@@ -36,10 +36,6 @@ contextBridge.exposeInMainWorld('statusApi', {
   openReviewList: () => ipcRenderer.invoke('app:open-review-list')
 });
 
-contextBridge.exposeInMainWorld('logs', {
-  load: () => ipcRenderer.invoke('logs:load')
-});
-
 contextBridge.exposeInMainWorld('about', {
   load: () => ipcRenderer.invoke('about:load'),
   openWebsite: () => ipcRenderer.invoke('about:open-website')
@@ -51,5 +47,8 @@ contextBridge.exposeInMainWorld('appSettings', {
   toggleBetaUpdates: () => ipcRenderer.invoke('app:toggle-beta-updates'),
   checkForUpdates: () => ipcRenderer.invoke('app:check-for-updates'),
   chooseLogo: () => ipcRenderer.invoke('app:choose-logo'),
-  resetLogo: () => ipcRenderer.invoke('app:reset-logo')
+  resetLogo: () => ipcRenderer.invoke('app:reset-logo'),
+  openLogs: () => ipcRenderer.invoke('app:open-logs'),
+  resetSettings: () => ipcRenderer.invoke('app:reset-settings'),
+  quit: () => ipcRenderer.invoke('app:quit')
 });

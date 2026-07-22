@@ -125,7 +125,6 @@
     #scheduleSection { border-top-color: var(--tile-schedule); }
     #leaderEmailSection { border-top-color: var(--tile-leader); }
     #settingsSection { border-top-color: var(--tile-settings); }
-    #logsSection { border-top-color: var(--tile-logs); }
     #aboutSection { border-top-color: var(--tile-about); }
 
     section.disabled {
@@ -282,16 +281,15 @@
       text-align: center;
     }
 
-    pre#logOutput {
-      max-height: 300px;
-      overflow: auto;
-      white-space: pre-wrap;
-      word-break: break-word;
-      background: #fafbfc;
-      border: 1px solid #e4e7eb;
-      border-radius: 6px;
-      padding: 10px 12px;
-      font: 12px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    #quitButton {
+      position: fixed;
+      right: 24px;
+      bottom: 24px;
+      border-color: #b42318;
+      color: #b42318;
+      background: white;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+      z-index: 10;
     }
   </style>
 </head>
@@ -319,7 +317,6 @@
     <div class="actions">
       <button id="openReviewList">Open Review List</button>
       <button id="retryStatus">Refresh</button>
-      <button id="sendReportEmail">Send Walks Report Email</button>
       <button id="checkNow" class="primary">Check Now</button>
     </div>
     <div id="checkNowMessage" class="message"></div>
@@ -453,16 +450,15 @@
       <button id="checkForUpdates">Check for Updates</button>
       <button id="chooseLogo">Change Logo</button>
       <button id="resetLogo">Reset Logo</button>
+      <button id="viewLogs">View Logs</button>
+      <button id="resetSettings">Reset All Settings</button>
     </div>
     <div id="settingsMessage" class="message"></div>
   </details>
 
-  <details id="logsSection" class="grid-only">
-    <summary>Logs</summary>
-    <pre id="logOutput">Loading&hellip;</pre>
-  </details>
-
   </div>
+
+  <button id="quitButton">Quit</button>
 
   <script>
     function setMessage(el, text, kind) {
@@ -489,9 +485,11 @@
       const setupMode = stage !== 'done';
       document.body.classList.toggle('setup-mode', setupMode);
       if (!setupMode) {
-        // Fully configured - the Server Connection tile has nothing left to
-        // do once an API key is saved, so keep it out of the main dashboard too.
+        // Fully configured - Server Connection and Group Selection have
+        // nothing left to do once set, so keep them out of the main
+        // dashboard too.
         document.getElementById('apiKeySection').style.display = 'none';
+        document.getElementById('groupsSection').style.display = 'none';
         return;
       }
       // Only the current step's tile is shown - earlier, already-completed
@@ -560,7 +558,6 @@
     }
 
     document.getElementById('checkNow').addEventListener('click', () => runCheckNow(false));
-    document.getElementById('sendReportEmail').addEventListener('click', () => runCheckNow(true));
 
     // --- Server Connection & Walks Manager Login ---
     const apiKeyInput = document.getElementById('apiKey');
@@ -1009,23 +1006,12 @@
       setMessage(settingsMessage, result.message || result.error, result.ok ? 'ok' : 'error');
     });
 
-    // --- Logs ---
-    const logsSection = document.getElementById('logsSection');
-    const logOutput = document.getElementById('logOutput');
-    let logsPollTimer = null;
+    document.getElementById('viewLogs').addEventListener('click', () => window.appSettings.openLogs());
 
-    async function refreshLogs() {
-      const lines = await window.logs.load();
-      logOutput.textContent = lines.length ? lines.join('\n') : 'No log entries yet.';
-    }
-
-    logsSection.addEventListener('toggle', () => {
-      if (logsSection.open) {
-        refreshLogs();
-        logsPollTimer = setInterval(refreshLogs, 3000);
-      } else if (logsPollTimer) {
-        clearInterval(logsPollTimer);
-        logsPollTimer = null;
+    document.getElementById('resetSettings').addEventListener('click', async () => {
+      const result = await window.appSettings.resetSettings();
+      if (result.ok) {
+        setMessage(settingsMessage, 'Settings reset - reloading...', 'ok');
       }
     });
 
@@ -1035,6 +1021,9 @@
       document.getElementById('aboutChannel').textContent = `Release channel: ${info.channel}`;
     });
     document.getElementById('openWebsite').addEventListener('click', () => window.about.openWebsite());
+
+    // --- Quit ---
+    document.getElementById('quitButton').addEventListener('click', () => window.appSettings.quit());
   </script>
 </body>
 </html>

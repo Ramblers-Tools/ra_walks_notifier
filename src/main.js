@@ -21,6 +21,7 @@ const apiClient = require('./apiClient');
 let statusPollTimer;
 let dashboardWindow;
 let loginWindow;
+let logWindow;
 let updateStatus = 'Not checked';
 let manualUpdateCheck = false;
 let updateHandlersConfigured = false;
@@ -172,6 +173,30 @@ function showDashboard() {
   });
 
   dashboardWindow.loadFile(path.join(root, 'src', 'dashboard.html'));
+}
+
+function showLogWindow() {
+  if (logWindow) {
+    logWindow.focus();
+    return;
+  }
+
+  logWindow = new BrowserWindow(appWindowOptions({
+    width: 900,
+    height: 620,
+    title: 'RA Walks Notifier Logs',
+    webPreferences: {
+      preload: path.join(__dirname, 'logPreload.js'),
+      contextIsolation: true,
+      nodeIntegration: false
+    }
+  }));
+
+  logWindow.on('closed', () => {
+    logWindow = null;
+  });
+
+  logWindow.loadFile(path.join(__dirname, 'log.html'));
 }
 
 function handleRevokedApiKey(message) {
@@ -1316,6 +1341,29 @@ ipcMain.handle('app:toggle-beta-updates', async () => ({ includeBetaUpdates: awa
 ipcMain.handle('app:check-for-updates', () => checkForUpdates(true));
 ipcMain.handle('app:choose-logo', () => chooseBrandLogo());
 ipcMain.handle('app:reset-logo', () => resetBrandLogo());
+ipcMain.handle('app:open-logs', () => showLogWindow());
+ipcMain.handle('app:quit', () => app.quit());
+
+ipcMain.handle('app:reset-settings', async () => {
+  const result = await dialog.showMessageBox({
+    type: 'warning',
+    title: 'Reset All Settings',
+    message: 'Reset all local settings on this device?',
+    detail: 'This clears your saved API key and local preferences here, and takes you back through setup from the start. It does not delete anything on the server (groups, recipients, session, etc. are untouched).',
+    buttons: ['Cancel', 'Reset'],
+    defaultId: 0,
+    cancelId: 0
+  });
+  if (result.response !== 1) return { ok: false };
+
+  apiClient.clearApiKey();
+  cachedConfig = null;
+  cachedGroups = [];
+  cachedSessionPresent = false;
+  cachedStatus = null;
+  if (dashboardWindow && !dashboardWindow.isDestroyed()) dashboardWindow.reload();
+  return { ok: true };
+});
 
 app.on('before-quit', () => {
   if (statusPollTimer) clearInterval(statusPollTimer);
