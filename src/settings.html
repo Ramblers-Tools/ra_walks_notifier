@@ -143,6 +143,7 @@
       if (result.ok) {
         flashButtonText(button, 'Settings reset', 'Reset All Settings');
         settingsMessage.textContent = '';
+        setTimeout(() => window.close(), 700);
       }
     });
 
