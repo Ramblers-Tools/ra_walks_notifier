@@ -318,6 +318,8 @@ async function checkNow(force = false) {
   return { ok: true };
 }
 
+const maxLogoBytes = 2 * 1024 * 1024; // 2 MB - plenty for a logo, not for a full-res photo
+
 async function chooseBrandLogo() {
   const result = await dialog.showOpenDialog({
     title: 'Choose Ramblers Logo',
@@ -328,6 +330,10 @@ async function chooseBrandLogo() {
 
   const filePath = result.filePaths[0];
   const ext = path.extname(filePath).slice(1);
+  const { size } = fs.statSync(filePath);
+  if (size > maxLogoBytes) {
+    return { ok: false, error: `That image is too large (${(size / (1024 * 1024)).toFixed(1)} MB). Please choose one under ${maxLogoBytes / (1024 * 1024)} MB.` };
+  }
   try {
     const data = fs.readFileSync(filePath).toString('base64');
     const response = await apiClient.putLogo(data, ext);

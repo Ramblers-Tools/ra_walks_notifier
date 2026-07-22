@@ -157,6 +157,23 @@
     #scheduleSection { border-top-color: var(--tile-schedule); }
     #leaderEmailSection { border-top-color: var(--tile-leader); }
     #brandingSection { border-top-color: var(--tile-about); }
+
+    .branding-body {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .branding-body .actions {
+      justify-content: center;
+      margin-top: 0;
+    }
+
+    #brandingPreview {
+      max-width: 100%;
+      max-height: 140px;
+    }
     #aboutSection { border-top-color: var(--tile-about); }
 
     section.disabled {
@@ -498,12 +515,14 @@
 
   <details id="brandingSection" class="grid-only" open>
     <summary>Group Branding</summary>
-    <img id="brandingPreview" alt="Current logo" style="display:none; max-width: 100%; max-height: 120px; margin-bottom: 10px;">
-    <div class="actions">
-      <button id="chooseLogo" class="primary">Upload Logo</button>
-      <button id="resetLogo" style="display: none;">Reset Logo</button>
+    <div class="branding-body">
+      <img id="brandingPreview" alt="Current logo" style="display:none;">
+      <div class="actions">
+        <button id="chooseLogo" class="primary">Upload Logo</button>
+        <button id="resetLogo" style="display: none;">Reset Logo</button>
+      </div>
+      <div id="brandingMessage" class="message"></div>
     </div>
-    <div id="brandingMessage" class="message"></div>
   </details>
 
   <details id="leaderEmailSection" class="grid-only">
@@ -1161,7 +1180,7 @@
     chooseLogoButton.addEventListener('click', async () => {
       const result = await window.branding.chooseLogo();
       if (result.ok) {
-        setMessage(brandingMessage, result.message, 'ok');
+        setMessage(brandingMessage, '', '');
         applyLogoState(result.dataUrl);
       } else if (result.error) {
         setMessage(brandingMessage, result.error, 'error');
@@ -1170,8 +1189,12 @@
 
     resetLogoButton.addEventListener('click', async () => {
       const result = await window.branding.resetLogo();
-      setMessage(brandingMessage, result.message || result.error, result.ok ? 'ok' : 'error');
-      if (result.ok) applyLogoState(result.dataUrl);
+      if (result.ok) {
+        setMessage(brandingMessage, '', '');
+        applyLogoState(result.dataUrl);
+      } else {
+        setMessage(brandingMessage, result.error, 'error');
+      }
     });
 
     // --- About ---
