@@ -257,7 +257,7 @@
 
     .message.ok { color: #1f7a3f; }
     .message.error { color: #b42318; }
-    .message.pending { animation: pulse 1.2s ease-in-out infinite; }
+    .message.pending, button.pulsing { animation: pulse 1.2s ease-in-out infinite; }
 
     @keyframes pulse {
       0%, 100% { opacity: 1; }
@@ -636,6 +636,7 @@
         setTimeout(() => pollUntilCheckDone(checkNowButton), 3000);
         return;
       }
+      checkNowButton.classList.remove('pulsing');
       checkNowButton.disabled = false;
       checkNowButton.textContent = 'Check Now';
     }
@@ -645,6 +646,7 @@
       const statusText = document.getElementById('statusText');
       checkNowButton.disabled = true;
       checkNowButton.textContent = 'Checking...';
+      checkNowButton.classList.add('pulsing');
       // Give immediate feedback in the status box too, so "Last check"
       // doesn't keep showing the previous (now stale) time while this runs.
       statusText.textContent = statusText.textContent.replace(/^Last check:.*$/m, 'Last check: Checking...');
@@ -653,6 +655,7 @@
       if (result.ok) {
         setTimeout(() => pollUntilCheckDone(checkNowButton), 3000);
       } else {
+        checkNowButton.classList.remove('pulsing');
         flashButtonText(checkNowButton, 'Check failed', 'Check Now', 4000);
       }
     }
