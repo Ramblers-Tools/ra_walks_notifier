@@ -1294,10 +1294,14 @@ ipcMain.handle('about:load', () => ({
 }));
 ipcMain.handle('about:open-website', () => shell.openExternal(websiteUrl));
 
-ipcMain.handle('status:load', () => ({
-  text: buildStatusText(),
-  maintenanceMessage: cachedStatus?.maintenanceMessage || null
-}));
+ipcMain.handle('status:load', async () => {
+  await refreshCache();
+  return {
+    text: buildStatusText(),
+    maintenanceMessage: cachedStatus?.maintenanceMessage || null,
+    checking: Boolean(cachedStatus?.checking)
+  };
+});
 
 ipcMain.handle('app:check-now', (_event, force) => checkNow(Boolean(force)));
 ipcMain.handle('app:open-review-list', () => shell.openExternal(reviewUrlForGroup()));

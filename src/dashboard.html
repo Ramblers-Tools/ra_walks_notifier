@@ -231,6 +231,17 @@
       color: white;
     }
 
+    button:disabled {
+      cursor: not-allowed;
+      opacity: 0.55;
+    }
+
+    button.primary:disabled {
+      border-color: #9aa5b1;
+      background: #c1c8d1;
+      color: #f2f4f6;
+    }
+
     button.primary:hover {
       border-color: #d96a3a;
       background: #d96a3a;
@@ -613,6 +624,22 @@
       }, ms);
     }
 
+    // Polls status:load (which always fetches fresh from the server) until
+    // it reports the check has finished, rather than guessing a fixed
+    // delay - a check can take well over a minute (Playwright navigation +
+    // leader enrichment), so a short timeout would flip the button back
+    // before anything had actually happened.
+    async function pollUntilCheckDone(checkNowButton) {
+      const result = await window.statusApi.load();
+      renderStatus(result);
+      if (result.checking) {
+        setTimeout(() => pollUntilCheckDone(checkNowButton), 3000);
+        return;
+      }
+      checkNowButton.disabled = false;
+      checkNowButton.textContent = 'Check Now';
+    }
+
     async function runCheckNow(force) {
       const checkNowButton = document.getElementById('checkNow');
       const statusText = document.getElementById('statusText');
@@ -624,11 +651,7 @@
 
       const result = await window.statusApi.checkNow(force);
       if (result.ok) {
-        setTimeout(() => {
-          window.statusApi.load().then(renderStatus);
-          checkNowButton.disabled = false;
-          checkNowButton.textContent = 'Check Now';
-        }, 6000);
+        setTimeout(() => pollUntilCheckDone(checkNowButton), 3000);
       } else {
         flashButtonText(checkNowButton, 'Check failed', 'Check Now', 4000);
       }
