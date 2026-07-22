@@ -489,10 +489,10 @@
       const setupMode = stage !== 'done';
       document.body.classList.toggle('setup-mode', setupMode);
       if (!setupMode) return;
-      const doneIdx = WIZARD_ORDER.indexOf(stage);
+      // Only the current step's tile is shown - earlier, already-completed
+      // steps stay hidden rather than piling up on screen.
       document.querySelectorAll('[data-step]').forEach((el) => {
-        const idx = WIZARD_ORDER.indexOf(el.dataset.step);
-        el.style.display = idx <= doneIdx ? '' : 'none';
+        el.style.display = el.dataset.step === stage ? '' : 'none';
       });
       const setupHeaderText = document.getElementById('setupHeaderText');
       const labels = {
