@@ -152,14 +152,20 @@ function showDashboard() {
   }
 
   dashboardWindow = new BrowserWindow(appWindowOptions({
-    width: 720,
+    width: 1280,
     height: 900,
     title: 'RA Walks Notifier',
-    backgroundColor: '#f7f8fa',
+    backgroundColor: '#e9ebef',
+    show: false,
     webPreferences: {
       preload: path.join(__dirname, 'dashboardPreload.js')
     }
   }));
+
+  dashboardWindow.once('ready-to-show', () => {
+    dashboardWindow.maximize();
+    dashboardWindow.show();
+  });
 
   dashboardWindow.on('closed', () => {
     dashboardWindow = null;

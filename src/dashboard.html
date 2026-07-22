@@ -4,19 +4,35 @@
   <meta charset="utf-8">
   <title>RA Walks Notifier</title>
   <style>
+    :root {
+      --tile-status: #2d7d9a;
+      --tile-connection: #1264a3;
+      --tile-login: #2e8b57;
+      --tile-groups: #6b46c1;
+      --tile-credentials: #b8860b;
+      --tile-recipients: #8e44ad;
+      --tile-schedule: #d35400;
+      --tile-leader: #c2185b;
+      --tile-settings: #37474f;
+      --tile-logs: #263238;
+      --tile-about: #00838f;
+    }
+
+    * { box-sizing: border-box; }
+
     body {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       margin: 0;
-      padding: 20px;
+      padding: 24px;
       color: #1f2933;
-      background: #f7f8fa;
+      background: #e9ebef;
     }
 
     header.app-header {
       display: flex;
       align-items: center;
       gap: 12px;
-      margin-bottom: 16px;
+      margin-bottom: 20px;
     }
 
     header.app-header img {
@@ -26,22 +42,52 @@
     }
 
     header.app-header h1 {
-      font-size: 20px;
+      font-size: 22px;
       margin: 0;
+      font-weight: 300;
+      letter-spacing: 0.5px;
+    }
+
+    .tile-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      gap: 16px;
+      align-items: start;
     }
 
     h2 {
       font-size: 14px;
-      margin: 20px 0 8px;
+      margin: 0 0 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+      color: #3e4c59;
     }
 
     section, details {
       background: white;
-      border: 1px solid #d8dee8;
-      border-radius: 8px;
-      padding: 14px 16px;
-      margin-bottom: 14px;
+      border: none;
+      border-top: 5px solid #9aa5b1;
+      border-radius: 2px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.12);
+      padding: 16px 18px;
+      margin-bottom: 0;
     }
+
+    .tile-full {
+      grid-column: 1 / -1;
+    }
+
+    #statusSection { border-top-color: var(--tile-status); }
+    #apiKeySection { border-top-color: var(--tile-connection); }
+    #loginSection { border-top-color: var(--tile-login); }
+    #groupsSection { border-top-color: var(--tile-groups); }
+    #credentialsSection { border-top-color: var(--tile-credentials); }
+    #recipientsSection { border-top-color: var(--tile-recipients); }
+    #scheduleSection { border-top-color: var(--tile-schedule); }
+    #leaderEmailSection { border-top-color: var(--tile-leader); }
+    #settingsSection { border-top-color: var(--tile-settings); }
+    #logsSection { border-top-color: var(--tile-logs); }
+    #aboutSection { border-top-color: var(--tile-about); }
 
     section.disabled {
       opacity: 0.5;
@@ -53,6 +99,9 @@
       font-size: 14px;
       font-weight: 600;
       list-style: none;
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+      color: #3e4c59;
     }
 
     details > summary::-webkit-details-marker {
@@ -213,7 +262,9 @@
     <h1>RA Walks Notifier</h1>
   </header>
 
-  <section id="statusSection">
+  <div class="tile-grid">
+
+  <section id="statusSection" class="tile-full">
     <h2>Status</h2>
     <div id="maintenanceBanner"></div>
     <div id="statusText">Loading&hellip;</div>
@@ -371,6 +422,8 @@
       <button id="openWebsite">Open Website</button>
     </div>
   </details>
+
+  </div>
 
   <script>
     function setMessage(el, text, kind) {
