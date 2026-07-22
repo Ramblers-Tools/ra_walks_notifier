@@ -415,7 +415,12 @@ function prepareForUpdateInstall() {
   if (statusPollTimer) clearInterval(statusPollTimer);
   statusPollTimer = null;
   stopUpdateChecks();
-  cleanupShipItUpdateCache();
+  // Do NOT clean the ShipIt cache here - it holds the update.* staging
+  // files ShipIt needs to actually perform the install after quitAndInstall()
+  // runs. Wiping it right before installing meant the app just quit with
+  // nothing left to install. The cache is already cleaned proactively at
+  // update-available, before a *new* download starts - that's the right
+  // time for it, not immediately before installing the one just downloaded.
 }
 
 function installDownloadedUpdate() {
