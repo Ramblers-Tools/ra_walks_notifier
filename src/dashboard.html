@@ -79,11 +79,14 @@
       background: white;
       color: #52606d;
       font-size: 9px;
-      cursor: pointer;
       flex-shrink: 0;
     }
 
-    .icon-button:hover {
+    button.icon-button {
+      cursor: pointer;
+    }
+
+    button.icon-button:hover {
       background: #f0f2f5;
     }
 
@@ -444,10 +447,10 @@
       </svg>
       <span class="icon-button-label">Settings</span>
     </button>
-    <button id="pendingWalksIndicator" class="icon-button" title="Pending walks awaiting review" aria-label="Pending walks">
+    <div id="pendingWalksIndicator" class="icon-button" title="Pending walks awaiting review">
       <span class="icon-button-label">Pending Walks</span>
       <span id="pendingWalksCount" class="pending-walks-count">0</span>
-    </button>
+    </div>
     </div>
   </header>
 
@@ -768,7 +771,6 @@
     setInterval(() => window.statusApi.load().then(renderStatus), 15000);
 
     document.getElementById('openReviewList').addEventListener('click', () => window.statusApi.openReviewList());
-    document.getElementById('pendingWalksIndicator').addEventListener('click', () => window.statusApi.openReviewList());
 
     document.getElementById('upgradeAutoLogin').addEventListener('click', () => window.credentials.openUpgradeWindow());
 
