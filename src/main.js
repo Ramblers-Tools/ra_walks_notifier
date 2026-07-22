@@ -247,7 +247,7 @@ function showCredentialsUpgradeWindow() {
 
   credentialsUpgradeWindow = new BrowserWindow(appWindowOptions({
     width: 480,
-    height: 340,
+    height: 460,
     title: 'Upgrade to Auto Login',
     resizable: false,
     minimizable: false,
