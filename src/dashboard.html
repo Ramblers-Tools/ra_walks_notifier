@@ -529,7 +529,23 @@
       document.querySelectorAll('[data-step]').forEach((el) => {
         el.style.display = el.dataset.step === stage ? '' : 'none';
       });
+
+      // A group only ever gets set after login has succeeded once before,
+      // so if we're back at the login step with a group already on record,
+      // this isn't a first-time setup - it's a previously-working login
+      // that's stopped working (e.g. credentials/session cleared or
+      // expired) and needs the user's attention, not onboarding copy.
+      const reloginNeeded = stage === 'login' && status.groups && status.groups.length > 0;
+      const credentialsHeading = document.querySelector('#credentialsSection h2');
+      credentialsHeading.textContent = reloginNeeded
+        ? "There's an issue with your Walks Manager login - please log in again"
+        : 'Walks Manager Login';
+
       const setupHeaderText = document.getElementById('setupHeaderText');
+      if (reloginNeeded) {
+        setupHeaderText.textContent = "There's an issue with your Walks Manager login - please log in again below.";
+        return;
+      }
       const labels = {
         'api-key': 'Step 1 of 4: connect to the server',
         login: 'Step 2 of 4: log in to Walks Manager',
