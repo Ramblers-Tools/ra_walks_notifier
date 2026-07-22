@@ -99,7 +99,6 @@
   <div class="actions">
     <button id="checkForUpdates">Check for Updates</button>
     <button id="viewLogs">View Logs</button>
-    <button id="openDevTools">Open DevTools</button>
     <button id="resetSettings">Reset All Settings</button>
   </div>
   <div id="settingsMessage" class="message"></div>
@@ -134,7 +133,6 @@
 
     document.getElementById('checkForUpdates').addEventListener('click', () => window.appSettings.checkForUpdates());
     document.getElementById('viewLogs').addEventListener('click', () => window.appSettings.openLogs());
-    document.getElementById('openDevTools').addEventListener('click', () => window.appSettings.openDevTools());
 
     document.getElementById('resetSettings').addEventListener('click', async () => {
       const button = document.getElementById('resetSettings');
