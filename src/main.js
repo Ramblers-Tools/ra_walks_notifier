@@ -1117,6 +1117,13 @@ function openWalksManagerLoginWindow(credentials) {
         configuringWindow = showConfiguringWindow();
         loginWindow.hide();
 
+        // The review page's group selector is populated by client-side JS
+        // after navigation, so it isn't always ready the instant the page
+        // itself matches - give it a beat before scraping, or extraction
+        // can spuriously report zero groups (worked around today by the
+        // user manually retrying, which just gave it more time to render).
+        await new Promise((r) => setTimeout(r, 1500));
+
         let { groups, diagnostic } = await extractWalksManagerGroups(loginWindow);
         await saveElectronLoginSession(loginWindow);
 
