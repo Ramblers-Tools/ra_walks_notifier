@@ -59,6 +59,24 @@
       text-decoration: underline;
     }
 
+    .icon-button {
+      border: 1px solid #d8dee8;
+      border-radius: 50%;
+      width: 36px;
+      height: 36px;
+      padding: 0;
+      font-size: 18px;
+      line-height: 1;
+      background: white;
+      color: #52606d;
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+
+    .icon-button:hover {
+      background: #f0f2f5;
+    }
+
     .setup-header {
       text-align: center;
       margin: 40px 0 24px;
@@ -124,7 +142,6 @@
     #recipientsSection { border-top-color: var(--tile-recipients); }
     #scheduleSection { border-top-color: var(--tile-schedule); }
     #leaderEmailSection { border-top-color: var(--tile-leader); }
-    #settingsSection { border-top-color: var(--tile-settings); }
     #brandingSection { border-top-color: var(--tile-about); }
     #aboutSection { border-top-color: var(--tile-about); }
 
@@ -324,6 +341,7 @@
       <div id="aboutChannel"></div>
       <a id="openWebsite">rawalksnotifier.ramblers.tools</a>
     </div>
+    <button id="openSettings" class="icon-button" title="App Settings" aria-label="App Settings">&#9881;</button>
   </header>
 
   <div id="setupHeader" class="setup-header setup-only">
@@ -470,19 +488,6 @@
       <button id="leTestApi">Test API</button>
       <button id="saveLeaderEmail" class="primary">Save</button>
     </div>
-  </details>
-
-  <details id="settingsSection" class="grid-only">
-    <summary>App Settings</summary>
-    <label class="checkbox"><input id="betaUpdates" type="checkbox"> Subscribe to beta updates</label>
-    <div class="hint" id="updateStatusText"></div>
-    <div class="actions">
-      <button id="checkForUpdates">Check for Updates</button>
-      <button id="viewLogs">View Logs</button>
-      <button id="openDevTools">Open DevTools</button>
-      <button id="resetSettings">Reset All Settings</button>
-    </div>
-    <div id="settingsMessage" class="message"></div>
   </details>
 
   </div>
@@ -1076,24 +1081,7 @@
     });
 
     // --- App Settings ---
-    const settingsMessage = document.getElementById('settingsMessage');
-    const betaUpdatesCheckbox = document.getElementById('betaUpdates');
-    const updateStatusText = document.getElementById('updateStatusText');
-
-    window.appSettings.load().then((settings) => {
-      betaUpdatesCheckbox.checked = settings.includeBetaUpdates;
-      updateStatusText.textContent = `Update: ${settings.updateStatus}`;
-    });
-
-    betaUpdatesCheckbox.addEventListener('change', async () => {
-      const result = await window.appSettings.toggleBetaUpdates();
-      betaUpdatesCheckbox.checked = result.includeBetaUpdates;
-    });
-
-    document.getElementById('checkForUpdates').addEventListener('click', () => window.appSettings.checkForUpdates());
-
-    document.getElementById('viewLogs').addEventListener('click', () => window.appSettings.openLogs());
-    document.getElementById('openDevTools').addEventListener('click', () => window.appSettings.openDevTools());
+    document.getElementById('openSettings').addEventListener('click', () => window.appSettings.openSettings());
 
     // --- Branding ---
     const brandingPreview = document.getElementById('brandingPreview');
@@ -1125,13 +1113,6 @@
       const result = await window.branding.resetLogo();
       setMessage(brandingMessage, result.message || result.error, result.ok ? 'ok' : 'error');
       if (result.ok) applyLogoState(result.dataUrl);
-    });
-
-    document.getElementById('resetSettings').addEventListener('click', async () => {
-      const result = await window.appSettings.resetSettings();
-      if (result.ok) {
-        setMessage(settingsMessage, 'Settings reset - reloading...', 'ok');
-      }
     });
 
     // --- About ---

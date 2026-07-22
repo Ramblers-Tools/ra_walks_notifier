@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>App Settings</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      margin: 0;
+      padding: 20px;
+      color: #1f2933;
+      background: #f7f8fa;
+    }
+
+    h1 {
+      font-size: 16px;
+      margin: 0 0 16px;
+    }
+
+    label.checkbox {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    label.checkbox input {
+      width: auto;
+    }
+
+    .hint {
+      margin: 8px 0 18px;
+      color: #52606d;
+      font-size: 12px;
+      line-height: 1.4;
+    }
+
+    .actions {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      gap: 8px;
+      margin-top: 16px;
+    }
+
+    button {
+      border: 1px solid #9aa5b1;
+      border-radius: 6px;
+      padding: 7px 14px;
+      font-size: 13px;
+      background: white;
+      cursor: pointer;
+    }
+
+    button.primary {
+      border-color: #f0814f;
+      background: #f0814f;
+      color: white;
+    }
+
+    button:disabled {
+      cursor: not-allowed;
+      opacity: 0.55;
+    }
+
+    button.primary:disabled {
+      border-color: #9aa5b1;
+      background: #c1c8d1;
+      color: #f2f4f6;
+    }
+
+    .message {
+      min-height: 18px;
+      margin-top: 8px;
+      font-size: 12px;
+      line-height: 1.4;
+      color: #52606d;
+    }
+
+    .message.ok { color: #1f7a3f; }
+    .message.error { color: #b42318; }
+
+    .close-row {
+      display: flex;
+      justify-content: flex-end;
+      margin-top: 20px;
+      border-top: 1px solid #e4e7eb;
+      padding-top: 14px;
+    }
+  </style>
+</head>
+<body>
+  <h1>App Settings</h1>
+
+  <label class="checkbox"><input id="betaUpdates" type="checkbox"> Subscribe to beta updates</label>
+  <div class="hint" id="updateStatusText"></div>
+
+  <div class="actions">
+    <button id="checkForUpdates">Check for Updates</button>
+    <button id="viewLogs">View Logs</button>
+    <button id="openDevTools">Open DevTools</button>
+    <button id="resetSettings">Reset All Settings</button>
+  </div>
+  <div id="settingsMessage" class="message"></div>
+
+  <div class="close-row">
+    <button id="close" class="primary">Close</button>
+  </div>
+
+  <script>
+    function flashButtonText(button, text, revertText, ms = 5000) {
+      button.disabled = true;
+      button.textContent = text;
+      setTimeout(() => {
+        button.disabled = false;
+        button.textContent = revertText;
+      }, ms);
+    }
+
+    const betaUpdatesCheckbox = document.getElementById('betaUpdates');
+    const updateStatusText = document.getElementById('updateStatusText');
+    const settingsMessage = document.getElementById('settingsMessage');
+
+    window.appSettings.load().then((settings) => {
+      betaUpdatesCheckbox.checked = settings.includeBetaUpdates;
+      updateStatusText.textContent = `Update: ${settings.updateStatus}`;
+    });
+
+    betaUpdatesCheckbox.addEventListener('change', async () => {
+      const result = await window.appSettings.toggleBetaUpdates();
+      betaUpdatesCheckbox.checked = result.includeBetaUpdates;
+    });
+
+    document.getElementById('checkForUpdates').addEventListener('click', () => window.appSettings.checkForUpdates());
+    document.getElementById('viewLogs').addEventListener('click', () => window.appSettings.openLogs());
+    document.getElementById('openDevTools').addEventListener('click', () => window.appSettings.openDevTools());
+
+    document.getElementById('resetSettings').addEventListener('click', async () => {
+      const button = document.getElementById('resetSettings');
+      const result = await window.appSettings.resetSettings();
+      if (result.ok) {
+        flashButtonText(button, 'Settings reset', 'Reset All Settings');
+        settingsMessage.textContent = '';
+      }
+    });
+
+    document.getElementById('close').addEventListener('click', () => window.close());
+  </script>
+</body>
+</html>

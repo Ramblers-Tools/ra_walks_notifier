@@ -28,6 +28,7 @@ let statusPollTimer;
 let dashboardWindow;
 let loginWindow;
 let logWindow;
+let settingsWindow;
 let updateStatus = 'Not checked';
 let manualUpdateCheck = false;
 let updateHandlersConfigured = false;
@@ -198,6 +199,32 @@ function showLogWindow() {
   });
 
   logWindow.loadFile(path.join(__dirname, 'log.html'));
+}
+
+function showSettingsWindow() {
+  if (settingsWindow) {
+    settingsWindow.focus();
+    return;
+  }
+
+  settingsWindow = new BrowserWindow(appWindowOptions({
+    width: 480,
+    height: 420,
+    title: 'App Settings',
+    resizable: false,
+    minimizable: false,
+    fullscreenable: false,
+    backgroundColor: '#f7f8fa',
+    webPreferences: {
+      preload: path.join(__dirname, 'settingsPreload.js')
+    }
+  }));
+
+  settingsWindow.on('closed', () => {
+    settingsWindow = null;
+  });
+
+  settingsWindow.loadFile(path.join(__dirname, 'settings.html'));
 }
 
 function handleRevokedApiKey(message) {
@@ -1319,6 +1346,7 @@ ipcMain.handle('app:logo-status', () => loadBrandLogo());
 ipcMain.handle('app:choose-logo', () => chooseBrandLogo());
 ipcMain.handle('app:reset-logo', () => resetBrandLogo());
 ipcMain.handle('app:open-logs', () => showLogWindow());
+ipcMain.handle('app:open-settings', () => showSettingsWindow());
 ipcMain.handle('app:quit', () => app.quit());
 
 ipcMain.handle('app:reset-settings', async () => {
