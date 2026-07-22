@@ -130,17 +130,37 @@
     const updateStatusText = document.getElementById('updateStatusText');
     const settingsMessage = document.getElementById('settingsMessage');
 
-    window.appSettings.load().then((settings) => {
-      betaUpdatesCheckbox.checked = settings.includeBetaUpdates;
-      updateStatusText.textContent = `Update: ${settings.updateStatus}`;
-    });
+    const checkForUpdatesButton = document.getElementById('checkForUpdates');
+
+    // Checking/downloading an update happens in the main process over
+    // several autoUpdater events (checking - downloading - downloaded),
+    // with no direct response to this button click - poll so the status
+    // line (and button) reflect that progress instead of looking inert
+    // until a final "ready to install" popup appears out of nowhere.
+    function refreshUpdateStatus() {
+      window.appSettings.load().then((settings) => {
+        betaUpdatesCheckbox.checked = settings.includeBetaUpdates;
+        updateStatusText.textContent = `Update: ${settings.updateStatus}`;
+        const inProgress = /^(Checking|Downloading)/.test(settings.updateStatus);
+        checkForUpdatesButton.disabled = inProgress;
+        checkForUpdatesButton.textContent = inProgress ? 'Checking...' : 'Check for Updates';
+      });
+    }
+
+    refreshUpdateStatus();
+    setInterval(refreshUpdateStatus, 2000);
 
     betaUpdatesCheckbox.addEventListener('change', async () => {
       const result = await window.appSettings.toggleBetaUpdates();
       betaUpdatesCheckbox.checked = result.includeBetaUpdates;
     });
 
-    document.getElementById('checkForUpdates').addEventListener('click', () => window.appSettings.checkForUpdates());
+    checkForUpdatesButton.addEventListener('click', () => {
+      checkForUpdatesButton.disabled = true;
+      checkForUpdatesButton.textContent = 'Checking...';
+      updateStatusText.textContent = 'Update: Checking...';
+      window.appSettings.checkForUpdates();
+    });
     document.getElementById('viewLogs').addEventListener('click', () => window.appSettings.openLogs());
 
     document.getElementById('resetSettings').addEventListener('click', async () => {
