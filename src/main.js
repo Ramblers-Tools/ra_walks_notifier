@@ -199,6 +199,8 @@ function showLogWindow() {
     width: 900,
     height: 620,
     title: 'RA Walks Notifier Logs',
+    parent: dashboardWindow,
+    modal: true,
     webPreferences: {
       preload: path.join(__dirname, 'logPreload.js'),
       contextIsolation: true,
@@ -227,6 +229,8 @@ function showSettingsWindow() {
     minimizable: false,
     fullscreenable: false,
     backgroundColor: '#f7f8fa',
+    parent: dashboardWindow,
+    modal: true,
     webPreferences: {
       preload: path.join(__dirname, 'settingsPreload.js')
     }
@@ -253,6 +257,8 @@ function showCredentialsUpgradeWindow() {
     minimizable: false,
     fullscreenable: false,
     backgroundColor: '#f7f8fa',
+    parent: dashboardWindow,
+    modal: true,
     webPreferences: {
       preload: path.join(__dirname, 'credentialsPreload.js')
     }
