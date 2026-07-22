@@ -1,8 +1,8 @@
-# RA Walks Notifier - Desktop Tray App
+# RA Walks Notifier - Desktop Dashboard App
 
-Electron menu bar app for macOS and Linux that lets a Ramblers group's
-volunteers manage their RA Walks Notifier settings and see check status,
-without needing a machine running 24/7.
+Electron desktop app for macOS, Windows, and Linux that lets a Ramblers
+group's volunteers manage their RA Walks Notifier settings and see check
+status, without needing a machine running 24/7.
 
 All actual checking, browsing, and email sending happens server-side (see
 `ra_walks_notifier_server`, a separate private repository). This app is a
@@ -11,15 +11,44 @@ API key, and it's the one thing that genuinely needs a screen - the
 interactive Ramblers single sign-on login, which uploads the resulting
 session to the server.
 
-From the tray menu you can:
+The app opens as a single **Dashboard** window (it can be minimised to the
+system tray, but no longer lives primarily in the tray/menu bar). On first
+launch - and any time something needs attention - the Dashboard shows a
+guided **setup wizard**, one step at a time:
 
-- Check Now
-- Connect / Login to Walks Manager (server connection, SSO login, group selection)
-- Manage notification recipients
-- Manage walk leader email settings
-- Change the email logo
-- View schedule/active hours
-- View logs (pulled live from the server)
+1. **Server Connection** - paste the API key you were given and it's tested
+   immediately.
+2. **Walks Manager Login** - sign in with your Ramblers email and password.
+   By default this saves your credentials (encrypted, server-side) so the
+   server can automatically re-log-in when your session expires - normally
+   about once a week. If auto login can't be verified after a few tries, it
+   falls back to a one-off interactive browser login instead.
+3. **Group Selection** - choose which group this app should monitor, from
+   the group(s) detected on your account.
+4. **Notification Recipients** - add at least one email address to receive
+   review-queue notifications.
+
+Once all four steps are complete, the wizard is replaced by the full tile
+Dashboard:
+
+- **Status** - last check result, pending walk count, Check Now, Open Walks
+  Manager
+- **Check Schedule and Active Hours** - how often to check, and the hours
+  checks are allowed to run
+- **Notification Recipients** - editable at any time
+- **Group Branding** - upload/reset your group's logo for notification emails
+- **Leader Email Settings** (beta, only shown for tenants flagged for it) -
+  optional walk-leader email lookups via RA Mailman
+- **App Controls** - Minimise to Tray / Quit
+- A header gear icon opens **App Settings** (beta updates opt-in, Check for
+  Updates, View Logs, Reset All Settings) and a **Help** icon links to the
+  [docs site](https://docs.ramblers.tools/ra-walks-notifier)
+
+If a previously-working Walks Manager login stops working (e.g. the saved
+session or credentials expire or are revoked), the Dashboard drops back into
+setup mode at the login step, headed "There's an issue with your Walks
+Manager login - please log in again", rather than showing first-time
+onboarding copy.
 
 ## Install for local testing
 
@@ -33,10 +62,6 @@ Then run:
 ```bash
 npm run app
 ```
-
-On first launch, the app opens **Connect** if it isn't configured yet
-(server API key, Walks Manager login, group selection). Reopen it from the
-tray menu at any time.
 
 Local client state (API key, cached settings) is stored outside the app
 bundle:
@@ -137,5 +162,7 @@ spctl -a -vv dist/*.dmg
 This package intentionally does not include any saved Walks Manager
 session or server credentials - those live server-side, per tenant.
 
-If the saved server-side Walks Manager session expires, choose **Connect**
-from the tray menu and sign in again.
+If the saved server-side Walks Manager session expires and auto re-login
+credentials aren't saved (or don't work), open the Dashboard - it will show
+the Walks Manager Login step again with an "issue with your login" message.
+Sign in again there to restore it.
