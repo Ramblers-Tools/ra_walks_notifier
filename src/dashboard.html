@@ -998,13 +998,19 @@
     scheduleFields.activeEnd.addEventListener('change', updateScheduleSummary);
 
     document.getElementById('saveSchedule').addEventListener('click', async () => {
-      await window.scheduleSettings.save({
-        checkIntervalMinutes: Number(scheduleFields.interval.value || 5),
-        activeHours: {
-          start: Number(scheduleFields.activeStart.value || 7),
-          end: Number(scheduleFields.activeEnd.value || 22)
-        }
-      });
+      const button = document.getElementById('saveSchedule');
+      try {
+        await window.scheduleSettings.save({
+          checkIntervalMinutes: Number(scheduleFields.interval.value || 5),
+          activeHours: {
+            start: Number(scheduleFields.activeStart.value || 7),
+            end: Number(scheduleFields.activeEnd.value || 22)
+          }
+        });
+        flashButtonText(button, 'Saved', 'Save Schedule');
+      } catch (error) {
+        flashButtonText(button, 'Error', 'Save Schedule', 4000);
+      }
     });
 
     // --- Leader Email ---
