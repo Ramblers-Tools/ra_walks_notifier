@@ -1,0 +1,14 @@
+name = "little-mouse-a924"
+main = "src/index.js"
+compatibility_date = "2026-07-01"
+
+# TO_EMAIL / FROM_EMAIL / ALLOWED_ORIGIN are intentionally NOT declared here.
+# They're managed directly in the Cloudflare dashboard (Workers & Pages ->
+# little-mouse-a924 -> Settings -> Variables), not via this file.
+#
+# IMPORTANT: Cloudflare Workers deploys can treat the deploy config as the
+# full source of truth for plain-text vars - omitting them here does not
+# guarantee they survive a `wrangler deploy` untouched. After every deploy
+# from this project, check the dashboard's Variables tab and re-enter
+# TO_EMAIL / FROM_EMAIL / ALLOWED_ORIGIN if they've been cleared, before
+# assuming the form still works.
