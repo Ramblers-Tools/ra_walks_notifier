@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="RA Walks Notifier is a desktop tray app for macOS, Windows, and Linux that monitors Ramblers Walks Manager review queues.">
+  <meta name="description" content="RA Walks Notifier is a desktop dashboard app for macOS, Windows, and Linux that monitors Ramblers Walks Manager review queues and emails your group when new walks need attention.">
   <title>RA Walks Notifier</title>
   <style>
     :root {
@@ -349,7 +349,7 @@
     <nav class="nav" aria-label="Main navigation">
       <div class="brand-strip">
         <img class="ramblers-logo" src="assets/ramblers-logo.svg" alt="Ramblers">
-        <img class="east-logo" src="assets/east-cheshire-logo.png" alt="East Cheshire Ramblers">
+        <img class="east-logo" src="assets/ra-walks-notifier-square.svg" alt="RA Walks Notifier">
       </div>
       <a class="repo-link" href="https://github.com/Ramblers-Tools/ra_walks_notifier">GitHub repository</a>
     </nav>
@@ -359,9 +359,9 @@
     <section class="hero">
       <div class="hero-inner">
         <div>
-          <p class="eyebrow">Desktop tray app for Walks Manager</p>
+          <p class="eyebrow">Desktop dashboard for Walks Manager</p>
           <h1>RA Walks Notifier</h1>
-          <p class="lead">Monitor Ramblers Walks Manager review queues, receive email notifications, and keep pending walks visible from your desktop tray on macOS, Windows, or Linux.</p>
+          <p class="lead">Monitor your Ramblers group's Walks Manager review queue and get an email the moment a new walk needs checking &mdash; from one dashboard on macOS, Windows, or Linux.</p>
           <div class="actions">
             <a id="primary-download" class="button primary" href="https://github.com/Ramblers-Tools/ra_walks_notifier/releases/latest">Download latest release</a>
             <a class="button secondary" href="#setup">Setup guide</a>
@@ -369,7 +369,7 @@
           <p id="release-note" class="release-note">Checking the latest GitHub release...</p>
         </div>
         <div class="hero-panel">
-          <img src="assets/screenshot-menu.svg" alt="RA Walks Notifier menu bar status menu">
+          <img src="assets/screenshot-dashboard.png" alt="RA Walks Notifier dashboard showing status, notification recipients, check schedule, and group branding">
         </div>
       </div>
     </section>
@@ -412,15 +412,15 @@
       <div class="cards">
         <article class="card">
           <h3>Checks Walks Manager</h3>
-          <p>Runs scheduled checks against the configured Walks Manager group and keeps the pending count visible in the menu bar.</p>
+          <p>Our server runs scheduled checks against your group's Walks Manager review queue on the hours and days you choose, so nothing needs to stay running on your machine.</p>
         </article>
         <article class="card">
           <h3>Sends clear emails</h3>
-          <p>Notifies configured recipients when new or changed walks need attention, with HTML email summaries and direct links.</p>
+          <p>Notifies your configured recipients the moment new or changed walks need attention, with HTML email summaries, direct links, and your group's own branding.</p>
         </article>
         <article class="card">
-          <h3>Runs from your desktop tray</h3>
-          <p>Connects to your group's server account, stores your connection details locally, and stays out of the way in the menu bar or system tray.</p>
+          <h3>One dashboard, always in sync</h3>
+          <p>Paste your group's API key on any device and the dashboard picks up your existing setup instantly &mdash; everything is stored server-side, not on the machine you're using.</p>
         </article>
       </div>
     </section>
@@ -429,25 +429,25 @@
       <div class="section-heading">
         <div>
           <h2>Setup flow</h2>
-          <p>The first launch collects the details needed for background checks and email notifications.</p>
+          <p>A guided wizard walks you through each step on first launch, then gets out of the way.</p>
         </div>
       </div>
       <div class="steps">
         <article class="step">
+          <h3>Enter your API key</h3>
+          <p>Paste the API key issued for your group to connect the app to your Ramblers Tools account.</p>
+        </article>
+        <article class="step">
+          <h3>Sign in to Walks Manager</h3>
+          <p>Enter your Walks Manager username and password once to enable automatic re-login, with a one-off browser sign-in available as a fallback.</p>
+        </article>
+        <article class="step">
+          <h3>Select your group</h3>
+          <p>Choose the group to monitor &mdash; detected automatically for single-group accounts.</p>
+        </article>
+        <article class="step">
           <h3>Add recipients</h3>
-          <p>Enter one or more email addresses for walk review notifications.</p>
-        </article>
-        <article class="step">
-          <h3>Configure SMTP</h3>
-          <p>Add host, port, username, password, from address, and display name.</p>
-        </article>
-        <article class="step">
-          <h3>Sign in</h3>
-          <p>Open the Walks Manager login window, sign in, and let the app detect available groups.</p>
-        </article>
-        <article class="step">
-          <h3>Select group</h3>
-          <p>Choose the group to monitor, then save setup and run the first check.</p>
+          <p>Enter the email addresses that should be notified, then let the dashboard take over.</p>
         </article>
       </div>
     </section>
@@ -456,21 +456,21 @@
       <div class="section-heading">
         <div>
           <h2>Screenshots</h2>
-          <p>Connect once, then check status or app details from the tray at any time.</p>
+          <p>Everything lives in one dashboard &mdash; status, recipients, schedule, and group branding at a glance.</p>
         </div>
       </div>
       <div class="screenshots">
         <figure class="shot">
-          <img src="assets/screenshot-connect.png" alt="Server connection and login screen">
-          <figcaption>Connect &amp; login</figcaption>
+          <img src="assets/screenshot-dashboard.png" alt="RA Walks Notifier dashboard showing status, notification recipients, check schedule, and group branding">
+          <figcaption>Dashboard overview</figcaption>
         </figure>
         <figure class="shot">
-          <img src="assets/screenshot-status.png" alt="Status window showing pending walks, schedule, and recipients">
-          <figcaption>Status</figcaption>
+          <img src="assets/screenshot-schedule.png" alt="Check schedule and active hours panel on the dashboard">
+          <figcaption>Check schedule &amp; active hours</figcaption>
         </figure>
         <figure class="shot">
-          <img src="assets/screenshot-about.png" alt="About window showing the RA Walks Notifier logo and version">
-          <figcaption>About</figcaption>
+          <img src="assets/screenshot-branding.png" alt="Group branding panel showing a group's custom logo">
+          <figcaption>Group branding</figcaption>
         </figure>
       </div>
     </section>
@@ -478,7 +478,7 @@
 
   <footer class="site-footer">
     <div class="footer-inner">
-      <span>RA Walks Notifier for East Cheshire Ramblers</span>
+      <span>RA Walks Notifier by Ramblers Tools</span>
       <a href="https://github.com/Ramblers-Tools/ra_walks_notifier/releases/latest">Latest release</a>
     </div>
   </footer>
@@ -535,7 +535,7 @@
           <li>Download the DMG installer.</li>
           <li>Open the DMG and drag RA Walks Notifier into Applications.</li>
           <li>Launch it from Applications. If macOS asks, confirm that you want to open the notarized app.</li>
-          <li>Complete setup: recipients, SMTP settings, Walks Manager login, and group selection.</li>
+          <li>Complete the guided setup: API key, Walks Manager login, group selection, and recipients.</li>
         `;
         return;
       }
@@ -575,7 +575,7 @@
       if (os === 'ios') {
         detected.textContent = 'iPhone or iPad detected';
         title.textContent = 'Desktop required';
-        copy.textContent = 'RA Walks Notifier is a desktop tray app. It cannot be installed on iPhone or iPad.';
+        copy.textContent = 'RA Walks Notifier is a desktop app. It cannot be installed on iPhone or iPad.';
         download.href = latestReleaseUrl;
         download.textContent = 'View latest release';
         primary.href = latestReleaseUrl;
@@ -592,7 +592,7 @@
       if (os === 'android') {
         detected.textContent = 'Android detected';
         title.textContent = 'Desktop required';
-        copy.textContent = 'RA Walks Notifier is a desktop tray app. It cannot be installed on Android.';
+        copy.textContent = 'RA Walks Notifier is a desktop app. It cannot be installed on Android.';
         download.href = latestReleaseUrl;
         download.textContent = 'View latest release';
         primary.href = latestReleaseUrl;
