@@ -29,6 +29,9 @@
   .rg3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 22px; align-items: start; }
   .rg4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 24px; }
   .nav-links { text-decoration: none; color: inherit; padding: 9px 12px; }
+  .btn-hover { transition: transform .15s ease, filter .15s ease, box-shadow .15s ease; }
+  .btn-hover:hover { transform: translateY(-1px); filter: brightness(1.06); }
+  .btn-hover:active { transform: translateY(0); filter: brightness(0.97); }
   @media (max-width: 820px) {
     .wrap { padding: 0 18px !important; }
     .nav-links { display: none !important; }
@@ -59,24 +62,25 @@
       <a href="#what" class="nav-links">What it is</a>
       <a href="#how" class="nav-links">How it works</a>
       <a href="#faq" class="nav-links">FAQ</a>
-      <div style="position:relative;">
-        <button id="dlToggle" style="display:inline-flex; align-items:center; gap:7px; background:#EEE7D6; border:1px solid #e0d8c4; color:#3f5149; font-weight:700; font-size:14px; padding:9px 15px; border-radius:999px; cursor:pointer;">Already a user? Download <span style="font-size:11px;">▾</span></button>
+      <a href="https://docs.ramblers.tools/ra-walks-notifier" class="nav-links">Docs</a>
+      <div>
+        <button id="dlToggle" class="btn-hover" style="display:inline-flex; align-items:center; gap:7px; background:#EEE7D6; border:1px solid #e0d8c4; color:#3f5149; font-weight:700; font-size:14px; padding:9px 15px; border-radius:999px; cursor:pointer;">Already a user? Download <span style="font-size:11px;">▾</span></button>
         <div id="dlMenu" class="dl-menu" style="display:none; position:absolute; right:0; top:calc(100% + 10px); width:310px; background:#fff; border:1px solid #ece5d6; border-radius:16px; box-shadow:0 24px 50px -22px rgba(30,58,50,0.55); padding:20px; z-index:20;">
           <div id="dlSupported">
             <div class="eyebrow" style="font-size:12px;">Your device</div>
             <div style="font-family:'Bitter',serif; font-weight:600; font-size:19px; margin:6px 0 2px;" id="dlOsName">Download</div>
             <div style="font-size:13.5px; color:#7a7364; margin-bottom:16px;" id="dlOsSub"></div>
-            <a id="dlPrimary" href="https://github.com/Ramblers-Tools/ra_walks_notifier/releases/latest" style="display:block; text-align:center; background:#E4772E; color:#fff; text-decoration:none; font-weight:700; font-size:15px; padding:12px; border-radius:10px;">Get the version</a>
+            <a id="dlPrimary" href="https://github.com/Ramblers-Tools/ra_walks_notifier/releases/latest" class="btn-hover" style="display:block; text-align:center; background:#E4772E; color:#fff; text-decoration:none; font-weight:700; font-size:15px; padding:12px; border-radius:10px;">Get the version</a>
             <a href="https://github.com/Ramblers-Tools/ra_walks_notifier/releases" style="display:block; text-align:center; color:#2F6D5B; text-decoration:none; font-weight:600; font-size:13.5px; margin-top:12px;">Other systems &amp; all releases →</a>
           </div>
           <div id="dlNotSupported" style="display:none;">
             <div style="font-family:'Bitter',serif; font-weight:600; font-size:18px; margin:0 0 8px;">Not available on this device</div>
             <p style="font-size:14px; line-height:1.55; color:#6a6355; margin:0 0 14px;">The desktop app runs on macOS (Apple&nbsp;silicon), Windows (64-bit) and Linux (64-bit). Open this page on one of those to download — or just request access above and skip the app entirely.</p>
-            <a href="https://github.com/Ramblers-Tools/ra_walks_notifier/releases" style="display:block; text-align:center; border:1.5px solid #d9d1bf; color:#2F6D5B; text-decoration:none; font-weight:700; font-size:14px; padding:11px; border-radius:10px;">See all downloads</a>
+            <a href="https://github.com/Ramblers-Tools/ra_walks_notifier/releases" class="btn-hover" style="display:block; text-align:center; border:1.5px solid #d9d1bf; color:#2F6D5B; text-decoration:none; font-weight:700; font-size:14px; padding:11px; border-radius:10px;">See all downloads</a>
           </div>
         </div>
       </div>
-      <a href="#request" style="text-decoration:none; background:#22352E; color:#F6F2E9; padding:10px 18px; border-radius:999px; margin-left:4px;">Request access</a>
+      <a href="#request" class="btn-hover" style="text-decoration:none; background:#22352E; color:#F6F2E9; padding:10px 18px; border-radius:999px; margin-left:4px;">Request access</a>
     </nav>
   </header>
 
@@ -87,7 +91,7 @@
       <h1 style="font-weight:800; font-size:54px; line-height:1.05; letter-spacing:-0.015em; margin:20px 0 0;">Never miss a walk waiting to be&nbsp;reviewed.</h1>
       <p style="font-size:19px; line-height:1.55; color:#4a5c53; margin:22px 0 0; max-width:36ch;">RA Walks Notifier keeps an eye on your group's Walks Manager review queue and emails the right people the moment a walk needs checking. Access is by request — tell us about your group and we'll set you up.</p>
       <div style="display:flex; gap:14px; margin-top:32px; align-items:center; flex-wrap:wrap;">
-        <a href="#request" style="background:#E4772E; color:#fff; text-decoration:none; font-weight:700; font-size:16px; padding:15px 28px; border-radius:12px; box-shadow:0 10px 24px -10px rgba(228,119,46,0.8);">Request access for your group</a>
+        <a href="#request" class="btn-hover" style="background:#E4772E; color:#fff; text-decoration:none; font-weight:700; font-size:16px; padding:15px 28px; border-radius:12px; box-shadow:0 10px 24px -10px rgba(228,119,46,0.8);">Request access for your group</a>
         <a href="#how" style="text-decoration:none; font-weight:700; font-size:16px; color:#2F6D5B;">See how it works →</a>
       </div>
     </div>
@@ -211,7 +215,7 @@
             <label style="display:flex; flex-direction:column; gap:7px; color:#22352E; font-weight:700; font-size:14px;">Contact email
               <input id="reqEmail" type="email" placeholder="you@example.org" style="border:1.5px solid #d9d1bf; background:#fff; border-radius:10px; padding:13px 15px; font-size:15.5px; color:#22352E;"></label>
             <div id="reqError" style="display:none; background:#FBE3D6; color:#9A3D12; font-size:14px; font-weight:600; padding:11px 14px; border-radius:9px;"></div>
-            <button id="reqSubmit" type="submit" style="background:#E4772E; color:#fff; border:none; font-weight:700; font-size:16px; padding:15px; border-radius:11px; cursor:pointer; margin-top:4px;">Send request</button>
+            <button id="reqSubmit" type="submit" class="btn-hover" style="background:#E4772E; color:#fff; border:none; font-weight:700; font-size:16px; padding:15px; border-radius:11px; cursor:pointer; margin-top:4px;">Send request</button>
             <p style="font-size:12.5px; color:#8a8271; margin:2px 0 0; text-align:center;">We'll reply to arrange setup. No spam, ever.</p>
           </form>
           <div id="reqDone" style="display:none; text-align:center; padding:24px 8px;">
@@ -246,6 +250,10 @@
 
   function detectOs() {
     const ua = navigator.userAgent || '';
+    // iPadOS Safari reports itself as "Macintosh" by default - distinguish it
+    // from a real Mac by touch support (real Macs report maxTouchPoints <= 1).
+    const touchMac = /Macintosh/i.test(ua) && navigator.maxTouchPoints > 1;
+    if (touchMac) return 'ios';
     if (/Windows/i.test(ua)) return 'windows';
     if (/Android/i.test(ua)) return 'android';
     if (/iPhone|iPad|iPod/i.test(ua)) return 'ios';
