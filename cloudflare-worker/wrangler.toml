@@ -1,0 +1,13 @@
+name = "little-mouse-a924"
+main = "src/index.js"
+compatibility_date = "2026-07-01"
+
+# Plain (non-secret) environment variables. Fill these in with the real,
+# already-deployed values from the Cloudflare dashboard (Workers & Pages ->
+# little-mouse-a924 -> Settings -> Variables) BEFORE running `wrangler deploy`
+# for the first time from this project - deploying will overwrite whatever
+# is currently configured with whatever is (or isn't) set here.
+[vars]
+TO_EMAIL = "REPLACE_WITH_CURRENT_VALUE"
+FROM_EMAIL = "REPLACE_WITH_CURRENT_VALUE"
+ALLOWED_ORIGIN = "https://rawalksnotifier.ramblers.tools"
