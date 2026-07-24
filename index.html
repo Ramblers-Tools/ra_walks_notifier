@@ -214,6 +214,10 @@
               <input id="reqGroup" placeholder="East Cheshire Ramblers" style="border:1.5px solid #d9d1bf; background:#fff; border-radius:10px; padding:13px 15px; font-size:15.5px; color:#22352E;"></label>
             <label style="display:flex; flex-direction:column; gap:7px; color:#22352E; font-weight:700; font-size:14px;">Contact email
               <input id="reqEmail" type="email" placeholder="you@example.org" style="border:1.5px solid #d9d1bf; background:#fff; border-radius:10px; padding:13px 15px; font-size:15.5px; color:#22352E;"></label>
+            <label style="display:flex; align-items:flex-start; gap:10px; color:#3f5149; font-size:13.5px; line-height:1.5;">
+              <input id="reqMarketing" type="checkbox" checked style="margin-top:3px; width:16px; height:16px; accent-color:#2F6D5B; flex-shrink:0;">
+              <span>We may get in touch from time to time about product updates and other tools your group may find helpful.</span>
+            </label>
             <div id="reqError" style="display:none; background:#FBE3D6; color:#9A3D12; font-size:14px; font-weight:600; padding:11px 14px; border-radius:9px;"></div>
             <button id="reqSubmit" type="submit" class="btn-hover" style="background:#E4772E; color:#fff; border:none; font-weight:700; font-size:16px; padding:15px; border-radius:11px; cursor:pointer; margin-top:4px;">Send request</button>
             <p style="font-size:12.5px; color:#8a8271; margin:2px 0 0; text-align:center;">We'll reply to arrange setup. No spam, ever.</p>
@@ -245,7 +249,7 @@
 <script>
   // Where the request form POSTs. Holds the smtp2go API key server-side
   // (a Cloudflare Worker) so it never touches this static page. The page
-  // sends JSON { name, group, email } and the worker sends the email.
+  // sends JSON { name, group, email, marketingOptIn } and the worker sends the email.
   const FORM_ENDPOINT = 'https://little-mouse-a924.me-e89.workers.dev/';
 
   function detectOs() {
@@ -315,6 +319,7 @@
     const name = document.getElementById('reqName').value.trim();
     const group = document.getElementById('reqGroup').value.trim();
     const email = document.getElementById('reqEmail').value.trim();
+    const marketingOptIn = document.getElementById('reqMarketing').checked;
     const showError = (msg) => { errorBox.textContent = msg; errorBox.style.display = 'block'; };
     errorBox.style.display = 'none';
     if (!name || !group || !email) { showError('Please fill in all three fields.'); return; }
@@ -326,7 +331,7 @@
       const res = await fetch(FORM_ENDPOINT, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, group, email }),
+        body: JSON.stringify({ name, group, email, marketingOptIn }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !data.ok) throw new Error(data.error || '');
