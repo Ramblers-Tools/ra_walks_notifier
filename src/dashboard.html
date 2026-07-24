@@ -1,0 +1,1355 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>RA Walks Notifier</title>
+  <style>
+    :root {
+      --tile-status: #2d7d9a;
+      --tile-connection: #1264a3;
+      --tile-login: #2e8b57;
+      --tile-groups: #6b46c1;
+      --tile-credentials: #b8860b;
+      --tile-recipients: #8e44ad;
+      --tile-schedule: #d35400;
+      --tile-leader: #c2185b;
+      --tile-settings: #37474f;
+      --tile-controls: #6d7680;
+      --tile-logs: #263238;
+      --tile-about: #00838f;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      margin: 0;
+      padding: 24px;
+      color: #1f2933;
+      background: #e9ebef;
+    }
+
+    header.app-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+
+    header.app-header img {
+      height: 64px;
+      width: auto;
+      object-fit: contain;
+    }
+
+    .header-right {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    #aboutInline {
+      text-align: right;
+      font-size: 12px;
+      color: #52606d;
+      line-height: 1.5;
+    }
+
+    #aboutInline a {
+      color: #f0814f;
+      cursor: pointer;
+      text-decoration: none;
+    }
+
+    #aboutInline a:hover {
+      text-decoration: underline;
+    }
+
+    .icon-button {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 2px;
+      border: 1px solid #d8dee8;
+      border-radius: 10px;
+      width: 54px;
+      height: 54px;
+      padding: 0;
+      background: white;
+      color: #52606d;
+      font-size: 9px;
+      flex-shrink: 0;
+    }
+
+    button.icon-button {
+      cursor: pointer;
+    }
+
+    button.icon-button:hover {
+      background: #f0f2f5;
+    }
+
+    .icon-button-label {
+      line-height: 1;
+      text-align: center;
+    }
+
+    .pending-walks-count {
+      font-size: 16px;
+      font-weight: 700;
+      line-height: 1;
+      color: #1f2933;
+    }
+
+    .pending-walks-count.has-pending {
+      color: #b42318;
+    }
+
+    .setup-header {
+      text-align: center;
+      margin: 40px 0 24px;
+    }
+
+    .setup-header h1 {
+      font-size: 26px;
+      font-weight: 700;
+      color: #1f2933;
+      margin: 0 0 8px;
+    }
+
+    .setup-header h2 {
+      font-size: 20px;
+      font-weight: 400;
+      text-transform: none;
+      letter-spacing: normal;
+      color: #52606d;
+    }
+
+    .setup-header p {
+      color: #52606d;
+      font-size: 13px;
+    }
+
+    body.setup-mode .tile-grid {
+      display: block;
+      max-width: 560px;
+      margin: 0 auto;
+    }
+
+    body.setup-mode .tile-grid > * {
+      margin-bottom: 16px;
+    }
+
+    body:not(.setup-mode) .setup-only,
+    body.setup-mode .grid-only {
+      display: none !important;
+    }
+
+    .tile-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      gap: 16px;
+      align-items: start;
+    }
+
+    .tile-stack {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    h2 {
+      font-size: 14px;
+      margin: 0 0 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+      color: #3e4c59;
+    }
+
+    section, details {
+      background: white;
+      border: none;
+      border-top: 5px solid #9aa5b1;
+      border-radius: 2px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.12);
+      padding: 16px 18px;
+      margin-bottom: 0;
+    }
+
+    #statusSection { border-top-color: var(--tile-status); }
+    #apiKeySection { border-top-color: var(--tile-connection); }
+    #loginSection { border-top-color: var(--tile-credentials); }
+    #groupsSection { border-top-color: var(--tile-groups); }
+    #credentialsSection { border-top-color: var(--tile-login); }
+    #recipientsSection { border-top-color: var(--tile-recipients); }
+    #scheduleSection { border-top-color: var(--tile-schedule); }
+    #appControlsSection { border-top-color: var(--tile-controls); }
+    #leaderEmailSection { border-top-color: var(--tile-leader); }
+    #brandingSection { border-top-color: var(--tile-about); }
+
+    .branding-body {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 12px;
+      text-align: center;
+    }
+
+    .branding-body .actions {
+      justify-content: center;
+      margin-top: 0;
+    }
+
+    #brandingPreview {
+      max-width: 100%;
+      max-height: 140px;
+    }
+    #aboutSection { border-top-color: var(--tile-about); }
+
+    section.disabled {
+      opacity: 0.5;
+      pointer-events: none;
+    }
+
+    details > summary {
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 600;
+      list-style: none;
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+      color: #3e4c59;
+    }
+
+    details > summary::-webkit-details-marker {
+      display: none;
+    }
+
+    details[open] > summary {
+      margin-bottom: 10px;
+    }
+
+    label {
+      display: block;
+      font-size: 13px;
+      font-weight: 600;
+      margin-bottom: 6px;
+      margin-top: 12px;
+    }
+
+    label:first-of-type {
+      margin-top: 0;
+    }
+
+    label.checkbox {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-weight: 600;
+    }
+
+    label.checkbox input {
+      width: auto;
+    }
+
+    input[type="password"], input[type="text"], input[type="email"], select, textarea {
+      box-sizing: border-box;
+      width: 100%;
+      border: 1px solid #b8c1cc;
+      border-radius: 6px;
+      padding: 8px 10px;
+      font-size: 14px;
+      background: white;
+      font-family: inherit;
+    }
+
+    textarea {
+      resize: vertical;
+      min-height: 60px;
+    }
+
+    #recipients {
+      resize: none;
+      height: 165px;
+    }
+
+
+    .row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+
+    .hint {
+      margin: 6px 0 0;
+      color: #52606d;
+      font-size: 12px;
+      line-height: 1.4;
+    }
+
+    .actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+      margin-top: 10px;
+    }
+
+    button {
+      border: 1px solid #9aa5b1;
+      border-radius: 6px;
+      padding: 7px 14px;
+      font-size: 13px;
+      background: white;
+      cursor: pointer;
+    }
+
+    button.primary {
+      border-color: #f0814f;
+      background: #f0814f;
+      color: white;
+    }
+
+    button:disabled {
+      cursor: not-allowed;
+      opacity: 0.55;
+    }
+
+    button.primary:disabled {
+      border-color: #9aa5b1;
+      background: #c1c8d1;
+      color: #f2f4f6;
+    }
+
+    button.primary:hover {
+      border-color: #d96a3a;
+      background: #d96a3a;
+    }
+
+    #resetLogo:hover {
+      border-color: #b42318;
+      background: #b42318;
+      color: white;
+    }
+
+    .message {
+      min-height: 18px;
+      margin-top: 8px;
+      font-size: 12px;
+      line-height: 1.4;
+      color: #52606d;
+    }
+
+    .message.ok { color: #1f7a3f; }
+    .message.error { color: #b42318; }
+    .message.pending, button.pulsing { animation: pulse 1.2s ease-in-out infinite; }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.35; }
+    }
+
+    .group-list {
+      max-height: 160px;
+      overflow-y: auto;
+      border: 1px solid #d8dee8;
+      border-radius: 6px;
+      padding: 8px;
+      background: #fafbfc;
+    }
+
+    .group-list label {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-weight: 400;
+      margin: 4px 0;
+    }
+
+    #statusText {
+      white-space: pre-wrap;
+      font-size: 13px;
+      line-height: 1.6;
+      background: #fafbfc;
+      border: 1px solid #e4e7eb;
+      border-radius: 6px;
+      padding: 10px 12px;
+    }
+
+    .status-groups {
+      font-weight: 700;
+      color: #2e8b57;
+      margin-top: 6px;
+    }
+
+    .status-groups-label {
+      color: #1f2933;
+    }
+
+    #maintenanceBanner {
+      display: none;
+      margin-bottom: 10px;
+      padding: 10px 12px;
+      border-radius: 8px;
+      background: #fdecea;
+      border: 1px solid #f5c2c0;
+      color: #b42318;
+      font-size: 13px;
+      font-weight: 600;
+      text-align: center;
+    }
+
+    #quitButton {
+      border-color: #b42318;
+      color: #b42318;
+      background: white;
+    }
+
+    #quitButton:hover {
+      background: #b42318;
+      color: white;
+    }
+
+    #minimizeToTrayButton {
+      border-color: #2e8b57;
+      color: #2e8b57;
+      background: white;
+    }
+
+    #minimizeToTrayButton:hover {
+      background: #eaf3ee;
+    }
+
+    #openReviewList:hover {
+      border-color: #6b9e7f;
+      background: #6b9e7f;
+      color: white;
+    }
+
+    #upgradeAutoLogin {
+      border-color: #e8c14a;
+      background: #fdf3d6;
+      color: #7a5c00;
+    }
+
+    #upgradeAutoLogin:hover {
+      border-color: #d4a72c;
+      background: #f7e2a0;
+    }
+  </style>
+</head>
+<body>
+  <header class="app-header">
+    <img src="../assets/brand-lockup.svg" alt="RA Walks Notifier">
+    <div class="header-right">
+    <div id="aboutInline">
+      <div id="aboutVersion"></div>
+      <div id="aboutChannel"></div>
+      <a id="openWebsite">https://rawalksnotifier.ramblers.tools</a>
+    </div>
+    <button id="openHelp" class="icon-button" title="Help" aria-label="Help">
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="10"></circle>
+        <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
+        <line x1="12" y1="17" x2="12.01" y2="17"></line>
+      </svg>
+      <span class="icon-button-label">Help</span>
+    </button>
+    <button id="openSettings" class="icon-button" title="App Settings" aria-label="App Settings">
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="3"></circle>
+        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+      </svg>
+      <span class="icon-button-label">Settings</span>
+    </button>
+    <div id="pendingWalksIndicator" class="icon-button" title="Pending walks awaiting review">
+      <span class="icon-button-label">Pending Walks</span>
+      <span id="pendingWalksCount" class="pending-walks-count">0</span>
+    </div>
+    </div>
+  </header>
+
+  <div id="setupHeader" class="setup-header setup-only">
+    <h1 id="setupWizardTitle">Walks Manager Notifier Setup Wizard</h1>
+    <h2 id="setupHeaderText">Let's get you set up</h2>
+    <p id="setupHeaderSubtext">Complete each step below to start using RA Walks Notifier.</p>
+  </div>
+
+  <div class="tile-grid">
+
+  <div class="tile-stack">
+    <section id="statusSection" class="grid-only">
+      <h2>Status</h2>
+      <div id="maintenanceBanner"></div>
+      <div id="statusText">Loading&hellip;</div>
+      <div id="statusGroups" class="status-groups"></div>
+      <div class="actions">
+        <button id="upgradeAutoLogin" style="display: none;">Upgrade to Auto Login</button>
+        <button id="openReviewList">Open Walks Manager</button>
+        <button id="checkNow" class="primary">Check Now</button>
+      </div>
+    </section>
+
+    <section id="scheduleSection" class="grid-only">
+      <h2>Check Schedule and Active Hours</h2>
+      <label for="interval">Check every</label>
+      <select id="interval">
+        <option value="5">5 minutes</option>
+        <option value="10">10 minutes</option>
+        <option value="15">15 minutes</option>
+        <option value="30">30 minutes</option>
+        <option value="60">1 hour</option>
+      </select>
+      <div class="row">
+        <div>
+          <label for="activeStart">Active from</label>
+          <select id="activeStart"></select>
+        </div>
+        <div>
+          <label for="activeEnd">Active until</label>
+          <select id="activeEnd"></select>
+        </div>
+      </div>
+      <div class="hint" id="scheduleSummary"></div>
+      <div class="actions">
+        <button id="saveSchedule" class="primary">Save Schedule</button>
+      </div>
+    </section>
+
+    <section id="appControlsSection" class="grid-only">
+      <h2>App Controls</h2>
+      <div class="actions">
+        <button id="minimizeToTrayButton">Minimise to Tray</button>
+        <button id="quitButton">Quit</button>
+      </div>
+    </section>
+  </div>
+
+  <section id="apiKeySection" data-step="api-key">
+    <h2>Server Connection</h2>
+    <label for="apiKey">API key</label>
+    <input id="apiKey" type="password" autocomplete="off" placeholder="Paste the API key you were given">
+    <div class="actions">
+      <button id="saveApiKey" class="primary">Save &amp; Test</button>
+    </div>
+    <div id="apiKeyMessage" class="message"></div>
+  </section>
+
+  <section id="credentialsSection" data-step="login">
+    <h2>Walks Manager Login</h2>
+    <div class="hint">
+      We'll sign in and save your username and password (encrypted, server-side) so the server can automatically re-log-in when your Walks Manager session expires - normally about once a week. If this doesn't work, we'll fall back to a one-off browser login instead.
+    </div>
+    <label for="credUsername">Email address</label>
+    <input id="credUsername" type="email" autocomplete="off">
+    <label for="credPassword">Password</label>
+    <input id="credPassword" type="password" autocomplete="off">
+    <div class="hint" id="credentialsHint"></div>
+    <div class="actions">
+      <button id="saveCredentials" class="primary">Verify &amp; Save</button>
+    </div>
+    <div id="credentialsMessage" class="message"></div>
+  </section>
+
+  <section id="loginSection" class="grid-only">
+    <h2>Please log in to Walks Manager - there's an issue</h2>
+    <div class="hint">The server doesn't have a working Walks Manager session for you right now. This box only appears when something needs attention - once you log in below, it disappears again.</div>
+    <label for="wmUsername">Email address (registered with Ramblers)</label>
+    <input id="wmUsername" type="email" autocomplete="off">
+    <label for="wmPassword">Password</label>
+    <input id="wmPassword" type="password" autocomplete="off">
+    <div class="hint">We'll sign in for you automatically. If a security check (e.g. a verification code) is needed, a browser window will open so you can finish signing in yourself. Your password isn't stored by this app.</div>
+    <div class="actions">
+      <button id="login" class="primary">Login to Walks Manager</button>
+      <button id="loginManual" class="primary" style="display: none;">Open in browser instead</button>
+    </div>
+    <div id="loginMessage" class="message"></div>
+  </section>
+
+  <section id="groupsSection" class="disabled" data-step="groups">
+    <h2>Group Selection</h2>
+    <div id="groupList" class="group-list"><div class="hint">Login first to detect your group(s).</div></div>
+    <div class="actions">
+      <button id="redetectGroups" style="display: none;">Retry group detection</button>
+      <button id="saveGroups" class="primary">Save Group Selection</button>
+    </div>
+    <div id="groupsMessage" class="message"></div>
+  </section>
+
+  <div class="tile-stack">
+    <section id="recipientsSection" data-step="recipients">
+      <h2>Notification Recipients</h2>
+      <label for="recipients">Email addresses</label>
+      <textarea id="recipients" spellcheck="false"></textarea>
+      <div class="hint">Enter one address per line, or separate addresses with commas. At least one is required before the app is fully set up.</div>
+      <div class="actions">
+        <button id="saveRecipients" class="primary">Save Recipients</button>
+      </div>
+    </section>
+
+    <details id="brandingSection" class="grid-only" open>
+      <summary>Group Branding</summary>
+      <div class="branding-body">
+        <div class="hint" id="brandingHint">If you'd like your group's logo displayed on your notification emails, please upload it below.</div>
+        <img id="brandingPreview" alt="Current logo" style="display:none;">
+        <div class="actions">
+          <button id="chooseLogo" class="primary">Upload Logo</button>
+          <button id="resetLogo" style="display: none;">Reset Logo</button>
+        </div>
+        <div id="brandingMessage" class="message"></div>
+      </div>
+    </details>
+  </div>
+
+  <details id="leaderEmailSection" class="grid-only">
+    <summary>Leader Email Settings (Advanced)</summary>
+    <div class="hint">
+      This feature needs extra setup beyond the base app: a Ramblers-Webs Joomla website, and an experimental fork of Mailman for looking up walk leaders' email addresses. If your group doesn't already have both of these in place, leave this feature disabled.
+    </div>
+    <label class="checkbox"><input id="leEnabled" type="checkbox" disabled> Email walk leaders</label>
+    <div class="hint">Disabled until you've entered a Joomla API URL and key and clicked "Test API" successfully. Editing either field re-locks this until tested again.</div>
+    <label class="checkbox"><input id="leSendOnSubmit" type="checkbox"> Send when a walk is submitted for checking</label>
+    <label class="checkbox"><input id="leSendOnPublish" type="checkbox"> Send when a walk is published</label>
+    <label for="leApiBaseUrl">Joomla API URL</label>
+    <input id="leApiBaseUrl" autocomplete="off" placeholder="https://ramblerseastcheshire.org.uk/api/index.php/v1">
+    <label for="leApiToken">Joomla API token</label>
+    <input id="leApiToken" type="password" autocomplete="off">
+    <div class="hint">The API token is used to look up the walk leader's email address from RA Mailman. If more than one matching profile is found, the app will skip the leader email rather than guess. Leave this blank when saving to keep the currently saved token unchanged.</div>
+    <label class="checkbox"><input id="leNotifyOnLookupFailure" type="checkbox"> Email a report if a leader's email address can't be resolved</label>
+    <label for="leLookupFailureNotifyAddress">Report address</label>
+    <input id="leLookupFailureNotifyAddress" autocomplete="off" placeholder="admin@example.org">
+    <label class="checkbox"><input id="leNotifyOnNameNotShared" type="checkbox"> Notify if a walk leader has not shared their name</label>
+    <label for="leNameNotSharedNotifyAddress">Notify address</label>
+    <input id="leNameNotSharedNotifyAddress" autocomplete="off" placeholder="admin@example.org" disabled>
+    <label class="checkbox"><input id="leTestModeEnabled" type="checkbox"> Test mode (only send leader emails to the addresses below)</label>
+    <label for="leTestAllowedEmails">Test leader email addresses</label>
+    <textarea id="leTestAllowedEmails" autocomplete="off" placeholder="one address per line, e.g. me@example.org"></textarea>
+    <div class="hint">While test mode is on, leader emails will only be sent if the resolved leader address matches one of these. Everyone else is skipped. Off by default so real leaders receive emails once you're ready.</div>
+    <div id="leaderEmailMessage" class="message"></div>
+    <div class="actions">
+      <button id="leTestApi">Test API</button>
+      <button id="saveLeaderEmail" class="primary">Save</button>
+    </div>
+  </details>
+
+  </div>
+
+  <script>
+    function setMessage(el, text, kind) {
+      el.textContent = text || '';
+      el.className = `message ${kind || ''}`;
+    }
+
+    function isValidEmail(value) {
+      return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+    }
+
+    // --- Setup wizard gating ---
+    // Nothing else is usable until an API key is saved, then Walks Manager
+    // login (auto re-login by default, saving credentials for the server to
+    // use), group selection, and recipients unlock one at a time. Once all
+    // four are satisfied, the full tile dashboard is shown instead.
+    const WIZARD_ORDER = ['api-key', 'login', 'groups', 'recipients'];
+
+    let latestRecipientsCount = 0;
+
+    function computeWizardStage(status) {
+      if (!status.apiKeySet) return 'api-key';
+      if (!status.sessionPresent) return 'login';
+      if (!status.groups || !status.groups.length) return 'groups';
+      if (!latestRecipientsCount) return 'recipients';
+      return 'done';
+    }
+
+    function applyWizardStage(stage, status) {
+      const setupMode = stage !== 'done';
+      document.body.classList.toggle('setup-mode', setupMode);
+
+      // These three each have their own "nothing left to do" condition,
+      // independent of overall wizard progress, so they're evaluated the
+      // same way whether still in setup or on the full dashboard:
+      // - Server Connection: done once an API key is saved.
+      // - Group Selection: done once a group is set.
+      // - Walks Manager Login (fallback): only needed if the server isn't
+      //   reporting a working session - the primary auto re-login tile
+      //   above handles the normal case.
+      document.getElementById('apiKeySection').style.display = status.apiKeySet ? 'none' : '';
+      document.getElementById('groupsSection').style.display = (status.groups && status.groups.length) ? 'none' : '';
+      document.getElementById('loginSection').style.display = status.sessionPresent ? 'none' : '';
+
+      // Leader Email is a beta feature - only shown for tenants the server
+      // has flagged as beta users, checked fresh on every poll so it can
+      // appear (or disappear) in an already-open window without a restart.
+      document.getElementById('leaderEmailSection').style.display = status.betaUser ? '' : 'none';
+
+      if (!setupMode) {
+        // Fully configured, including a working Walks Manager login -
+        // nothing left to do here, so hide it just like the fallback tile.
+        // Recipients stays visible as an ongoing, editable setting.
+        document.getElementById('credentialsSection').style.display = 'none';
+        document.getElementById('recipientsSection').style.display = '';
+
+        // Auto re-login credentials are the default login path, but a
+        // session-only setup (the fallback) still works day-to-day - only
+        // needs a session cookie, which happens to already be present here.
+        // Surface a low-key upsell (opens its own popup, rather than
+        // reusing this inline tile - doing that in-grid pushed every other
+        // tile's position around whenever it toggled) rather than treating
+        // this as a problem.
+        const upgradeButton = document.getElementById('upgradeAutoLogin');
+        upgradeButton.style.display = (status.sessionPresent && !status.credentialsSet) ? '' : 'none';
+        return;
+      }
+
+      // Only the current step's tile is shown among the sequential wizard
+      // steps - earlier, already-completed steps stay hidden rather than
+      // piling up on screen. (Walks Manager Login's fallback tile is handled
+      // above, separately from this sequence, since it's optional.)
+      document.querySelectorAll('[data-step]').forEach((el) => {
+        el.style.display = el.dataset.step === stage ? '' : 'none';
+      });
+
+      // A group only ever gets set after login has succeeded once before,
+      // so if we're back at the login step with a group already on record,
+      // this isn't a first-time setup - it's a previously-working login
+      // that's stopped working (e.g. credentials/session cleared or
+      // expired) and needs the user's attention, not onboarding copy.
+      const reloginNeeded = stage === 'login' && status.groups && status.groups.length > 0;
+      const credentialsHeading = document.querySelector('#credentialsSection h2');
+      credentialsHeading.textContent = reloginNeeded
+        ? "There's an issue with your Walks Manager login - please log in again"
+        : 'Walks Manager Login';
+
+      const setupHeaderText = document.getElementById('setupHeaderText');
+      const setupHeaderSubtext = document.getElementById('setupHeaderSubtext');
+      if (reloginNeeded) {
+        setupHeaderText.textContent = "There's an issue with your Walks Manager login";
+        setupHeaderSubtext.textContent = 'Please log in again below.';
+        return;
+      }
+      const labels = {
+        'api-key': 'Step 1 of 4: connect to the server',
+        login: 'Step 2 of 4: log in to Walks Manager',
+        groups: 'Step 3 of 4: choose your group',
+        recipients: 'Step 4 of 4: add notification recipients'
+      };
+      setupHeaderText.textContent = labels[stage] || "Let's get you set up";
+      setupHeaderSubtext.textContent = 'Complete each step below to start using RA Walks Notifier.';
+    }
+
+    async function refreshWizard() {
+      try {
+        const status = await window.connect.status();
+        if (status.apiKeySet) {
+          const recipients = await window.recipients.load();
+          latestRecipientsCount = recipients.length;
+          // The branding and schedule tiles' own load calls only ever run
+          // once, at script load - if that happened before an API key was
+          // set (e.g. right after a local Reset All Settings, which clears
+          // the key and reloads this window), they never learn the real
+          // server-side values once the wizard reaches a usable state.
+          // Refresh both here too, once a key is present to fetch with.
+          window.branding.status().then((result) => applyLogoState(result.dataUrl));
+          loadScheduleSettings();
+          if (status.betaUser) loadLeaderEmailSettings();
+        } else {
+          latestRecipientsCount = 0;
+        }
+        applyWizardStage(computeWizardStage(status), status);
+      } catch (error) {
+        // A transient error here (e.g. network hiccup) shouldn't leave tile
+        // visibility stuck on whatever it last was - the next poll retries.
+        console.error('refreshWizard failed:', error);
+      }
+    }
+
+    // Run once immediately so tile visibility (and the Status section,
+    // below) reflect the real server-side state as soon as the window
+    // opens, rather than showing stale/blank "nothing set up" placeholders
+    // for up to 15 seconds until the first poll tick.
+    refreshWizard();
+
+    // Session/group state can change server-side without any action taken
+    // in this window (e.g. the server's own headless auto-relogin, or
+    // a session expiring) - poll periodically so tile visibility (like the
+    // fallback Walks Manager Login tile) doesn't go stale.
+    setInterval(refreshWizard, 15000);
+
+    // --- Status ---
+    function renderStatus(result) {
+      document.getElementById('statusText').textContent = result.text;
+      const pendingWalks = Number(result.pendingWalks || 0);
+      const pendingWalksCountEl = document.getElementById('pendingWalksCount');
+      pendingWalksCountEl.textContent = String(pendingWalks);
+      pendingWalksCountEl.classList.toggle('has-pending', pendingWalks > 0);
+      const groupNames = result.groupNames || [];
+      const statusGroupsEl = document.getElementById('statusGroups');
+      if (groupNames.length) {
+        const label = groupNames.length === 1 ? 'Group' : 'Groups';
+        statusGroupsEl.innerHTML = '';
+        const labelSpan = document.createElement('span');
+        labelSpan.className = 'status-groups-label';
+        labelSpan.textContent = `${label}: `;
+        statusGroupsEl.appendChild(labelSpan);
+        statusGroupsEl.appendChild(document.createTextNode(groupNames.join(', ')));
+      } else {
+        statusGroupsEl.textContent = '';
+      }
+      const banner = document.getElementById('maintenanceBanner');
+      if (result.maintenanceMessage) {
+        banner.textContent = result.maintenanceMessage;
+        banner.style.display = 'block';
+      } else {
+        banner.style.display = 'none';
+      }
+    }
+
+    window.statusApi.load().then(renderStatus);
+    setInterval(() => window.statusApi.load().then(renderStatus), 15000);
+
+    document.getElementById('openReviewList').addEventListener('click', () => window.statusApi.openReviewList());
+
+    document.getElementById('upgradeAutoLogin').addEventListener('click', () => window.credentials.openUpgradeWindow());
+
+    // Briefly repurposes a button's own label for feedback instead of a
+    // separate message line that would otherwise sit there indefinitely.
+    function flashButtonText(button, text, revertText, ms = 5000) {
+      button.disabled = true;
+      button.textContent = text;
+      setTimeout(() => {
+        button.disabled = false;
+        button.textContent = revertText;
+      }, ms);
+    }
+
+    // Polls status:load (which always fetches fresh from the server) until
+    // it reports the check has finished, rather than guessing a fixed
+    // delay - a check can take well over a minute (Playwright navigation +
+    // leader enrichment), so a short timeout would flip the button back
+    // before anything had actually happened.
+    async function pollUntilCheckDone(checkNowButton) {
+      const result = await window.statusApi.load();
+      renderStatus(result);
+      if (result.checking) {
+        setTimeout(() => pollUntilCheckDone(checkNowButton), 3000);
+        return;
+      }
+      checkNowButton.classList.remove('pulsing');
+      checkNowButton.disabled = false;
+      checkNowButton.textContent = 'Check Now';
+    }
+
+    async function runCheckNow(force) {
+      const checkNowButton = document.getElementById('checkNow');
+      const statusText = document.getElementById('statusText');
+      checkNowButton.disabled = true;
+      checkNowButton.textContent = 'Checking...';
+      checkNowButton.classList.add('pulsing');
+      // Give immediate feedback in the status box too, so "Last check"
+      // doesn't keep showing the previous (now stale) time while this runs.
+      statusText.textContent = statusText.textContent.replace(/^Last check:.*$/m, 'Last check: Checking...');
+
+      const result = await window.statusApi.checkNow(force);
+      if (result.ok) {
+        setTimeout(() => pollUntilCheckDone(checkNowButton), 3000);
+      } else {
+        checkNowButton.classList.remove('pulsing');
+        flashButtonText(checkNowButton, 'Check failed', 'Check Now', 4000);
+      }
+    }
+
+    document.getElementById('checkNow').addEventListener('click', () => runCheckNow(false));
+
+    // --- Server Connection & Walks Manager Login ---
+    const apiKeyInput = document.getElementById('apiKey');
+    const apiKeyMessage = document.getElementById('apiKeyMessage');
+    const loginSection = document.getElementById('loginSection');
+    const loginMessage = document.getElementById('loginMessage');
+    const wmUsernameInput = document.getElementById('wmUsername');
+    const wmPasswordInput = document.getElementById('wmPassword');
+    const loginButton = document.getElementById('login');
+    const loginManualButton = document.getElementById('loginManual');
+    let failedLoginAttempts = 0;
+    const groupsSection = document.getElementById('groupsSection');
+    const credentialsSection = document.getElementById('credentialsSection');
+    const groupList = document.getElementById('groupList');
+    const groupsMessage = document.getElementById('groupsMessage');
+    const redetectGroupsButton = document.getElementById('redetectGroups');
+    const recipientsInput = document.getElementById('recipients');
+
+    function renderGroups(groups, selectedGids) {
+      if (!groups || !groups.length) {
+        groupList.innerHTML = '<div class="hint">No groups found yet.</div>';
+        return;
+      }
+      groupList.innerHTML = groups.map(group => `
+        <label>
+          <input type="radio" name="group" value="${group.gid}" ${selectedGids.includes(group.gid) ? 'checked' : ''}>
+          ${group.name}
+        </label>
+      `).join('');
+    }
+
+    function selectedGroups(groups) {
+      const checked = groupList.querySelector('input[type="radio"]:checked');
+      if (!checked) return [];
+      const match = groups.find(group => String(group.gid) === checked.value);
+      return match ? [match] : [];
+    }
+
+    let knownGroups = [];
+
+    function updateRedetectButtonVisibility(sessionPresent) {
+      redetectGroupsButton.style.display = (sessionPresent && !knownGroups.length) ? '' : 'none';
+    }
+
+    function unlockConnectedSections() {
+      loginSection.classList.remove('disabled');
+      groupsSection.classList.remove('disabled');
+      credentialsSection.classList.remove('disabled');
+      window.connect.status(); // no-op refresh trigger left intentionally simple
+    }
+
+    window.connect.status().then((status) => {
+      if (status.apiKeySet) {
+        apiKeyInput.placeholder = 'API key saved (hidden)';
+        setMessage(apiKeyMessage, 'Connected.', 'ok');
+        unlockConnectedSections();
+        window.recipients.load().then((recipients) => {
+          recipientsInput.value = recipients.join('\n');
+        });
+      }
+      if (status.groups && status.groups.length) {
+        knownGroups = status.groups;
+        renderGroups(status.groups, status.groups.map(g => g.gid));
+      }
+      if (status.sessionPresent) {
+        setMessage(loginMessage, 'Walks Manager session is present.', 'ok');
+      }
+      updateRedetectButtonVisibility(status.sessionPresent);
+      refreshWizard();
+    });
+
+    document.getElementById('saveApiKey').addEventListener('click', async () => {
+      const button = document.getElementById('saveApiKey');
+      button.disabled = true;
+      setMessage(apiKeyMessage, 'Testing...', '');
+      try {
+        await window.connect.saveApiKey(apiKeyInput.value);
+        setMessage(apiKeyMessage, 'Connected.', 'ok');
+        unlockConnectedSections();
+        window.recipients.load().then((recipients) => {
+          recipientsInput.value = recipients.join('\n');
+        });
+        refreshWizard();
+      } catch (error) {
+        setMessage(apiKeyMessage, error.message, 'error');
+      } finally {
+        button.disabled = false;
+      }
+    });
+
+    function applyLoginResult(result) {
+      wmPasswordInput.value = '';
+      setMessage(loginMessage, result.message, result.code === 0 ? 'ok' : 'error');
+      if (result.groups && result.groups.length) {
+        knownGroups = result.groups;
+        renderGroups(result.groups, result.groups.length === 1 ? [result.groups[0].gid] : []);
+        if (result.groups.length === 1) {
+          setMessage(groupsMessage, 'Saved automatically.', 'ok');
+        }
+      }
+      if (result.code === 2) {
+        failedLoginAttempts += 1;
+        if (failedLoginAttempts >= 3) {
+          loginButton.style.display = 'none';
+          loginManualButton.style.display = '';
+        }
+      } else if (result.code === 0) {
+        failedLoginAttempts = 0;
+        loginButton.style.display = '';
+        loginManualButton.style.display = 'none';
+      }
+      updateRedetectButtonVisibility(result.sessionPresent);
+      refreshWizard();
+    }
+
+    loginButton.addEventListener('click', async () => {
+      const username = wmUsernameInput.value.trim();
+      const password = wmPasswordInput.value;
+      if (!username || !password) {
+        setMessage(loginMessage, 'Enter your Ramblers email address and password.', 'error');
+        return;
+      }
+      if (!isValidEmail(username)) {
+        setMessage(loginMessage, 'Enter a valid email address.', 'error');
+        return;
+      }
+      loginButton.disabled = true;
+      setMessage(loginMessage, 'Signing in...', 'pending');
+      try {
+        const result = await window.connect.login({ username, password });
+        applyLoginResult(result);
+      } catch (error) {
+        setMessage(loginMessage, error.message, 'error');
+      } finally {
+        loginButton.disabled = false;
+      }
+    });
+
+    loginManualButton.addEventListener('click', async () => {
+      loginManualButton.disabled = true;
+      setMessage(loginMessage, 'Waiting for login...', 'pending');
+      try {
+        const result = await window.connect.login();
+        applyLoginResult(result);
+      } catch (error) {
+        setMessage(loginMessage, error.message, 'error');
+      } finally {
+        loginManualButton.disabled = false;
+      }
+    });
+
+    redetectGroupsButton.addEventListener('click', async () => {
+      redetectGroupsButton.disabled = true;
+      setMessage(groupsMessage, 'Checking your Walks Manager session for groups...', 'pending');
+      try {
+        const result = await window.connect.redetectGroups();
+        if (result.groups && result.groups.length) {
+          knownGroups = result.groups;
+          renderGroups(result.groups, result.groups.length === 1 ? [result.groups[0].gid] : []);
+        }
+        setMessage(groupsMessage, result.message, result.code === 0 ? 'ok' : 'error');
+        updateRedetectButtonVisibility(result.sessionPresent);
+        refreshWizard();
+      } catch (error) {
+        setMessage(groupsMessage, error.message, 'error');
+      } finally {
+        redetectGroupsButton.disabled = false;
+      }
+    });
+
+    document.getElementById('saveGroups').addEventListener('click', async () => {
+      const groups = selectedGroups(knownGroups);
+      if (!groups.length) {
+        setMessage(groupsMessage, 'Select at least one group.', 'error');
+        return;
+      }
+      try {
+        await window.connect.saveGroups(groups);
+        setMessage(groupsMessage, `Saved ${groups.length} group${groups.length === 1 ? '' : 's'}.`, 'ok');
+        refreshWizard();
+      } catch (error) {
+        setMessage(groupsMessage, error.message, 'error');
+      }
+    });
+
+    document.getElementById('saveRecipients').addEventListener('click', async () => {
+      const button = document.getElementById('saveRecipients');
+      try {
+        const recipients = await window.recipients.save(recipientsInput.value);
+        recipientsInput.value = recipients.join('\n');
+        flashButtonText(button, 'Saved', 'Save Recipients');
+        refreshWizard();
+      } catch (error) {
+        flashButtonText(button, 'Error', 'Save Recipients', 4000);
+      }
+    });
+
+    // --- Walks Manager Auto Re-login credentials ---
+    const credUsernameInput = document.getElementById('credUsername');
+    const credPasswordInput = document.getElementById('credPassword');
+    const credentialsHint = document.getElementById('credentialsHint');
+    const credentialsMessage = document.getElementById('credentialsMessage');
+    const saveCredentialsButton = document.getElementById('saveCredentials');
+
+    window.credentials.status().then((status) => {
+      if (status.credentialsSet) {
+        credUsernameInput.value = status.username || '';
+        credentialsHint.textContent = 'Credentials are saved for auto-relogin. Enter a password (and username, if it changed) to update them.';
+      } else {
+        credentialsHint.textContent = 'No credentials saved yet.';
+      }
+    });
+
+    saveCredentialsButton.addEventListener('click', async () => {
+      const username = credUsernameInput.value.trim();
+      const password = credPasswordInput.value;
+      if (!username || !password) {
+        setMessage(credentialsMessage, 'Enter your Ramblers email address and password.', 'error');
+        return;
+      }
+      if (!isValidEmail(username)) {
+        setMessage(credentialsMessage, 'Enter a valid email address.', 'error');
+        return;
+      }
+      saveCredentialsButton.disabled = true;
+      setMessage(credentialsMessage, 'Verifying...', 'pending');
+      try {
+        const result = await window.credentials.save({ username, password });
+        credPasswordInput.value = '';
+        setMessage(credentialsMessage, result.message, result.status === 'saved' ? 'ok' : 'error');
+        if (result.status === 'saved') {
+          credentialsHint.textContent = 'Credentials are saved for auto-relogin. Enter a password (and username, if it changed) to update them.';
+        }
+        // A successful save (or fallback session upload) also refreshes
+        // group/session state, so re-check connection status and advance
+        // the wizard/tile visibility to pick it up.
+        window.connect.status().then((status) => updateRedetectButtonVisibility(status.sessionPresent));
+        refreshWizard();
+      } catch (error) {
+        setMessage(credentialsMessage, error.message, 'error');
+      } finally {
+        saveCredentialsButton.disabled = false;
+      }
+    });
+
+    // --- Schedule ---
+    const scheduleFields = {
+      interval: document.getElementById('interval'),
+      activeStart: document.getElementById('activeStart'),
+      activeEnd: document.getElementById('activeEnd')
+    };
+    const scheduleSummary = document.getElementById('scheduleSummary');
+
+    function hourLabel(hour) {
+      return `${String(hour).padStart(2, '0')}:00`;
+    }
+
+    function populateHourSelect(select) {
+      for (let hour = 0; hour < 24; hour += 1) {
+        const option = document.createElement('option');
+        option.value = String(hour);
+        option.textContent = hourLabel(hour);
+        select.appendChild(option);
+      }
+    }
+
+    function updateScheduleSummary() {
+      const start = Number(scheduleFields.activeStart.value);
+      const end = Number(scheduleFields.activeEnd.value);
+      scheduleSummary.textContent = start === end
+        ? 'Automatic checks will run all day.'
+        : `Automatic checks will run from ${hourLabel(start)} to ${hourLabel(end)}.`;
+    }
+
+    populateHourSelect(scheduleFields.activeStart);
+    populateHourSelect(scheduleFields.activeEnd);
+
+    function loadScheduleSettings() {
+      window.scheduleSettings.load().then((settings) => {
+        scheduleFields.interval.value = String(settings.checkIntervalMinutes || 5);
+        scheduleFields.activeStart.value = String(settings.activeHours?.start ?? 7);
+        scheduleFields.activeEnd.value = String(settings.activeHours?.end ?? 22);
+        updateScheduleSummary();
+      });
+    }
+
+    loadScheduleSettings();
+
+    scheduleFields.activeStart.addEventListener('change', updateScheduleSummary);
+    scheduleFields.activeEnd.addEventListener('change', updateScheduleSummary);
+
+    document.getElementById('saveSchedule').addEventListener('click', async () => {
+      const button = document.getElementById('saveSchedule');
+      try {
+        await window.scheduleSettings.save({
+          checkIntervalMinutes: Number(scheduleFields.interval.value || 5),
+          activeHours: {
+            start: Number(scheduleFields.activeStart.value || 7),
+            end: Number(scheduleFields.activeEnd.value || 22)
+          }
+        });
+        flashButtonText(button, 'Saved', 'Save Schedule');
+      } catch (error) {
+        flashButtonText(button, 'Error', 'Save Schedule', 4000);
+      }
+    });
+
+    // --- Leader Email ---
+    const leFields = {
+      enabled: document.getElementById('leEnabled'),
+      sendOnSubmit: document.getElementById('leSendOnSubmit'),
+      sendOnPublish: document.getElementById('leSendOnPublish'),
+      apiBaseUrl: document.getElementById('leApiBaseUrl'),
+      apiToken: document.getElementById('leApiToken'),
+      notifyOnLookupFailure: document.getElementById('leNotifyOnLookupFailure'),
+      lookupFailureNotifyAddress: document.getElementById('leLookupFailureNotifyAddress'),
+      notifyOnNameNotShared: document.getElementById('leNotifyOnNameNotShared'),
+      nameNotSharedNotifyAddress: document.getElementById('leNameNotSharedNotifyAddress'),
+      testModeEnabled: document.getElementById('leTestModeEnabled'),
+      testAllowedEmails: document.getElementById('leTestAllowedEmails')
+    };
+    const leaderEmailMessage = document.getElementById('leaderEmailMessage');
+
+    function leCurrentSettings() {
+      return {
+        enabled: leFields.enabled.checked,
+        sendOnSubmit: leFields.sendOnSubmit.checked,
+        sendOnPublish: leFields.sendOnPublish.checked,
+        apiBaseUrl: leFields.apiBaseUrl.value,
+        apiToken: leFields.apiToken.value,
+        notifyOnLookupFailure: leFields.notifyOnLookupFailure.checked,
+        lookupFailureNotifyAddress: leFields.lookupFailureNotifyAddress.value,
+        notifyOnNameNotShared: leFields.notifyOnNameNotShared.checked,
+        nameNotSharedNotifyAddress: leFields.nameNotSharedNotifyAddress.value,
+        testModeEnabled: leFields.testModeEnabled.checked,
+        testAllowedEmails: leFields.testAllowedEmails.value
+      };
+    }
+
+    function leValidationError(settings) {
+      if (settings.enabled && !leIsApiValidatedFor(settings)) {
+        return 'Test the Joomla API URL and key successfully before enabling walk leader emails.';
+      }
+      if (settings.notifyOnLookupFailure && !settings.lookupFailureNotifyAddress.trim()) {
+        return 'Enter a report address, or turn off the lookup-failure email.';
+      }
+      if (settings.notifyOnNameNotShared && !settings.nameNotSharedNotifyAddress.trim()) {
+        return 'Enter a notify address, or turn off the name-not-shared notification.';
+      }
+      if (settings.testModeEnabled && !settings.testAllowedEmails.trim()) {
+        return 'Enter at least one test leader email address, or turn off test mode.';
+      }
+      return '';
+    }
+
+    let leApiValidatedKey = null;
+
+    function leApiKeyFor(settings) {
+      return `${(settings.apiBaseUrl || '').trim()}::${settings.apiToken || ''}`;
+    }
+
+    function leIsApiValidatedFor(settings) {
+      return leApiValidatedKey !== null && leApiValidatedKey === leApiKeyFor(settings);
+    }
+
+    function leRefreshEnabledAvailability() {
+      const valid = leIsApiValidatedFor(leCurrentSettings());
+      leFields.enabled.disabled = !valid;
+      if (!valid) leFields.enabled.checked = false;
+    }
+
+    leFields.apiBaseUrl.addEventListener('input', leRefreshEnabledAvailability);
+    leFields.apiToken.addEventListener('input', leRefreshEnabledAvailability);
+
+    function leUpdateNameNotSharedAddressState() {
+      leFields.nameNotSharedNotifyAddress.disabled = !leFields.notifyOnNameNotShared.checked;
+    }
+
+    leFields.notifyOnNameNotShared.addEventListener('change', leUpdateNameNotSharedAddressState);
+
+    function loadLeaderEmailSettings() {
+      window.leaderEmailSettings.load().then((settings) => {
+        leFields.enabled.checked = settings.enabled === true;
+        leFields.sendOnSubmit.checked = settings.sendOnSubmit !== false;
+        leFields.sendOnPublish.checked = settings.sendOnPublish !== false;
+        leFields.apiBaseUrl.value = settings.apiBaseUrl || '';
+        leFields.apiToken.value = '';
+        leFields.apiToken.placeholder = settings.apiTokenIsSet ? '•••• (already set - leave blank to keep it)' : '';
+        leFields.notifyOnLookupFailure.checked = settings.notifyOnLookupFailure === true;
+        leFields.lookupFailureNotifyAddress.value = settings.lookupFailureNotifyAddress || '';
+        leFields.notifyOnNameNotShared.checked = settings.notifyOnNameNotShared === true;
+        leFields.nameNotSharedNotifyAddress.value = settings.nameNotSharedNotifyAddress || '';
+        leUpdateNameNotSharedAddressState();
+        leFields.testModeEnabled.checked = settings.testModeEnabled === true;
+        leFields.testAllowedEmails.value = Array.isArray(settings.testAllowedEmails) ? settings.testAllowedEmails.join('\n') : '';
+
+        if (settings.enabled && settings.apiBaseUrl && settings.apiTokenIsSet) {
+          leApiValidatedKey = leApiKeyFor({ apiBaseUrl: settings.apiBaseUrl, apiToken: '' });
+        }
+        leRefreshEnabledAvailability();
+        leFields.enabled.checked = settings.enabled === true && leIsApiValidatedFor(leCurrentSettings());
+      });
+    }
+
+    loadLeaderEmailSettings();
+
+    document.getElementById('leTestApi').addEventListener('click', async () => {
+      const button = document.getElementById('leTestApi');
+      button.disabled = true;
+      setMessage(leaderEmailMessage, 'Testing Joomla API...', '');
+      try {
+        const settings = leCurrentSettings();
+        const result = await window.leaderEmailSettings.testApi(settings);
+        setMessage(leaderEmailMessage, result.message, result.ok ? 'ok' : 'error');
+        leApiValidatedKey = result.ok ? leApiKeyFor(settings) : null;
+        leRefreshEnabledAvailability();
+      } catch (error) {
+        setMessage(leaderEmailMessage, `API test failed: ${error.message}`, 'error');
+        leApiValidatedKey = null;
+        leRefreshEnabledAvailability();
+      } finally {
+        button.disabled = false;
+      }
+    });
+
+    document.getElementById('saveLeaderEmail').addEventListener('click', async () => {
+      const settings = leCurrentSettings();
+      const error = leValidationError(settings);
+      if (error) {
+        setMessage(leaderEmailMessage, error, 'error');
+        return;
+      }
+      await window.leaderEmailSettings.save(settings);
+      setMessage(leaderEmailMessage, 'Saved.', 'ok');
+    });
+
+    // --- App Settings ---
+    document.getElementById('openSettings').addEventListener('click', () => window.appSettings.openSettings());
+    document.getElementById('openHelp').addEventListener('click', () => window.appSettings.openHelp());
+
+    // --- Branding ---
+    const brandingPreview = document.getElementById('brandingPreview');
+    const brandingMessage = document.getElementById('brandingMessage');
+    const brandingHint = document.getElementById('brandingHint');
+    const chooseLogoButton = document.getElementById('chooseLogo');
+    const resetLogoButton = document.getElementById('resetLogo');
+    const brandingHintDefault = brandingHint.textContent;
+    const brandingHintSet = "The logo below is currently set on your notification emails. To remove it, click Reset Logo, or to change it, click Change Logo.";
+
+    function applyLogoState(dataUrl) {
+      const hasLogo = Boolean(dataUrl);
+      brandingPreview.style.display = hasLogo ? '' : 'none';
+      brandingPreview.src = hasLogo ? dataUrl : '';
+      chooseLogoButton.textContent = hasLogo ? 'Change Logo' : 'Upload Logo';
+      resetLogoButton.style.display = hasLogo ? '' : 'none';
+      brandingHint.textContent = hasLogo ? brandingHintSet : brandingHintDefault;
+    }
+
+    window.branding.status().then((result) => applyLogoState(result.dataUrl));
+
+    chooseLogoButton.addEventListener('click', async () => {
+      const result = await window.branding.chooseLogo();
+      if (result.ok) {
+        setMessage(brandingMessage, '', '');
+        applyLogoState(result.dataUrl);
+      } else if (result.error) {
+        setMessage(brandingMessage, result.error, 'error');
+      }
+    });
+
+    resetLogoButton.addEventListener('click', async () => {
+      const result = await window.branding.resetLogo();
+      if (result.ok) {
+        setMessage(brandingMessage, '', '');
+        applyLogoState(result.dataUrl);
+      } else {
+        setMessage(brandingMessage, result.error, 'error');
+      }
+    });
+
+    // --- About ---
+    window.about.load().then((info) => {
+      document.getElementById('aboutVersion').textContent = `Version: ${info.version}`;
+      document.getElementById('aboutChannel').textContent = `Release channel: ${info.channel}`;
+    });
+    document.getElementById('openWebsite').addEventListener('click', () => window.about.openWebsite());
+
+    // --- Quit ---
+    document.getElementById('quitButton').addEventListener('click', () => window.appSettings.quit());
+    document.getElementById('minimizeToTrayButton').addEventListener('click', () => window.appSettings.minimizeToTray());
+  </script>
+</body>
+</html>

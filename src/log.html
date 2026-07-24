@@ -49,6 +49,21 @@
       font-size: 12px;
     }
 
+    button.close {
+      font-family: inherit;
+      font-size: 13px;
+      padding: 6px 14px;
+      border-radius: 6px;
+      border: none;
+      background: #f0814f;
+      color: white;
+      cursor: pointer;
+    }
+
+    button.close:hover {
+      background: #d96a3a;
+    }
+
     main {
       padding: 14px 18px 20px;
     }
@@ -96,6 +111,7 @@
     <img src="../assets/ramblers-logo.png" alt="">
     <h1>RA Walks Notifier Logs</h1>
     <div class="meta" id="meta">Loading...</div>
+    <button class="close" id="close">Close</button>
   </header>
   <main>
     <pre id="log"></pre>
@@ -118,6 +134,8 @@
 
     refresh();
     setInterval(refresh, 1500);
+
+    document.getElementById('close').addEventListener('click', () => window.close());
   </script>
 </body>
 </html>

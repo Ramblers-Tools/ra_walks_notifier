@@ -1,9 +1,15 @@
-const { app, Tray, Menu, shell, dialog, Notification, BrowserWindow, ipcMain, nativeImage, session: electronSession } = require('electron');
+const { app, Menu, Tray, Notification, shell, dialog, BrowserWindow, ipcMain, nativeImage } = require('electron');
 const { autoUpdater } = require('electron-updater');
 const path = require('path');
 const fs = require('fs');
 const { formatUkDateTime } = require('./time');
 const { migrateLegacyConfig, parseRecipients } = require('./config');
+
+// Packaged builds already get "RA Walks Notifier" from package.json's
+// productName (baked into the executable/Info.plist). In an unpackaged dev
+// run the binary is literally named Electron, so macOS's menu bar shows
+// that name unless overridden here.
+app.setName('RA Walks Notifier');
 
 if (!app.requestSingleInstanceLock()) {
   app.quit();
@@ -11,37 +17,32 @@ if (!app.requestSingleInstanceLock()) {
 }
 
 app.on('second-instance', () => {
-  if (isConfigured()) {
-    showStatus();
-  } else {
-    showConnectWindow();
-  }
+  showDashboard();
 });
 
 migrateLegacyConfig();
 
 const apiClient = require('./apiClient');
 
-let tray;
 let statusPollTimer;
-let connectWindow;
-let recipientsWindow;
-let scheduleWindow;
-let leaderEmailWindow;
+let dashboardWindow;
 let loginWindow;
 let logWindow;
-let aboutWindow;
-let statusWindow;
-let lastStatus = 'Starting...';
+let settingsWindow;
+let credentialsUpgradeWindow;
+let tray;
 let updateStatus = 'Not checked';
 let manualUpdateCheck = false;
 let updateHandlersConfigured = false;
 let quittingForUpdate = false;
 let lastLoginAutoAdvanceAt = 0;
+// Baseline for the "new pending walks" tray notification - null until the
+// first successful status fetch, so we never notify about walks that were
+// already pending before this run started, only ones that show up after.
+let lastNotifiedPendingWalks = null;
 
-// In-memory cache of the last successful API responses. The tray/menu/status
-// text are all built from this cache rather than fetching live on every
-// render, since Electron menu/tray updates need to be synchronous.
+// In-memory cache of the last successful API responses, refreshed on a
+// timer and re-read by the Dashboard's Status section on demand.
 let cachedConfig = null;
 let cachedStatus = null;
 let cachedGroups = [];
@@ -49,6 +50,7 @@ let cachedSessionPresent = false;
 
 const root = path.join(__dirname, '..');
 const websiteUrl = 'https://rawalksnotifier.ramblers.tools/';
+const helpUrl = 'https://docs.ramblers.tools/ra-walks-notifier';
 const walksPartition = 'persist:walks-manager-watch-browser';
 const updateCheckIntervalMs = 6 * 60 * 60 * 1000;
 const statusPollIntervalMs = 30 * 1000;
@@ -62,8 +64,7 @@ function releaseChannelLabel() {
 }
 
 function displayVersion() {
-  const version = app.getVersion();
-  return isBetaBuild() ? `${version} Beta` : version;
+  return app.getVersion();
 }
 
 function includeBetaUpdates() {
@@ -91,13 +92,10 @@ async function toggleBetaUpdates() {
       defaultId: 0,
       cancelId: 0
     });
-    if (result.response !== 1) {
-      buildMenu();
-      return;
-    }
+    if (result.response !== 1) return includeBetaUpdates();
   }
   apiClient.setIncludeBetaUpdates(nextValue);
-  buildMenu();
+  return nextValue;
 }
 
 function ramblersLogoPath() {
@@ -109,40 +107,21 @@ function appIconPath() {
 function appWindowOptions(options) {
   return Object.assign({ icon: appIconPath() }, options);
 }
-function logWindowOptions(options) {
-  return Object.assign({ icon: ramblersLogoPath() }, options);
-}
-function visibleAppWindows() {
-  return [connectWindow, recipientsWindow, scheduleWindow, leaderEmailWindow, loginWindow, logWindow, aboutWindow, statusWindow].filter(window => window && !window.isDestroyed());
-}
-function showDockIcon(iconPath = appIconPath()) {
-  if (!app.dock) return;
-  app.dock.setIcon(iconPath);
-  app.dock.show();
-}
-function refreshDockVisibility() {
-  if (!app.dock) return;
-  if (visibleAppWindows().length) {
-    app.dock.show();
-  } else {
-    app.dock.hide();
-  }
-}
-function trackVisibleWindow(window, iconPath = appIconPath()) {
-  showDockIcon(iconPath);
-  window.on('closed', () => {
-    setImmediate(refreshDockVisibility);
-  });
-  return window;
-}
 
-function statusLine(label, value) {
-  return `${label}: ${value}`;
-}
-
-function statusList(label, values, empty = 'None configured') {
-  if (!values.length) return statusLine(label, empty);
-  return `${label}:\n${values.map(value => `  ${value}`).join('\n')}`;
+function createTray() {
+  if (tray) return;
+  // Just the mark, transparent background - not the full white-squircle
+  // app icon, which looks padded/boxy at tray size next to other apps'
+  // plain icons. Electron auto-picks tray-icon@2x.png for HiDPI displays.
+  const trayImage = nativeImage.createFromPath(path.join(root, 'assets', 'tray-icon.png'));
+  tray = new Tray(trayImage);
+  tray.setToolTip('RA Walks Notifier');
+  tray.setContextMenu(Menu.buildFromTemplate([
+    { label: 'Open RA Walks Notifier', click: () => showDashboard() },
+    { type: 'separator' },
+    { label: 'Quit', click: () => app.quit() }
+  ]));
+  tray.on('click', () => showDashboard());
 }
 
 function isConfigured() {
@@ -154,27 +133,29 @@ function isConfigured() {
   );
 }
 
+// The server can't reliably tell "changed" and "cleared" walks apart from
+// a plain review-list diff, so those two counts in its check-result summary
+// are not trustworthy - strip them here rather than show numbers that look
+// precise but aren't. ("N pending; N new" stays, since those are reliable.)
+function stripUnreliableResultCounts(lastResult) {
+  if (!lastResult) return lastResult;
+  return lastResult
+    .replace(/;\s*\d+\s*changed/i, '')
+    .replace(/;\s*\d+\s*cleared/i, '');
+}
+
 function buildStatusText() {
   const s = cachedStatus || {};
-  const groupNames = cachedGroups.map(group => group.name || `Group ${group.gid}`);
-  const recipients = parseRecipients(cachedConfig?.notificationRecipients || []);
-  const schedule = { checkIntervalMinutes: cachedConfig?.checkIntervalMinutes || 5, activeHours: cachedConfig?.activeHours || { start: 7, end: 22 } };
-  const pending = Number(s.pendingWalks || 0);
+  const credentialsSet = Boolean(cachedConfig?.walksManagerCredentials?.credentialsSet);
   return [
     `Status: ${s.maintenanceMessage ? 'Server offline (maintenance)' : apiClient.hasApiKey() ? 'Connected' : 'Not connected'}`,
     `Last error: ${s.lastError || 'None'}`,
+    `Auto re-login credentials: ${credentialsSet ? 'Saved' : 'Not saved'}`,
     `Session: ${cachedSessionPresent ? 'Present' : 'Missing'}`,
-    `Pending walks: ${pending}`,
     '',
-    statusList(cachedGroups.length === 1 ? 'Group' : 'Groups', groupNames, 'Not selected'),
-    '',
-    `Schedule: Every ${schedule.checkIntervalMinutes} minutes`,
-    `Active hours: ${String(schedule.activeHours.start).padStart(2, '0')}:00 to ${String(schedule.activeHours.end).padStart(2, '0')}:00`,
     `Last check: ${formatUkDateTime(s.lastCheckCompletedAt)}`,
-    `Last result: ${s.lastResult || 'None yet'}`,
-    `Last email: ${formatUkDateTime(s.lastEmailAt)}`,
-    '',
-    statusList('Recipients', recipients)
+    `Last result: ${stripUnreliableResultCounts(s.lastResult) || 'None yet'}`,
+    `Last email: ${formatUkDateTime(s.lastEmailAt)}`
   ].join('\n');
 }
 
@@ -187,35 +168,37 @@ function reviewUrlForGroup(group = selectedGroup()) {
   return `https://walks-manager.ramblers.org.uk/walks-manager/list?gid=${encodeURIComponent(group.gid)}&review=1`;
 }
 
-function showStatus() {
-  if (statusWindow) {
-    statusWindow.focus();
+function showDashboard() {
+  if (app.dock) app.dock.show();
+  if (dashboardWindow) {
+    // Minimize to Tray hides rather than closes the window, so it can
+    // still exist here but not be visible - show() before focus() or the
+    // focus call is a no-op on a hidden window.
+    dashboardWindow.show();
+    dashboardWindow.focus();
     return;
   }
 
-  statusWindow = trackVisibleWindow(new BrowserWindow(appWindowOptions({
-    width: 480,
-    height: 640,
-    title: 'RA Walks Notifier Status',
-    resizable: false,
-    minimizable: false,
-    fullscreenable: false,
+  dashboardWindow = new BrowserWindow(appWindowOptions({
+    width: 960,
+    height: 1000,
+    title: 'RA Walks Notifier',
+    backgroundColor: '#e9ebef',
     show: false,
-    backgroundColor: '#f7f8fa',
     webPreferences: {
-      preload: path.join(__dirname, 'statusPreload.js')
+      preload: path.join(__dirname, 'dashboardPreload.js')
     }
-  })));
+  }));
 
-  statusWindow.once('ready-to-show', () => {
-    statusWindow.show();
+  dashboardWindow.once('ready-to-show', () => {
+    dashboardWindow.show();
   });
 
-  statusWindow.on('closed', () => {
-    statusWindow = null;
+  dashboardWindow.on('closed', () => {
+    dashboardWindow = null;
   });
 
-  statusWindow.loadFile(path.join(__dirname, 'status.html'));
+  dashboardWindow.loadFile(path.join(root, 'src', 'dashboard.html'));
 }
 
 function showLogWindow() {
@@ -224,16 +207,23 @@ function showLogWindow() {
     return;
   }
 
-  logWindow = trackVisibleWindow(new BrowserWindow(logWindowOptions({
+  // Nest under whichever modal window is currently open (e.g. App
+  // Settings, where "View Logs" lives) rather than always the Dashboard -
+  // two sibling modals both blocking the Dashboard left this one opening
+  // behind the other, looking like nothing happened.
+  const logParent = (settingsWindow && !settingsWindow.isDestroyed()) ? settingsWindow : dashboardWindow;
+  logWindow = new BrowserWindow(appWindowOptions({
     width: 900,
     height: 620,
     title: 'RA Walks Notifier Logs',
+    parent: logParent,
+    modal: true,
     webPreferences: {
       preload: path.join(__dirname, 'logPreload.js'),
       contextIsolation: true,
       nodeIntegration: false
     }
-  })), ramblersLogoPath());
+  }));
 
   logWindow.on('closed', () => {
     logWindow = null;
@@ -242,46 +232,146 @@ function showLogWindow() {
   logWindow.loadFile(path.join(__dirname, 'log.html'));
 }
 
+function showSettingsWindow() {
+  if (settingsWindow) {
+    settingsWindow.focus();
+    return;
+  }
+
+  settingsWindow = new BrowserWindow(appWindowOptions({
+    width: 480,
+    height: 270,
+    title: 'App Settings',
+    resizable: false,
+    minimizable: false,
+    fullscreenable: false,
+    backgroundColor: '#f7f8fa',
+    parent: dashboardWindow,
+    modal: true,
+    webPreferences: {
+      preload: path.join(__dirname, 'settingsPreload.js')
+    }
+  }));
+
+  settingsWindow.on('closed', () => {
+    settingsWindow = null;
+  });
+
+  settingsWindow.loadFile(path.join(__dirname, 'settings.html'));
+}
+
+function showCredentialsUpgradeWindow() {
+  if (credentialsUpgradeWindow) {
+    credentialsUpgradeWindow.focus();
+    return;
+  }
+
+  credentialsUpgradeWindow = new BrowserWindow(appWindowOptions({
+    width: 480,
+    height: 460,
+    title: 'Upgrade to Auto Login',
+    resizable: false,
+    minimizable: false,
+    fullscreenable: false,
+    backgroundColor: '#f7f8fa',
+    parent: dashboardWindow,
+    modal: true,
+    webPreferences: {
+      preload: path.join(__dirname, 'credentialsPreload.js')
+    }
+  }));
+
+  credentialsUpgradeWindow.on('closed', () => {
+    credentialsUpgradeWindow = null;
+  });
+
+  credentialsUpgradeWindow.loadFile(path.join(__dirname, 'credentials.html'));
+}
+
 function handleRevokedApiKey(message) {
   apiClient.clearApiKey();
   cachedConfig = null;
   cachedGroups = [];
   cachedSessionPresent = false;
   cachedStatus = null;
-  buildMenu();
+  lastNotifiedPendingWalks = null;
   dialog.showMessageBox({
     type: 'error',
     title: 'RA Walks Notifier',
     message: 'Reconnect required',
     detail: message
   });
-  showConnectWindow();
+  showDashboard();
+}
+
+function notifyIfNewPendingWalks(status) {
+  const pending = Number(status?.pendingWalks || 0);
+  // No baseline yet (first successful fetch this run) - just record it,
+  // don't notify about walks that were already pending before we started.
+  if (lastNotifiedPendingWalks === null) {
+    lastNotifiedPendingWalks = pending;
+    return;
+  }
+  const isRunningInTray = !dashboardWindow || dashboardWindow.isDestroyed() || !dashboardWindow.isVisible();
+  if (isRunningInTray && pending > lastNotifiedPendingWalks && Notification.isSupported()) {
+    const added = pending - lastNotifiedPendingWalks;
+    const notification = new Notification({
+      title: 'RA Walks Notifier',
+      body: `${added} new pending walk${added === 1 ? '' : 's'} to review (${pending} total).`
+    });
+    notification.on('click', () => showDashboard());
+    notification.show();
+  }
+  lastNotifiedPendingWalks = pending;
 }
 
 async function refreshCache() {
   if (!apiClient.hasApiKey()) return;
+
+  // Each endpoint is fetched independently - previously a Promise.all meant
+  // one endpoint failing (even transiently) discarded every other endpoint's
+  // successful result for this cycle, e.g. a session-status check that
+  // genuinely succeeded would still get reported stale because /api/status
+  // hiccuped in the same batch.
+  let unauthorizedError = null;
+  let otherError = null;
+
   try {
-    const [config, status, sessionStatus] = await Promise.all([
-      apiClient.getConfig(),
-      apiClient.getStatus(),
-      apiClient.getSessionStatus()
-    ]);
+    const config = await apiClient.getConfig();
     cachedConfig = config;
-    cachedStatus = status;
     cachedGroups = config.groups || [];
+  } catch (error) {
+    if (error.code === 'unauthorized') unauthorizedError = error;
+    else otherError = error;
+  }
+
+  try {
+    cachedStatus = await apiClient.getStatus();
+    notifyIfNewPendingWalks(cachedStatus);
+  } catch (error) {
+    if (error.code === 'unauthorized') unauthorizedError = error;
+    else otherError = error;
+  }
+
+  try {
+    const sessionStatus = await apiClient.getSessionStatus();
     cachedSessionPresent = sessionStatus.present;
   } catch (error) {
-    if (error.code === 'unauthorized') {
-      handleRevokedApiKey(error.message);
-      return;
-    }
-    if (error.code === 'maintenance') {
-      cachedStatus = { ...(cachedStatus || {}), maintenanceMessage: `${error.message} [${error.diagnostic || 'no diagnostic'}]` };
+    if (error.code === 'unauthorized') unauthorizedError = error;
+    else otherError = error;
+  }
+
+  if (unauthorizedError) {
+    handleRevokedApiKey(unauthorizedError.message);
+    return;
+  }
+  if (otherError) {
+    if (otherError.code === 'maintenance') {
+      cachedStatus = { ...(cachedStatus || {}), maintenanceMessage: `${otherError.message} [${otherError.diagnostic || 'no diagnostic'}]` };
     } else {
-      cachedStatus = { ...(cachedStatus || {}), maintenanceMessage: null, lastError: `Could not reach server: ${error.message}` };
+      cachedStatus = { ...(cachedStatus || {}), maintenanceMessage: null, lastError: `Could not reach server: ${otherError.message}` };
     }
   }
-  updateTrayLabel();
 }
 
 async function startStatusPolling() {
@@ -290,164 +380,83 @@ async function startStatusPolling() {
   statusPollTimer = setInterval(refreshCache, statusPollIntervalMs);
 }
 
-function updateTrayLabel() {
-  const s = cachedStatus || {};
-  const count = Number(s.pendingWalks || 0);
-  const err = s.lastError;
-  lastStatus = s.maintenanceMessage
-    ? '⚠ Server offline (maintenance)'
-    : s.checking ? 'Checking...' : err ? `Error: ${err}` : `${count} pending walk${count === 1 ? '' : 's'}`;
-  if (tray) tray.setTitle(` ${count}`);
-  buildMenu();
-}
-
-function trayIcon() {
-  const image = nativeImage.createFromPath(path.join(root, 'assets', 'ramblers-logo.png'));
-  if (image.isEmpty()) {
-    return nativeImage.createFromPath(path.join(root, 'assets', 'trayTemplate.png'));
-  }
-  const resized = image.resize({ width: 18, height: 18 });
-  resized.setTemplateImage(false);
-  return resized;
-}
-
 async function checkNow(force = false) {
   if (!isConfigured()) {
-    lastStatus = 'Setup required';
-    buildMenu();
-    showConnectWindow();
-    return;
+    return { ok: false, error: 'Setup required before running a check.' };
   }
 
-  lastStatus = 'Checking...';
-  buildMenu();
   try {
     await apiClient.postCheckNow(force);
   } catch (error) {
     if (error.code === 'unauthorized') {
       handleRevokedApiKey(error.message);
-      return;
+      return { ok: false, error: error.message };
     }
-    new Notification({ title: 'RA Walks Notifier', body: error.message }).show();
+    return { ok: false, error: error.message };
   }
   // The check runs asynchronously on the server; poll shortly after to
   // pick up progress, then again once it should have finished.
   setTimeout(refreshCache, 5000);
   setTimeout(refreshCache, 90000);
+  return { ok: true };
 }
+
+const maxLogoBytes = 2 * 1024 * 1024; // 2 MB - plenty for a logo, not for a full-res photo
+const maxLogoDimension = 250; // px - a logo, not a full-res photo
+// SVG (vector, no inherent pixel size to check) and WebP (nativeImage can't
+// decode it at all - see prior commit) are excluded rather than special-cased.
+const allowedLogoExtensions = ['png', 'jpg', 'jpeg', 'gif'];
 
 async function chooseBrandLogo() {
   const result = await dialog.showOpenDialog({
     title: 'Choose Ramblers Logo',
     properties: ['openFile'],
-    filters: [{ name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg'] }]
+    filters: [{ name: 'Images', extensions: allowedLogoExtensions }]
   });
-  if (result.canceled || !result.filePaths.length) return;
+  if (result.canceled || !result.filePaths.length) return { ok: false };
 
   const filePath = result.filePaths[0];
-  const ext = path.extname(filePath).slice(1);
+  const ext = path.extname(filePath).slice(1).toLowerCase();
+  if (!allowedLogoExtensions.includes(ext)) {
+    return { ok: false, error: 'Please choose a PNG, JPG, or GIF image.' };
+  }
+  const { size } = fs.statSync(filePath);
+  if (size > maxLogoBytes) {
+    return { ok: false, error: `That image is too large (${(size / (1024 * 1024)).toFixed(1)} MB). Please choose one under ${maxLogoBytes / (1024 * 1024)} MB.` };
+  }
+  const image = nativeImage.createFromPath(filePath);
+  if (image.isEmpty()) {
+    return { ok: false, error: "Couldn't read that image - please choose a different file." };
+  }
+  const { width, height } = image.getSize();
+  if (width > maxLogoDimension || height > maxLogoDimension) {
+    return { ok: false, error: `That image is ${width}x${height}px. Please choose one no larger than ${maxLogoDimension}x${maxLogoDimension}px.` };
+  }
   try {
     const data = fs.readFileSync(filePath).toString('base64');
-    await apiClient.putLogo(data, ext);
-    dialog.showMessageBox({ type: 'info', title: 'RA Walks Notifier', message: 'Logo updated.' });
+    const response = await apiClient.putLogo(data, ext);
+    return { ok: true, message: 'Logo updated.', dataUrl: response.dataUrl || '' };
   } catch (error) {
-    dialog.showMessageBox({ type: 'error', title: 'RA Walks Notifier', message: error.message });
+    return { ok: false, error: error.message };
   }
 }
 
 async function resetBrandLogo() {
   try {
-    await apiClient.deleteLogo();
-    dialog.showMessageBox({ type: 'info', title: 'RA Walks Notifier', message: 'Logo reset to the built-in Ramblers logo.' });
+    const response = await apiClient.deleteLogo();
+    return { ok: true, message: 'Logo removed.', dataUrl: response.dataUrl || '' };
   } catch (error) {
-    dialog.showMessageBox({ type: 'error', title: 'RA Walks Notifier', message: error.message });
+    return { ok: false, error: error.message };
   }
 }
 
-function showAbout() {
-  if (aboutWindow) {
-    aboutWindow.focus();
-    return;
+async function loadBrandLogo() {
+  try {
+    const response = await apiClient.getLogo();
+    return { dataUrl: response.dataUrl || '' };
+  } catch (error) {
+    return { dataUrl: '', error: error.message };
   }
-
-  aboutWindow = trackVisibleWindow(new BrowserWindow(appWindowOptions({
-    width: 360,
-    height: 390,
-    title: 'About RA Walks Notifier',
-    resizable: false,
-    minimizable: false,
-    fullscreenable: false,
-    show: false,
-    backgroundColor: '#f7f8fa',
-    webPreferences: {
-      preload: path.join(__dirname, 'aboutPreload.js')
-    }
-  })));
-
-  aboutWindow.once('ready-to-show', () => {
-    aboutWindow.show();
-  });
-
-  aboutWindow.on('closed', () => {
-    aboutWindow = null;
-  });
-
-  aboutWindow.loadFile(path.join(__dirname, 'about.html'));
-}
-
-function supportsLoginItemSettings() {
-  return process.platform === 'darwin' || process.platform === 'win32' || process.platform === 'linux';
-}
-
-function linuxAutostartFile() {
-  const configHome = process.env.XDG_CONFIG_HOME || path.join(app.getPath('home'), '.config');
-  return path.join(configHome, 'autostart', 'walks-manager-watch.desktop');
-}
-
-function quoteDesktopExec(value) {
-  return `"${String(value).replace(/(["\\`$])/g, '\\$1')}"`;
-}
-
-function linuxAutostartEntry() {
-  return [
-    '[Desktop Entry]',
-    'Type=Application',
-    'Name=RA Walks Notifier',
-    'Comment=Monitor Ramblers Walks Manager review queues',
-    `Exec=${quoteDesktopExec(process.execPath)}`,
-    'Terminal=false',
-    'X-GNOME-Autostart-enabled=true',
-    'Categories=Utility;',
-    ''
-  ].join('\n');
-}
-
-function startAtBootEnabled() {
-  if (!supportsLoginItemSettings()) return false;
-  if (process.platform === 'linux') return fs.existsSync(linuxAutostartFile());
-  return app.getLoginItemSettings().openAtLogin;
-}
-
-function toggleStartAtBoot() {
-  const enabled = !startAtBootEnabled();
-  if (process.platform === 'linux') {
-    const autostartFile = linuxAutostartFile();
-    if (enabled) {
-      fs.mkdirSync(path.dirname(autostartFile), { recursive: true });
-      fs.writeFileSync(autostartFile, linuxAutostartEntry());
-    } else if (fs.existsSync(autostartFile)) {
-      fs.rmSync(autostartFile, { force: true });
-    }
-    buildMenu();
-    return;
-  }
-
-  app.setLoginItemSettings({
-    openAtLogin: enabled,
-    openAsHidden: true,
-    path: process.execPath
-  });
-  buildMenu();
 }
 
 function prepareForUpdateInstall() {
@@ -455,7 +464,12 @@ function prepareForUpdateInstall() {
   if (statusPollTimer) clearInterval(statusPollTimer);
   statusPollTimer = null;
   stopUpdateChecks();
-  cleanupShipItUpdateCache();
+  // Do NOT clean the ShipIt cache here - it holds the update.* staging
+  // files ShipIt needs to actually perform the install after quitAndInstall()
+  // runs. Wiping it right before installing meant the app just quit with
+  // nothing left to install. The cache is already cleaned proactively at
+  // update-available, before a *new* download starts - that's the right
+  // time for it, not immediately before installing the one just downloaded.
 }
 
 function installDownloadedUpdate() {
@@ -505,26 +519,19 @@ function configureUpdates() {
 
   autoUpdater.on('checking-for-update', () => {
     updateStatus = 'Checking...';
-    buildMenu();
   });
 
   autoUpdater.on('update-not-available', () => {
+    // No dialog here - App Settings now shows this status live ("Update:
+    // No update available") while Check for Updates is in flight, so a
+    // popup the user has to dismiss on top of that would be redundant.
     updateStatus = 'No update available';
-    buildMenu();
-    if (manualUpdateCheck) {
-      dialog.showMessageBox({
-        type: 'info',
-        title: 'RA Walks Notifier',
-        message: 'RA Walks Notifier is up to date.'
-      });
-    }
     manualUpdateCheck = false;
   });
 
   autoUpdater.on('update-available', (info) => {
     manualUpdateCheck = false;
     updateStatus = `Downloading version ${info.version}...`;
-    buildMenu();
     // Runs synchronously before autoUpdater's own auto-download kicks in
     // (it starts downloading right after this event finishes emitting).
     cleanupDownloadedUpdateCache();
@@ -532,7 +539,6 @@ function configureUpdates() {
 
   autoUpdater.on('update-downloaded', (info) => {
     updateStatus = `Version ${info.version} ready`;
-    buildMenu();
     dialog.showMessageBox({
       type: 'info',
       title: 'RA Walks Notifier Update',
@@ -548,7 +554,6 @@ function configureUpdates() {
 
   autoUpdater.on('error', (error) => {
     updateStatus = 'Check failed';
-    buildMenu();
     const detail = error.stack || error.message;
     const lowSpace = /no space left on device|ENOSPC|Could not write update request/i.test(detail);
     if (manualUpdateCheck) {
@@ -580,7 +585,6 @@ function checkForUpdates(manual = true) {
     }
     updateStatus = 'Installed app only';
     manualUpdateCheck = false;
-    buildMenu();
     return;
   }
   autoUpdater.checkForUpdates();
@@ -602,106 +606,6 @@ function startUpdateChecks() {
 
   initialUpdateTimer = setTimeout(() => checkForUpdates(false), 10000);
   updateTimer = setInterval(() => checkForUpdates(false), updateCheckIntervalMs);
-}
-
-function showConnectWindow() {
-  if (connectWindow) {
-    connectWindow.focus();
-    return;
-  }
-
-  connectWindow = trackVisibleWindow(new BrowserWindow(appWindowOptions({
-    width: 560,
-    height: 860,
-    title: 'Server Connection & Login',
-    resizable: false,
-    minimizable: false,
-    fullscreenable: false,
-    webPreferences: {
-      preload: path.join(__dirname, 'connectPreload.js')
-    }
-  })));
-
-  connectWindow.on('closed', () => {
-    connectWindow = null;
-  });
-
-  connectWindow.loadFile(path.join(root, 'src', 'connect.html'));
-}
-
-function showRecipientsWindow() {
-  if (recipientsWindow) {
-    recipientsWindow.focus();
-    return;
-  }
-
-  recipientsWindow = trackVisibleWindow(new BrowserWindow(appWindowOptions({
-    width: 520,
-    height: 360,
-    title: 'Notification Recipients',
-    resizable: false,
-    minimizable: false,
-    fullscreenable: false,
-    webPreferences: {
-      preload: path.join(__dirname, 'recipientsPreload.js')
-    }
-  })));
-
-  recipientsWindow.on('closed', () => {
-    recipientsWindow = null;
-  });
-
-  recipientsWindow.loadFile(path.join(root, 'src', 'recipients.html'));
-}
-
-function showScheduleWindow() {
-  if (scheduleWindow) {
-    scheduleWindow.focus();
-    return;
-  }
-
-  scheduleWindow = trackVisibleWindow(new BrowserWindow(appWindowOptions({
-    width: 520,
-    height: 320,
-    title: 'Check Schedule and Active Hours',
-    resizable: false,
-    minimizable: false,
-    fullscreenable: false,
-    webPreferences: {
-      preload: path.join(__dirname, 'schedulePreload.js')
-    }
-  })));
-
-  scheduleWindow.on('closed', () => {
-    scheduleWindow = null;
-  });
-
-  scheduleWindow.loadFile(path.join(root, 'src', 'schedule.html'));
-}
-
-function showLeaderEmailWindow() {
-  if (leaderEmailWindow) {
-    leaderEmailWindow.focus();
-    return;
-  }
-
-  leaderEmailWindow = trackVisibleWindow(new BrowserWindow(appWindowOptions({
-    width: 560,
-    height: 470,
-    title: 'Leader Email Settings',
-    resizable: false,
-    minimizable: false,
-    fullscreenable: false,
-    webPreferences: {
-      preload: path.join(__dirname, 'leaderEmailPreload.js')
-    }
-  })));
-
-  leaderEmailWindow.on('closed', () => {
-    leaderEmailWindow = null;
-  });
-
-  leaderEmailWindow.loadFile(path.join(root, 'src', 'leaderEmail.html'));
 }
 
 function sameSiteForStorageState(value) {
@@ -946,7 +850,7 @@ async function extractGroupsFromMyGroupsPage(window) {
 }
 
 function showConfiguringWindow() {
-  const win = trackVisibleWindow(new BrowserWindow(appWindowOptions({
+  const win = new BrowserWindow(appWindowOptions({
     width: 420,
     height: 180,
     resizable: false,
@@ -955,7 +859,7 @@ function showConfiguringWindow() {
     show: false,
     title: 'RA Walks Notifier',
     backgroundColor: '#f7f8fa'
-  })));
+  }));
   win.loadURL(`data:text/html,${encodeURIComponent(`
     <!doctype html>
     <html>
@@ -995,7 +899,6 @@ async function saveSelectedGroups(groups) {
   if (!normalized.length) return;
   cachedConfig = await apiClient.putConfig({ groups: normalized });
   cachedGroups = cachedConfig.groups || [];
-  buildMenu();
 }
 
 // Re-runs group detection against the already-saved Walks Manager session
@@ -1216,7 +1119,7 @@ function openWalksManagerLoginWindow(credentials) {
     loginWindow.focus();
   } else {
     lastLoginAutoAdvanceAt = 0;
-    loginWindow = trackVisibleWindow(new BrowserWindow(appWindowOptions({
+    loginWindow = new BrowserWindow(appWindowOptions({
       width: 1180,
       height: 820,
       title: 'Walks Manager Login',
@@ -1229,7 +1132,7 @@ function openWalksManagerLoginWindow(credentials) {
         nodeIntegration: false,
         contextIsolation: true
       }
-    })));
+    }));
 
     loginWindow.on('closed', () => {
       loginWindow = null;
@@ -1299,7 +1202,18 @@ function openWalksManagerLoginWindow(credentials) {
         configuringWindow = showConfiguringWindow();
         loginWindow.hide();
 
-        let { groups, diagnostic } = await extractWalksManagerGroups(loginWindow);
+        // The review page's group selector is populated by client-side JS
+        // after navigation, so it isn't always ready the instant the page
+        // itself matches - a single fixed delay wasn't reliable enough (it
+        // still needed a manual retry sometimes), so retry the scrape a few
+        // times with a short wait between attempts before giving up on it.
+        let groups = [];
+        let diagnostic = '';
+        for (let attempt = 0; attempt < 5; attempt++) {
+          await new Promise((r) => setTimeout(r, 1200));
+          ({ groups, diagnostic } = await extractWalksManagerGroups(loginWindow));
+          if (groups.length) break;
+        }
         await saveElectronLoginSession(loginWindow);
 
         if (!groups.length) {
@@ -1338,93 +1252,48 @@ function openWalksManagerLoginWindow(credentials) {
   });
 }
 
-function buildMenu() {
-  const s = cachedStatus || {};
-  const lastCheck = formatUkDateTime(s.lastCheckCompletedAt);
-  const configured = isConfigured();
-  const statusLabel = configured ? lastStatus : 'Setup required';
-  const canStartOnLogin = supportsLoginItemSettings();
-  const bootEnabled = startAtBootEnabled();
-  const betaUpdates = includeBetaUpdates();
-  const menu = Menu.buildFromTemplate([
-    {
-      label: `Status: ${statusLabel}`,
-      enabled: !configured,
-      click: () => showConnectWindow()
-    },
-    { label: `Last check: ${lastCheck}`, enabled: false },
-    { label: `Update: ${updateStatus}`, enabled: false },
-    { type: 'separator' },
-    { label: 'Show Status', enabled: configured, click: () => showStatus() },
-    { label: 'Check Now', enabled: configured, click: () => checkNow(false) },
-    { label: 'Send Walks Report Email', enabled: configured, click: () => checkNow(true) },
-    { label: 'Open Review List', enabled: configured, click: () => shell.openExternal(reviewUrlForGroup()) },
-    {
-      label: 'Settings && Configuration',
-      submenu: [
-        { label: 'Server Connection && Login', click: () => showConnectWindow() },
-        { label: 'Manage Recipients', enabled: configured, click: () => showRecipientsWindow() },
-        { label: 'Leader Email Settings', enabled: configured, click: () => showLeaderEmailWindow() },
-        { label: 'Check Schedule and Active Hours', enabled: configured, click: () => showScheduleWindow() },
-        {
-          label: 'Start App on Login',
-          type: 'checkbox',
-          enabled: canStartOnLogin,
-          checked: bootEnabled,
-          click: () => toggleStartAtBoot()
-        },
-        {
-          label: 'Subscribe to Beta Updates',
-          type: 'checkbox',
-          checked: betaUpdates,
-          click: () => toggleBetaUpdates()
-        },
-        { type: 'separator' },
-        { label: 'Change Logo', enabled: configured, click: () => chooseBrandLogo() },
-        { label: 'Reset Logo', enabled: configured, click: () => resetBrandLogo() }
-      ]
-    },
-    { type: 'separator' },
-    { label: 'Check for Updates', click: () => checkForUpdates(true) },
-    { label: 'About', click: () => showAbout() },
-    { type: 'separator' },
-    { label: 'Quit', click: () => app.quit() }
-  ]);
-  tray.setContextMenu(menu);
-}
-
 app.whenReady().then(async () => {
   Menu.setApplicationMenu(null);
-  if (app.dock) app.dock.setIcon(appIconPath());
-  if (app.dock) app.dock.hide();
+  // A packaged build already gets its Dock icon from build/icon.icns via
+  // the app bundle's Info.plist - calling dock.setIcon() here as well was
+  // overriding that properly macOS-masked icon with a flatter-looking
+  // render of the same PNG. Only needed in dev mode, where there's no
+  // bundle/Info.plist and Electron would otherwise show its own icon.
+  if (app.dock && !app.isPackaged) app.dock.setIcon(appIconPath());
+  createTray();
   configureUpdates();
-
-  tray = new Tray(trayIcon());
-  tray.setToolTip('RA Walks Notifier');
-  buildMenu();
-  // Wait for the first cache fill before deciding whether setup is
-  // needed - otherwise isConfigured() runs against the empty initial
-  // cache on every launch and shows the connect window unnecessarily.
+  // Wait for the first cache fill before opening the Dashboard, so its
+  // Status section doesn't start out reading the empty initial cache.
   await startStatusPolling();
-  if (!isConfigured()) {
-    showConnectWindow();
-  } else {
-    startUpdateChecks();
-  }
+  showDashboard();
+  if (isConfigured()) startUpdateChecks();
 });
 
 ipcMain.handle('connect:status', async () => {
   const apiKeySet = apiClient.hasApiKey();
-  if (!apiKeySet) return { apiKeySet: false, groups: [], sessionPresent: false };
+  if (!apiKeySet) return { apiKeySet: false, groups: [], sessionPresent: false, betaUser: false };
+  // Fetched independently so one endpoint failing (e.g. a transient /api/config
+  // hiccup) can't discard a session-status check that genuinely succeeded.
   try {
-    const [config, sessionStatus] = await Promise.all([apiClient.getConfig(), apiClient.getSessionStatus()]);
+    const config = await apiClient.getConfig();
     cachedConfig = config;
     cachedGroups = config.groups || [];
-    cachedSessionPresent = sessionStatus.present;
   } catch (_) {
     // Key saved but server unreachable right now - report what we know locally.
   }
-  return { apiKeySet, groups: cachedGroups, sessionPresent: cachedSessionPresent };
+  try {
+    const sessionStatus = await apiClient.getSessionStatus();
+    cachedSessionPresent = sessionStatus.present;
+  } catch (_) {
+    // Same as above - fall back to the last known value.
+  }
+  return {
+    apiKeySet,
+    groups: cachedGroups,
+    sessionPresent: cachedSessionPresent,
+    betaUser: Boolean(cachedConfig?.betaUser),
+    credentialsSet: Boolean(cachedConfig?.walksManagerCredentials?.credentialsSet)
+  };
 });
 
 ipcMain.handle('connect:save-api-key', async (_event, apiKey) => {
@@ -1433,7 +1302,6 @@ ipcMain.handle('connect:save-api-key', async (_event, apiKey) => {
   await apiClient.testConnection(trimmed);
   apiClient.setApiKey(trimmed);
   await refreshCache();
-  buildMenu();
   return { ok: true };
 });
 
@@ -1441,7 +1309,6 @@ ipcMain.handle('connect:login', async (_event, credentials) => {
   const result = await openWalksManagerLoginWindow(credentials);
   if (result.code === 0) {
     await refreshCache();
-    buildMenu();
   }
   return {
     code: result.code,
@@ -1460,7 +1327,6 @@ ipcMain.handle('connect:redetect-groups', async () => {
   const result = await redetectGroupsFromExistingSession();
   if (result.sessionExpired) {
     cachedSessionPresent = false;
-    buildMenu();
     return {
       code: 1,
       message: "Your Walks Manager session has expired - please log in again.",
@@ -1493,6 +1359,51 @@ ipcMain.handle('connect:redetect-groups', async () => {
   };
 });
 
+// New: opt-in Walks Manager username/password storage so the server can
+// auto-relogin on session expiry instead of only emailing the user. The
+// client verifies the credentials itself first (reusing the same headless
+// autofill machinery as connect:login) before handing them to the server,
+// so a typo never gets encrypted and stored. Wrong credentials get up to 3
+// silent attempts, then automatically fall back to the existing interactive
+// login + session-upload flow, which remains the standing fallback.
+ipcMain.handle('credentials:status', async () => {
+  cachedConfig = await apiClient.getConfig();
+  const creds = cachedConfig.walksManagerCredentials || {};
+  return { username: creds.username || '', credentialsSet: Boolean(creds.credentialsSet) };
+});
+
+ipcMain.handle('credentials:save', async (_event, credentials) => {
+  const username = String(credentials?.username || '').trim();
+  const password = String(credentials?.password || '');
+  if (!username || !password) throw new Error('Enter your Ramblers email address and password.');
+
+  const maxAttempts = 3;
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    const result = await openWalksManagerLoginWindow({ username, password });
+
+    if (result.code === 0) {
+      await apiClient.putConfig({ walksManagerCredentials: { username, password } });
+      await refreshCache();
+      return { status: 'saved', message: `Credentials verified and saved for auto-relogin. ${result.message}` };
+    }
+
+    if (result.code === 2) {
+      if (attempt < maxAttempts) continue;
+      const fallback = await openWalksManagerLoginWindow();
+      if (fallback.code === 0) await refreshCache();
+      return {
+        status: 'fallback-session',
+        message: `Couldn't verify those credentials after ${maxAttempts} attempts, so credentials weren't saved. ${fallback.message}`
+      };
+    }
+
+    // code 1: something we can't interpret (MFA/timeout/window closed) -
+    // surface it immediately rather than silently retrying with the same
+    // credentials.
+    return { status: 'error', message: result.message };
+  }
+});
+
 ipcMain.handle('recipients:load', async () => {
   cachedConfig = await apiClient.getConfig();
   return cachedConfig.notificationRecipients || [];
@@ -1500,7 +1411,6 @@ ipcMain.handle('recipients:load', async () => {
 ipcMain.handle('recipients:save', async (_event, text) => {
   const recipients = parseRecipients(text);
   cachedConfig = await apiClient.putConfig({ notificationRecipients: recipients });
-  buildMenu();
   return cachedConfig.notificationRecipients || [];
 });
 
@@ -1512,7 +1422,6 @@ ipcMain.handle('schedule:save', async (_event, settings) => {
   const { normalizeSchedule } = require('./schedule');
   const schedule = normalizeSchedule(settings || {});
   cachedConfig = await apiClient.putConfig({ checkIntervalMinutes: schedule.checkIntervalMinutes, activeHours: schedule.activeHours });
-  buildMenu();
   return { checkIntervalMinutes: cachedConfig.checkIntervalMinutes, activeHours: cachedConfig.activeHours };
 });
 
@@ -1522,7 +1431,6 @@ ipcMain.handle('leader-email:load', async () => {
 });
 ipcMain.handle('leader-email:save', async (_event, settings) => {
   cachedConfig = await apiClient.putConfig({ leaderEmails: settings });
-  buildMenu();
   return cachedConfig.leaderEmails || {};
 });
 ipcMain.handle('leader-email:test-api', (_event, settings) => apiClient.testLeaderApi({ ...settings, name: 'Richard Higham' }));
@@ -1541,31 +1449,71 @@ ipcMain.handle('about:load', () => ({
   channel: releaseChannelLabel()
 }));
 ipcMain.handle('about:open-website', () => shell.openExternal(websiteUrl));
+ipcMain.handle('app:open-help', () => shell.openExternal(helpUrl));
 
-ipcMain.handle('status:load', () => ({
-  text: buildStatusText(),
-  maintenanceMessage: cachedStatus?.maintenanceMessage || null
-}));
-ipcMain.handle('status:retry', async () => {
-  try {
-    await refreshCache();
-    return {
-      text: buildStatusText(),
-      maintenanceMessage: cachedStatus?.maintenanceMessage || null
-    };
-  } catch (error) {
-    return {
-      text: `Check failed unexpectedly: ${error.message}`,
-      maintenanceMessage: null
-    };
-  }
+ipcMain.handle('status:load', async () => {
+  await refreshCache();
+  return {
+    text: buildStatusText(),
+    maintenanceMessage: cachedStatus?.maintenanceMessage || null,
+    checking: Boolean(cachedStatus?.checking),
+    pendingWalks: Number(cachedStatus?.pendingWalks || 0),
+    groupNames: cachedGroups.map(group => group.name || `Group ${group.gid}`)
+  };
 });
-ipcMain.handle('status:open-log', () => showLogWindow());
+
+ipcMain.handle('app:check-now', (_event, force) => checkNow(Boolean(force)));
+ipcMain.handle('app:open-review-list', () => shell.openExternal(reviewUrlForGroup()));
+
+ipcMain.handle('app:settings-load', () => ({
+  includeBetaUpdates: includeBetaUpdates(),
+  updateStatus
+}));
+ipcMain.handle('app:toggle-beta-updates', async () => ({ includeBetaUpdates: await toggleBetaUpdates() }));
+ipcMain.handle('app:check-for-updates', () => checkForUpdates(true));
+ipcMain.handle('app:install-update', () => installDownloadedUpdate());
+ipcMain.handle('app:logo-status', () => loadBrandLogo());
+ipcMain.handle('app:choose-logo', () => chooseBrandLogo());
+ipcMain.handle('app:reset-logo', () => resetBrandLogo());
+ipcMain.handle('app:open-logs', () => showLogWindow());
+ipcMain.handle('app:open-settings', () => showSettingsWindow());
+ipcMain.handle('app:open-credentials-upgrade', () => showCredentialsUpgradeWindow());
+ipcMain.handle('app:quit', () => app.quit());
+ipcMain.handle('app:minimize-to-tray', () => {
+  if (dashboardWindow && !dashboardWindow.isDestroyed()) dashboardWindow.hide();
+  // hide()'ing the window already drops it from the Windows/Linux taskbar
+  // (those only list actually-visible windows), but macOS keeps showing
+  // the Dock icon for as long as any window exists, hidden or not, unless
+  // told otherwise here.
+  if (app.dock) app.dock.hide();
+});
+
+ipcMain.handle('app:reset-settings', async () => {
+  const result = await dialog.showMessageBox({
+    type: 'warning',
+    title: 'Reset All Settings',
+    message: 'Reset all local settings on this device?',
+    detail: 'This clears your saved API key and local preferences here, and takes you back through setup from the start. It does not delete anything on the server (groups, recipients, session, etc. are untouched).',
+    buttons: ['Cancel', 'Reset'],
+    defaultId: 0,
+    cancelId: 0
+  });
+  if (result.response !== 1) return { ok: false };
+
+  apiClient.clearApiKey();
+  cachedConfig = null;
+  cachedGroups = [];
+  cachedSessionPresent = false;
+  cachedStatus = null;
+  lastNotifiedPendingWalks = null;
+  if (dashboardWindow && !dashboardWindow.isDestroyed()) dashboardWindow.reload();
+  return { ok: true };
+});
 
 app.on('before-quit', () => {
   if (statusPollTimer) clearInterval(statusPollTimer);
   stopUpdateChecks();
 });
-app.on('window-all-closed', (e) => {
-  if (!quittingForUpdate) e.preventDefault();
+app.on('window-all-closed', () => {
+  if (!quittingForUpdate) app.quit();
 });

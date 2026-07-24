@@ -1,0 +1,202 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>App Settings</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      margin: 0;
+      padding: 20px;
+      color: #1f2933;
+      background: #f7f8fa;
+    }
+
+    h1 {
+      font-size: 16px;
+      margin: 0 0 16px;
+    }
+
+    label.checkbox {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    label.checkbox input {
+      width: auto;
+    }
+
+    .hint {
+      margin: 8px 0 18px;
+      color: #52606d;
+      font-size: 12px;
+      line-height: 1.4;
+    }
+
+    .actions {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      gap: 8px;
+      margin-top: 16px;
+    }
+
+    button {
+      border: 1px solid #9aa5b1;
+      border-radius: 6px;
+      padding: 7px 14px;
+      font-size: 13px;
+      background: white;
+      cursor: pointer;
+    }
+
+    button.primary {
+      border-color: #f0814f;
+      background: #f0814f;
+      color: white;
+    }
+
+    #resetSettings:hover {
+      border-color: #b42318;
+      background: #b42318;
+      color: white;
+    }
+
+    #viewLogs:hover {
+      border-color: #6b9e7f;
+      background: #6b9e7f;
+      color: white;
+    }
+
+    #checkForUpdates:hover {
+      border-color: #1264a3;
+      background: #1264a3;
+      color: white;
+    }
+
+    button.primary:hover {
+      border-color: #d96a3a;
+      background: #d96a3a;
+    }
+
+    button:disabled {
+      cursor: not-allowed;
+      opacity: 0.55;
+    }
+
+    button.primary:disabled {
+      border-color: #9aa5b1;
+      background: #c1c8d1;
+      color: #f2f4f6;
+    }
+
+    .message {
+      min-height: 18px;
+      margin-top: 8px;
+      font-size: 12px;
+      line-height: 1.4;
+      color: #52606d;
+    }
+
+    .message.ok { color: #1f7a3f; }
+    .message.error { color: #b42318; }
+
+    .close-row {
+      display: flex;
+      justify-content: flex-end;
+      margin-top: 12px;
+    }
+  </style>
+</head>
+<body>
+  <h1>App Settings</h1>
+
+  <label class="checkbox"><input id="betaUpdates" type="checkbox"> Subscribe to beta updates</label>
+  <div class="hint" id="updateStatusText"></div>
+
+  <div class="actions">
+    <button id="checkForUpdates">Check for Updates</button>
+    <button id="viewLogs">View Logs</button>
+    <button id="resetSettings">Reset All Settings</button>
+  </div>
+  <div id="settingsMessage" class="message"></div>
+
+  <div class="close-row">
+    <button id="close" class="primary">Close</button>
+  </div>
+
+  <script>
+    function flashButtonText(button, text, revertText, ms = 5000) {
+      button.disabled = true;
+      button.textContent = text;
+      setTimeout(() => {
+        button.disabled = false;
+        button.textContent = revertText;
+      }, ms);
+    }
+
+    const betaUpdatesCheckbox = document.getElementById('betaUpdates');
+    const updateStatusText = document.getElementById('updateStatusText');
+    const settingsMessage = document.getElementById('settingsMessage');
+
+    const checkForUpdatesButton = document.getElementById('checkForUpdates');
+
+    // Checking/downloading an update happens in the main process over
+    // several autoUpdater events (checking - downloading - downloaded),
+    // with no direct response to this button click - poll so the status
+    // line (and button) reflect that progress instead of looking inert
+    // until a final "ready to install" popup appears out of nowhere.
+    function refreshUpdateStatus() {
+      window.appSettings.load().then((settings) => {
+        betaUpdatesCheckbox.checked = settings.includeBetaUpdates;
+        updateStatusText.textContent = `Update: ${settings.updateStatus}`;
+        const inProgress = /^(Checking|Downloading)/.test(settings.updateStatus);
+        // If the user dismissed the "install now?" dialog with Later, the
+        // update is still sitting there downloaded - offer to install it
+        // straight from here instead of making them re-check for updates.
+        const ready = /ready$/i.test(settings.updateStatus);
+        checkForUpdatesButton.dataset.mode = ready ? 'install' : 'check';
+        checkForUpdatesButton.disabled = inProgress;
+        checkForUpdatesButton.textContent = inProgress
+          ? 'Checking...'
+          : (ready ? 'Install and Restart' : 'Check for Updates');
+      });
+    }
+
+    refreshUpdateStatus();
+    setInterval(refreshUpdateStatus, 2000);
+
+    betaUpdatesCheckbox.addEventListener('change', async () => {
+      const result = await window.appSettings.toggleBetaUpdates();
+      betaUpdatesCheckbox.checked = result.includeBetaUpdates;
+    });
+
+    checkForUpdatesButton.addEventListener('click', () => {
+      if (checkForUpdatesButton.dataset.mode === 'install') {
+        window.appSettings.installUpdate();
+        return;
+      }
+      checkForUpdatesButton.disabled = true;
+      checkForUpdatesButton.textContent = 'Checking...';
+      updateStatusText.textContent = 'Update: Checking...';
+      window.appSettings.checkForUpdates();
+    });
+    document.getElementById('viewLogs').addEventListener('click', () => window.appSettings.openLogs());
+
+    document.getElementById('resetSettings').addEventListener('click', async () => {
+      const button = document.getElementById('resetSettings');
+      const result = await window.appSettings.resetSettings();
+      if (result.ok) {
+        flashButtonText(button, 'Settings reset', 'Reset All Settings');
+        settingsMessage.textContent = '';
+        setTimeout(() => window.close(), 700);
+      }
+    });
+
+    document.getElementById('close').addEventListener('click', () => window.close());
+  </script>
+</body>
+</html>
