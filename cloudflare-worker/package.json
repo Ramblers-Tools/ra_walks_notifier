@@ -1,0 +1,15 @@
+{
+  "name": "ra-walks-notifier-request-form-worker",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Cloudflare Worker handling the RA Walks Notifier marketing site's 'Request access' form",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "tail": "wrangler tail",
+    "secrets": "wrangler secret list"
+  },
+  "devDependencies": {
+    "wrangler": "^4.0.0"
+  }
+}
