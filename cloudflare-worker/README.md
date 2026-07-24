@@ -21,18 +21,18 @@ npm install
 npx wrangler login
 ```
 
-Before your first `deploy` from this project, open the **existing** Worker
-in the Cloudflare dashboard (Workers & Pages -> `little-mouse-a924` ->
-Settings -> Variables) and copy the current `TO_EMAIL` and `FROM_EMAIL`
-values into `wrangler.toml`'s `[vars]` section. Deploying with placeholder
-values would overwrite the live configuration.
+`TO_EMAIL`, `FROM_EMAIL`, and `ALLOWED_ORIGIN` are managed directly in the
+Cloudflare dashboard (Workers & Pages -> `little-mouse-a924` -> Settings ->
+Variables) — deliberately not declared in `wrangler.toml`. The
+`SMTP2GO_API_KEY` secret is also already set on the deployed Worker from
+before this project existed, so there's nothing to set up here.
 
-Then set the one secret (not stored in `wrangler.toml` — secrets are
-encrypted and managed separately):
-
-```bash
-npx wrangler secret put SMTP2GO_API_KEY
-```
+**After every `deploy` from this project**, open the dashboard's Variables
+tab and confirm `TO_EMAIL` / `FROM_EMAIL` / `ALLOWED_ORIGIN` are still set
+as expected. Cloudflare's deploy model can treat the deploy config as the
+authoritative full set of vars, so a deploy from here — even with nothing
+declared — isn't guaranteed to leave dashboard-set vars untouched. If
+they've been cleared, re-enter them before assuming the form still works.
 
 ## Local development
 
